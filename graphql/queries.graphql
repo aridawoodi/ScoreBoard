@@ -1,0 +1,111 @@
+# this is an auto generated file. This will be overwritten
+
+query GetGame($id: ID!) {
+  getGame(id: $id) {
+    id
+    gameName
+    hostUserID
+    playerIDs
+    rounds
+    customRules
+    finalScores
+    gameStatus
+    createdAt
+    updatedAt
+    owner
+    __typename
+  }
+}
+
+query ListGames(
+  $filter: ModelGameFilterInput
+  $limit: Int
+  $nextToken: String
+) {
+  listGames(filter: $filter, limit: $limit, nextToken: $nextToken) {
+    items {
+      id
+      gameName
+      hostUserID
+      playerIDs
+      rounds
+      customRules
+      finalScores
+      gameStatus
+      createdAt
+      updatedAt
+      owner
+      __typename
+    }
+    nextToken
+    __typename
+  }
+}
+
+query GetScore($id: ID!) {
+  getScore(id: $id) {
+    id
+    gameID
+    playerID
+    roundNumber
+    score
+    createdAt
+    updatedAt
+    owner
+    __typename
+  }
+}
+
+query ListScores(
+  $filter: ModelScoreFilterInput
+  $limit: Int
+  $nextToken: String
+) {
+  listScores(filter: $filter, limit: $limit, nextToken: $nextToken) {
+    items {
+      id
+      gameID
+      playerID
+      roundNumber
+      score
+      createdAt
+      updatedAt
+      owner
+      __typename
+    }
+    nextToken
+    __typename
+  }
+}
+
+query GetUser($id: ID!) {
+  getUser(id: $id) {
+    id
+    username
+    email
+    createdAt
+    updatedAt
+    owner
+    __typename
+  }
+}
+
+query ListUsers(
+  $filter: ModelUserFilterInput
+  $limit: Int
+  $nextToken: String
+) {
+  listUsers(filter: $filter, limit: $limit, nextToken: $nextToken) {
+    items {
+      id
+      username
+      email
+      createdAt
+      updatedAt
+      owner
+      __typename
+    }
+    nextToken
+    __typename
+  }
+}

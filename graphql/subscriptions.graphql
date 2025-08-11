@@ -1,0 +1,157 @@
+# this is an auto generated file. This will be overwritten
+
+subscription OnCreateGame(
+  $filter: ModelSubscriptionGameFilterInput
+  $owner: String
+) {
+  onCreateGame(filter: $filter, owner: $owner) {
+    id
+    gameName
+    hostUserID
+    playerIDs
+    rounds
+    customRules
+    finalScores
+    gameStatus
+    createdAt
+    updatedAt
+    owner
+    __typename
+  }
+}
+
+subscription OnUpdateGame(
+  $filter: ModelSubscriptionGameFilterInput
+  $owner: String
+) {
+  onUpdateGame(filter: $filter, owner: $owner) {
+    id
+    gameName
+    hostUserID
+    playerIDs
+    rounds
+    customRules
+    finalScores
+    gameStatus
+    createdAt
+    updatedAt
+    owner
+    __typename
+  }
+}
+
+subscription OnDeleteGame(
+  $filter: ModelSubscriptionGameFilterInput
+  $owner: String
+) {
+  onDeleteGame(filter: $filter, owner: $owner) {
+    id
+    gameName
+    hostUserID
+    playerIDs
+    rounds
+    customRules
+    finalScores
+    gameStatus
+    createdAt
+    updatedAt
+    owner
+    __typename
+  }
+}
+
+subscription OnCreateScore(
+  $filter: ModelSubscriptionScoreFilterInput
+  $owner: String
+) {
+  onCreateScore(filter: $filter, owner: $owner) {
+    id
+    gameID
+    playerID
+    roundNumber
+    score
+    createdAt
+    updatedAt
+    owner
+    __typename
+  }
+}
+
+subscription OnUpdateScore(
+  $filter: ModelSubscriptionScoreFilterInput
+  $owner: String
+) {
+  onUpdateScore(filter: $filter, owner: $owner) {
+    id
+    gameID
+    playerID
+    roundNumber
+    score
+    createdAt
+    updatedAt
+    owner
+    __typename
+  }
+}
+
+subscription OnDeleteScore(
+  $filter: ModelSubscriptionScoreFilterInput
+  $owner: String
+) {
+  onDeleteScore(filter: $filter, owner: $owner) {
+    id
+    gameID
+    playerID
+    roundNumber
+    score
+    createdAt
+    updatedAt
+    owner
+    __typename
+  }
+}
+
+subscription OnCreateUser(
+  $filter: ModelSubscriptionUserFilterInput
+  $owner: String
+) {
+  onCreateUser(filter: $filter, owner: $owner) {
+    id
+    username
+    email
+    createdAt
+    updatedAt
+    owner
+    __typename
+  }
+}
+
+subscription OnUpdateUser(
+  $filter: ModelSubscriptionUserFilterInput
+  $owner: String
+) {
+  onUpdateUser(filter: $filter, owner: $owner) {
+    id
+    username
+    email
+    createdAt
+    updatedAt
+    owner
+    __typename
+  }
+}
+
+subscription OnDeleteUser(
+  $filter: ModelSubscriptionUserFilterInput
+  $owner: String
+) {
+  onDeleteUser(filter: $filter, owner: $owner) {
+    id
+    username
+    email
+    createdAt
+    updatedAt
+    owner
+    __typename
+  }
+}

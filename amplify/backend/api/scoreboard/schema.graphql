@@ -1,0 +1,52 @@
+# This "input" configures a global authorization rule to enable public access to
+# all models in this schema. Learn more about authorization rules here: https://docs.amplify.aws/cli/graphql/authorization-rules
+# input AMPLIFY { globalAuthRule: AuthRule = { allow: public } } # FOR TESTING ONLY!
+
+type Game @model @auth(rules: [
+  { allow: owner },
+  { allow: public, operations: [create, read, update, delete] }
+]) {
+  id: ID!
+  gameName: String
+  hostUserID: String!
+  playerIDs: [String!]!
+  rounds: Int!
+  customRules: String
+  finalScores: [String!]!
+  gameStatus: GameStatus!
+  createdAt: AWSDateTime!
+  updatedAt: AWSDateTime!
+  owner: String
+}
+
+enum GameStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+type Score @model @auth(rules: [
+  { allow: owner },
+  { allow: public, operations: [create, read, update, delete] }
+]) {
+  id: ID!
+  gameID: String!
+  playerID: String!
+  roundNumber: Int!
+  score: Int!
+  createdAt: AWSDateTime!
+  updatedAt: AWSDateTime!
+  owner: String
+}
+
+type User @model @auth(rules: [
+  { allow: owner },
+  { allow: public, operations: [create, read, update, delete] }
+]) {
+  id: ID!
+  username: String!
+  email: String!
+  createdAt: AWSDateTime!
+  updatedAt: AWSDateTime!
+  owner: String
+}

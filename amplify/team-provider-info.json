@@ -1,0 +1,23 @@
+{
+  "dev": {
+    "awscloudformation": {
+      "AuthRoleName": "amplify-scoreboard-dev-463ef-authRole",
+      "UnauthRoleArn": "arn:aws:iam::124355654540:role/amplify-scoreboard-dev-463ef-unauthRole",
+      "AuthRoleArn": "arn:aws:iam::124355654540:role/amplify-scoreboard-dev-463ef-authRole",
+      "Region": "us-east-2",
+      "DeploymentBucketName": "amplify-scoreboard-dev-463ef-deployment",
+      "UnauthRoleName": "amplify-scoreboard-dev-463ef-unauthRole",
+      "StackName": "amplify-scoreboard-dev-463ef",
+      "StackId": "arn:aws:cloudformation:us-east-2:124355654540:stack/amplify-scoreboard-dev-463ef/426172f0-699d-11f0-8915-0679f937116b",
+      "AmplifyAppId": "d21atdaw3ur1sc"
+    },
+    "categories": {
+      "auth": {
+        "scoreboard9ccf10fc": {}
+      },
+      "api": {
+        "scoreboard": {}
+      }
+    }
+  }
+}

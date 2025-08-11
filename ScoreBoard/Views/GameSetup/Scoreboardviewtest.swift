@@ -1,0 +1,2034 @@
+//
+//  Scoreboardviewtest.swift
+//  ScoreBoard
+//
+//  Created by Ari Dawoodi on 7/24/25.
+//
+
+import SwiftUI
+import Amplify
+
+// ScoreCell view to handle individual score cells
+struct ScoreCell: View {
+    let player: TestPlayer
+    let roundIndex: Int
+    let canEdit: Bool
+    let onScoreTap: (Int) -> Void
+    let currentScore: Int
+    let backgroundColor: Color
+    let displayText: String?
+    let isFocused: Bool
+    
+    var body: some View {
+        Button(action: {
+            if canEdit {
+                onScoreTap(currentScore)
+            }
+        }) {
+            Text(displayText ?? (currentScore == 0 ? "" : "\(currentScore)"))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(backgroundColor)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .stroke(isFocused ? Color.accentColor : Color.clear, lineWidth: 1)
+                )
+                .scaleEffect(x: 1.0, y: isFocused ? 1.06 : 1.0, anchor: .center)
+                .shadow(color: Color.black.opacity(isFocused ? 0.22 : 0), radius: isFocused ? 8 : 0, x: 0, y: isFocused ? 3 : 0)
+                .zIndex(isFocused ? 10 : 0)
+        }
+        .buttonStyle(PlainButtonStyle())
+        .animation(.spring(response: 0.25, dampingFraction: 0.82), value: isFocused)
+    }
+}
+
+struct TestPlayer: Identifiable {
+    let id = UUID()
+    let name: String
+    let scores: [Int]
+    let playerID: String
+    var total: Int { scores.reduce(0, +) }
+}
+
+struct Scoreboardviewtest: View {
+    @Binding var game: Game
+    @State private var selectedRound = 1
+    @State private var players: [TestPlayer] = []
+    @State private var isLoading = true
+    @State private var showEditBoard = false
+    @State private var playerNames: [String: String] = [:]
+    @State private var scores: [String: [Int]] = [:]
+    @State private var gameUpdateCounter = 0 // Track game updates
+    @State private var currentGameId: String // Track current game ID
+    @State private var lastKnownGameRounds: Int // Track last known rounds
+    @State private var hasUnsavedChanges = false // Track unsaved changes
+    @State private var unsavedScores: [String: [Int]] = [:] // Store unsaved score changes
+    @State private var lastSavedScores: [String: [Int]] = [:] // Store last saved state for undo
+    @State private var showScoreInput = false // Show score input sheet
+    @State private var editingScore = 0 // Current score being edited
+    @State private var editingPlayer: TestPlayer? // Player being edited
+    @State private var editingRound = 1 // Round being edited
+    @State private var showSaveSuccess = false // Show save success message
+    @State private var showSaveError = false // Show save error message
+    @State private var saveErrorMessage = "" // Save error message
+    @State private var currentUserID: String = "" // Current user ID for permission checks
+    // @State private var isGameComplete: Bool = false // Track if game is complete - temporarily disabled
+    @State private var showCelebration = false // Show celebration animation
+    @State private var winner: TestPlayer? // Winner of the game
+    @State private var celebrationMessage = "" // Celebration message
+    @FocusState private var isScoreFieldFocused: Bool // Focus for inline numeric input
+    @State private var scoreInputText: String = "" // Inline score input text
+    
+    // Dynamic rounds management
+    @State private var dynamicRounds: Int = 1 // Track current number of rounds
+
+    @State private var showRemoveRoundAlert = false // Show alert for removing round
+    @State private var roundToRemove: Int = 0 // Track which round to remove
+    
+    // Toast message states
+    @State private var showToast = false
+    @State private var toastMessage = ""
+    @State private var toastIcon = ""
+    @State private var toastOpacity: Double = 0.0 // Add opacity state for animation
+    @State private var showCopiedFeedback = false // Show copied feedback
+    @State private var isGameDeleted = false // Flag when backend no longer has this game
+
+    let onGameUpdated: ((Game) -> Void)?
+    let onGameDeleted: (() -> Void)?
+    
+    init(game: Binding<Game>, onGameUpdated: ((Game) -> Void)? = nil, onGameDeleted: (() -> Void)? = nil) {
+        self._game = game
+        self._currentGameId = State(initialValue: game.wrappedValue.id)
+        self._lastKnownGameRounds = State(initialValue: game.wrappedValue.rounds)
+        self._dynamicRounds = State(initialValue: game.wrappedValue.rounds)
+        self.onGameUpdated = onGameUpdated
+        self.onGameDeleted = onGameDeleted
+    }
+    
+    // MARK: - Game Status Functions
+    
+    /// Check if the game is complete (all scores filled)
+    func isGameComplete() -> Bool {
+        // All non-zero for current rounds
+        guard !players.isEmpty, game.rounds > 0 else { return false }
+        for player in players {
+            if player.scores.count < game.rounds { return false }
+            for idx in 0..<game.rounds {
+                if player.scores[idx] == 0 { return false }
+            }
+        }
+        return true
+    }
+    
+    /// Check if game is complete and determine winner
+    func checkGameCompletionAndWinner() {
+        guard isGameComplete() && !players.isEmpty else { return }
+        
+        // Find the player with the highest total score
+        let sortedPlayers = players.sorted { $0.total > $1.total }
+        let highestScore = sortedPlayers.first?.total ?? 0
+        
+        // Check if there's a clear winner (no ties)
+        let winners = sortedPlayers.filter { $0.total == highestScore }
+        
+        if winners.count == 1 {
+            // We have a clear winner!
+            winner = winners.first
+            celebrationMessage = "🎉 Congratulations \(winner?.name ?? "Player")! 🎉\nYou won with a total score of \(highestScore)!"
+            
+            // Only show celebration if we haven't shown it before for this game
+            if !hasShownCelebrationForGame() {
+                showCelebration = true
+                markCelebrationAsShown()
+                print("🔍 DEBUG: 🎉 GAME COMPLETE! Winner: \(winner?.name ?? "Unknown") with score: \(highestScore)")
+            }
+        } else if winners.count > 1 {
+            // We have a tie
+            let winnerNames = winners.map { $0.name }.joined(separator: ", ")
+            celebrationMessage = "🤝 It's a tie! 🤝\nCongratulations to \(winnerNames)!\nAll tied with a score of \(highestScore)!"
+            
+            // Only show celebration if we haven't shown it before for this game
+            if !hasShownCelebrationForGame() {
+                showCelebration = true
+                markCelebrationAsShown()
+                print("🔍 DEBUG: 🤝 GAME COMPLETE! Tie between: \(winnerNames) with score: \(highestScore)")
+            }
+        }
+    }
+    
+    /// Check if current user can edit the game
+    func canUserEditGame() -> Bool {
+        // Only the game creator (host) can edit the game
+        guard !currentUserID.isEmpty else { return false }
+        return game.hostUserID == currentUserID
+    }
+    
+    /// Check if current user can edit scores
+func canUserEditScores() -> Bool {
+        // Scores can only be edited while the game is ACTIVE
+        return game.gameStatus == .active
+}
+
+/// Check if celebration has already been shown for this game
+func hasShownCelebrationForGame() -> Bool {
+    let key = "celebration_shown_\(game.id)"
+    return UserDefaults.standard.bool(forKey: key)
+}
+
+/// Mark celebration as shown for this game
+func markCelebrationAsShown() {
+    let key = "celebration_shown_\(game.id)"
+    UserDefaults.standard.set(true, forKey: key)
+}
+
+/// Get the winner of the game (if completed)
+func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
+    guard isGameComplete() && !players.isEmpty else { 
+        return (nil, "", false) 
+    }
+    
+    let sortedPlayers = players.sorted { $0.total > $1.total }
+    let highestScore = sortedPlayers.first?.total ?? 0
+    let winners = sortedPlayers.filter { $0.total == highestScore }
+    
+    if winners.count == 1 {
+        let message = "🏆 Winner: \(winners.first?.name ?? "Unknown") (\(highestScore) points)"
+        return (winners.first, message, false)
+    } else if winners.count > 1 {
+        let winnerNames = winners.map { $0.name }.joined(separator: ", ")
+        let message = "🤝 Tie: \(winnerNames) (\(highestScore) points each)"
+        return (winners.first, message, true)
+    }
+    
+    return (nil, "", false)
+}
+    
+    /// Load current user ID
+    func loadCurrentUser() async {
+        // Get current user info using helper function that works for both guest and authenticated users
+        if let currentUserInfo = await getCurrentUser() {
+            let userId = currentUserInfo.userId
+            await MainActor.run {
+                self.currentUserID = userId
+            }
+            print("🔍 DEBUG: Loaded current user ID: \(userId)")
+        } else {
+            print("🔍 DEBUG: Unable to get current user information")
+        }
+    }
+    
+    /// Check and mark game as complete if all scores are filled - temporarily disabled
+    func checkAndMarkGameComplete() async {
+        // Temporarily disabled until game status is properly implemented
+        print("Game completion check temporarily disabled")
+    }
+    
+    // MARK: - Helper Functions
+    
+    private func onAppearAction() {
+        print("🔍 DEBUG: Scoreboardviewtest onAppear - Game ID: \(game.id)")
+        print("🔍 DEBUG: Current game rounds: \(game.rounds)")
+        print("🔍 DEBUG: Last known rounds: \(lastKnownGameRounds)")
+        
+        // Initialize dynamic rounds
+        dynamicRounds = game.rounds
+        
+        // Load current user and initialize game status
+        Task {
+            await loadCurrentUser()
+            await checkAndMarkGameComplete()
+        }
+        
+        // Check if game has changed
+        if currentGameId != game.id || lastKnownGameRounds != game.rounds {
+            print("🔍 DEBUG: Game has changed - updating state")
+            currentGameId = game.id
+            lastKnownGameRounds = game.rounds
+            dynamicRounds = game.rounds
+            loadGameData()
+        } else {
+            loadGameData()
+        }
+    }
+    
+    private func handleGameUpdate(_ updatedGame: Game) {
+        print("🔍 DEBUG: ===== GAME UPDATE CALLBACK START =====")
+        print("🔍 DEBUG: Original game rounds: \(game.rounds)")
+        print("🔍 DEBUG: Updated game rounds: \(updatedGame.rounds)")
+        print("🔍 DEBUG: Original game playerIDs: \(game.playerIDs)")
+        print("🔍 DEBUG: Updated game playerIDs: \(updatedGame.playerIDs)")
+        
+        // Update the game binding immediately
+        self.game = updatedGame
+        self.currentGameId = updatedGame.id
+        self.lastKnownGameRounds = updatedGame.rounds
+        self.dynamicRounds = updatedGame.rounds
+        
+        // Increment counter to trigger reload
+        self.gameUpdateCounter += 1
+        
+        // Call the parent callback
+        self.onGameUpdated?(updatedGame)
+        
+        print("🔍 DEBUG: ===== GAME UPDATE CALLBACK END =====")
+    }
+    
+    var body: some View {
+        ZStack {
+            if isGameDeleted {
+                // Ask parent to clear selection by sending an empty updated game with nil-like id? Not possible here.
+                // As a fallback, dismiss this view by hiding content; parent tab will show empty state when no selection.
+                Color(.systemGroupedBackground).ignoresSafeArea()
+            } else {
+            mainContentView
+            }
+            
+            // Toast message overlay
+            if showToast {
+                VStack {
+                    Spacer()
+                    ToastMessageView(
+                        message: toastMessage,
+                        icon: toastIcon,
+                        isVisible: $showToast
+                    )
+                    .opacity(toastOpacity) // Use opacity state for animation
+                    .padding(.bottom, 100) // Position above floating tab bar
+                }
+            }
+
+            // Winner banner overlay near bottom, below the toast area
+            if isGameComplete() {
+                VStack {
+                    Spacer()
+                    gameCompletionBanner
+                        .padding(.bottom, 40)
+                }
+                .allowsHitTesting(false)
+                .transition(.opacity)
+            }
+        }
+        .sheet(isPresented: $showEditBoard) {
+            EditBoardView(game: game) { updatedGame in
+                handleGameUpdate(updatedGame)
+            }
+        }
+        // Remove modal sheet keyboard; use inline system number pad instead
+        .alert("Save Failed", isPresented: $showSaveError) {
+            Button("OK") { }
+        } message: {
+            Text(saveErrorMessage)
+        }
+        .alert("Remove Round", isPresented: $showRemoveRoundAlert) {
+            Button("Remove", role: .destructive) {
+                removeRound()
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Remove round \(roundToRemove)? This will delete all scores for this round.")
+        }
+        // Persistent accessory bar above the keyboard for Cancel/Save
+        .safeAreaInset(edge: .bottom) {
+            if isScoreFieldFocused {
+                ZStack {
+                    // Leading/Trailing controls with generous horizontal padding
+                    HStack {
+                        Button("Cancel") {
+                            isScoreFieldFocused = false
+                            scoreInputText = ""
+                            editingPlayer = nil
+                        }
+                        Spacer()
+                        Button("Next") {
+                            if let player = editingPlayer {
+                                let newScore = Int(scoreInputText) ?? 0
+                                updateScore(playerID: player.playerID, round: editingRound, newScore: newScore)
+                            }
+                            awaitSaveChangesSilently()
+                            moveToNextZeroCellInSameRound()
+                            if editingPlayer != nil {
+                                isScoreFieldFocused = true
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 20)
+
+                    // Centered save group with live value
+                    HStack(spacing: 10) {
+                        Text(scoreInputText.isEmpty ? "0" : scoreInputText)
+                            .font(.headline)
+                            .monospacedDigit()
+                        Button("Save") {
+                            if let player = editingPlayer {
+                                let newScore = Int(scoreInputText) ?? 0
+                                updateScore(playerID: player.playerID, round: editingRound, newScore: newScore)
+                            }
+                            awaitSaveChangesSilently()
+                            isScoreFieldFocused = false
+                            scoreInputText = ""
+                            editingPlayer = nil
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 10)
+                .background(.regularMaterial)
+                .overlay(Divider(), alignment: .top)
+            }
+        }
+    }
+    
+    private var mainContentView: some View {
+        ZStack {
+            VStack(alignment: .leading, spacing: 0) {
+                headerView
+
+                if isLoading {
+                    loadingView
+                } else {
+                    if players.isEmpty {
+                        loadingView
+                    } else {
+                        scoreboardTableView
+                            .padding(.top, 12)
+                    }
+                }
+
+                Spacer()
+            }
+            // Hidden inline input to trigger the standard iOS number pad
+            TextField("", text: $scoreInputText)
+                .keyboardType(.numberPad)
+                .focused($isScoreFieldFocused)
+                .opacity(0)
+                .frame(width: 0, height: 0)
+                .allowsHitTesting(false)
+            .background(Color(.systemGroupedBackground).ignoresSafeArea())
+            .navigationBarTitleDisplayMode(.large)
+            .navigationBarHidden(true)
+            .onAppear {
+                onAppearAction()
+            }
+            .onChange(of: gameUpdateCounter) { _, _ in
+                print("🔍 DEBUG: Game update counter changed - reloading data")
+                loadGameData()
+            }
+            .onChange(of: game.rounds) { _, newRounds in
+                print("🔍 DEBUG: ===== GAME ROUNDS CHANGED =====")
+                print("🔍 DEBUG: Game rounds changed to \(newRounds) - updating state and reloading data")
+                print("🔍 DEBUG: Previous dynamicRounds: \(dynamicRounds)")
+                lastKnownGameRounds = newRounds
+                dynamicRounds = newRounds
+                print("🔍 DEBUG: New dynamicRounds: \(dynamicRounds)")
+                // Reset selectedRound if it's now out of bounds
+                if selectedRound > newRounds {
+                    selectedRound = 1
+                }
+                loadGameData()
+                print("🔍 DEBUG: ===== GAME ROUNDS CHANGED END =====")
+            }
+            .onChange(of: game.playerIDs) { _, newPlayerIDs in
+                print("🔍 DEBUG: Game playerIDs changed to \(newPlayerIDs) - reloading data")
+                loadGameData()
+            }
+            .onChange(of: game.id) { _, newGameId in
+                print("🔍 DEBUG: Game ID changed to \(newGameId) - updating state and reloading data")
+                currentGameId = newGameId
+                loadGameData()
+            }
+            
+            // Celebration overlay
+            if showCelebration {
+                CelebrationView(
+                    message: celebrationMessage,
+                    winner: winner,
+                    onDismiss: {
+                        showCelebration = false
+                        winner = nil
+                        celebrationMessage = ""
+                    }
+                )
+            }
+        }
+        .sheet(isPresented: $showEditBoard) {
+            EditBoardView(game: game) { updatedGame in
+                handleGameUpdate(updatedGame)
+            }
+        }
+        .alert("Save Failed", isPresented: $showSaveError) {
+            Button("OK") { }
+        } message: {
+            Text(saveErrorMessage)
+        }
+
+        .alert("Remove Round", isPresented: $showRemoveRoundAlert) {
+            Button("Remove", role: .destructive) {
+                removeRound()
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Remove round \(roundToRemove)? This will delete all scores for this round.")
+        }
+    }
+    
+    private var scoreInputSheet: some View {
+        Group {
+            if let player = editingPlayer {
+                ScoreInputView(
+                    playerName: player.name,
+                    currentScore: editingScore,
+                    onScoreChanged: { newScore in
+                        updateScore(playerID: player.playerID, round: editingRound, newScore: newScore)
+                    },
+                    isIPad: UIDevice.current.userInterfaceIdiom == .pad
+                )
+            }
+        }
+    }
+    
+    // MARK: - View Components
+    
+    private var headerView: some View {
+        VStack(spacing: 12) {
+            // Game name centered with truncation
+            if let gameName = game.gameName, !gameName.isEmpty {
+                Text(gameName)
+                    .font(.system(size: 36, weight: .bold))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(maxWidth: .infinity)
+                    .multilineTextAlignment(.center)
+            } else {
+                // Fallback if no game name is provided
+                Text("Game")
+                    .font(.system(size: 36, weight: .bold))
+                    .foregroundColor(.secondary)
+                    .frame(maxWidth: .infinity)
+                    .multilineTextAlignment(.center)
+            }
+            
+            // Game ID with copy functionality
+            HStack {
+                Spacer()
+                Text("Game: \(String(game.id.prefix(8)))")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(Color(.systemGray6))
+                    .cornerRadius(8)
+                    .onLongPressGesture {
+                        // Copy the short ID (the one shown)
+                        UIPasteboard.general.string = String(game.id.prefix(8))
+                        
+                        // Show visual feedback
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            // You can add a temporary state here if needed
+                        }
+                        
+                        // Haptic feedback
+                        let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
+                        impactFeedback.impactOccurred()
+                    }
+                Spacer()
+            }
+            
+            // Edit Board button - pencil icon only
+            HStack {
+                Spacer()
+                Button(action: {
+                    showEditBoard = true
+                }) {
+                    Image(systemName: "pencil.circle.fill")
+                        .font(.system(size: 24, weight: .medium))
+                        .foregroundColor(canUserEditGame() ? .blue : .gray)
+                }
+                .disabled(!canUserEditGame())
+            }
+        }
+        .padding(.horizontal)
+        .padding(.top, 8)
+        .padding(.bottom, 16) // Add spacing between header and table
+    }
+    
+    private var loadingView: some View {
+        VStack {
+            ProgressView("Loading scores...")
+                .padding()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+    
+    private var scoreboardTableView: some View {
+        VStack(spacing: 16) {
+            headerRow
+            scoreRows
+            // Add Round small plus button aligned to the left below the last round
+            if canUserEditGame() && canUserEditScores() {
+                HStack {
+                    Button(action: { addRound() }) {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.system(size: 22, weight: .semibold))
+                            .foregroundColor(.blue)
+                            .frame(width: 22, height: 22)
+                            .accessibilityLabel("Add Round")
+                    }
+                    Spacer()
+                }
+                .padding(.top, 6)
+            }
+            
+            // Save and Undo buttons below the table
+            if hasUnsavedChanges {
+                HStack(spacing: 12) {
+                    // Undo button
+                    Button(action: {
+                        undoChanges()
+                    }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "arrow.uturn.backward.circle.fill")
+                            Text("Undo")
+                        }
+                        .font(.subheadline)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(Color.orange)
+                        .foregroundColor(.white)
+                        .cornerRadius(8)
+                    }
+                    
+                    // Save button (disabled per request)
+//                    Button(action: {
+//                        saveChanges()
+//                    }) {
+//                        HStack(spacing: 4) {
+//                            Image(systemName: "checkmark.circle.fill")
+//                            Text("Save")
+//                        }
+//                        .font(.subheadline)
+//                        .padding(.horizontal, 16)
+//                        .padding(.vertical, 8)
+//                        .background(Color.green)
+//                        .foregroundColor(.white)
+//                        .cornerRadius(8)
+//                    }
+
+                    Spacer()
+
+                    // Complete Game button (only when all scores filled and user can edit)
+                    if canUserEditGame() && canUserEditScores() && isGameComplete() {
+                        if game.gameStatus == .completed {
+                            Button(action: {}) {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "checkmark.seal.fill")
+                                    Text("Completed")
+                                }
+                                .font(.subheadline)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 8)
+                                .background(Color.green)
+                                .foregroundColor(.white)
+                                .cornerRadius(8)
+                            }
+                            .disabled(true)
+                        } else {
+                    Button(action: {
+                                completeGame()
+                    }) {
+                        HStack(spacing: 4) {
+                                    Image(systemName: "flag.checkered")
+                                    Text("Complete Game")
+                                }
+                                .font(.subheadline)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 8)
+                                .background(Color.purple)
+                                .foregroundColor(.white)
+                                .cornerRadius(8)
+                            }
+                        }
+                    }
+                }
+                .padding(.top, 8)
+            }
+
+            // If nothing to save, still offer Complete Game when eligible
+            if !hasUnsavedChanges && canUserEditGame() && canUserEditScores() && isGameComplete() {
+                HStack {
+                    Spacer()
+                    if game.gameStatus == .completed {
+                        Button(action: {}) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "checkmark.seal.fill")
+                                Text("Completed")
+                        }
+                        .font(.subheadline)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(Color.green)
+                        .foregroundColor(.white)
+                        .cornerRadius(8)
+                        }
+                        .disabled(true)
+                    } else {
+                        Button(action: { completeGame() }) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "flag.checkered")
+                                Text("Complete Game")
+                            }
+                            .font(.subheadline)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
+                            .background(Color.purple)
+                            .foregroundColor(.white)
+                            .cornerRadius(8)
+                        }
+                    }
+                }
+                .padding(.top, 8)
+            }
+        }
+        .padding(.horizontal)
+    }
+    
+    private var gameCompletionBanner: some View {
+        let winnerInfo = getGameWinner()
+        
+        return VStack(spacing: 8) {
+            HStack {
+                Image(systemName: winnerInfo.isTie ? "hand.raised.fill" : "trophy.fill")
+                    .font(.title2)
+                    .foregroundColor(winnerInfo.isTie ? .orange : .yellow)
+                
+                Text(winnerInfo.message)
+                    .font(.headline)
+                    .fontWeight(.bold)
+                    .foregroundColor(.primary)
+                
+                Spacer()
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(winnerInfo.isTie ? Color.orange.opacity(0.1) : Color.yellow.opacity(0.1))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(winnerInfo.isTie ? Color.orange.opacity(0.3) : Color.yellow.opacity(0.3), lineWidth: 1)
+                    )
+            )
+        }
+    }
+    
+    private var headerRow: some View {
+        HStack(spacing: 0) {
+            ForEach(Array(players.enumerated()), id: \.offset) { index, player in
+                VStack(spacing: 0) {
+                Text(player.name)
+                        .font(.headline)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                        .frame(maxWidth: .infinity)
+                        .padding(.horizontal, 6)
+                        .padding(.top, 4)
+                    Text("\(player.total)")
+                        .font(.title3)
+                        .bold()
+                        .padding(6)
+                        .frame(maxWidth: .infinity)
+                        .background(columnColor(index).opacity(0.9))
+                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                }
+                .frame(maxWidth: .infinity)
+                .padding(4)
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(Color.gray.opacity(0.4), lineWidth: 1)
+                )
+                .background(Color.blue.opacity(0.05))
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+    
+    private var scoreRows: some View {
+        VStack(spacing: 0) {
+            ForEach(0..<dynamicRounds, id: \.self) { roundIndex in
+                HStack(spacing: 0) {
+                    ForEach(Array(players.enumerated()), id: \.offset) { colIndex, player in
+                        let score = roundIndex < player.scores.count ? player.scores[roundIndex] : 0
+                        ScoreCell(
+                            player: player,
+                            roundIndex: roundIndex,
+                            canEdit: canUserEditScores(),
+                            onScoreTap: { _ in
+                                // Make sure the hidden text field is ready to receive input
+                                DispatchQueue.main.async {
+                                    guard canUserEditScores() else { return }
+                                    editingPlayer = player
+                                    editingRound = roundIndex + 1
+                                    scoreInputText = score == 0 ? "" : String(score)
+                                    isScoreFieldFocused = true
+                                }
+                            },
+                            currentScore: score,
+                            backgroundColor: columnColor(colIndex).opacity(0.5),
+                            displayText: (editingPlayer?.playerID == player.playerID && editingRound == roundIndex + 1 && isScoreFieldFocused) ? (scoreInputText) : nil,
+                            isFocused: (editingPlayer?.playerID == player.playerID && editingRound == roundIndex + 1 && isScoreFieldFocused)
+                        )
+                    }
+                }
+                Divider()
+            }
+        }
+    }
+    
+    private var totalRow: some View {
+        HStack {
+            // Consistent first column (round + delete icon space)
+            HStack(spacing: 4) {
+                Text("")
+                    .frame(width: 44, alignment: .center)
+                Color.clear
+                    .frame(width: 20, height: 1)
+            }
+            
+            ForEach(players) { player in
+                let total = player.total
+                Text("\(total)")
+                    .frame(maxWidth: .infinity)
+                    .fontWeight(.bold)
+            }
+        }
+    }
+    
+    // Helper for cell coloring
+    func cellColor(for player: TestPlayer, round: Int) -> Color {
+        return Color.green.opacity(0.15)
+    }
+    
+    // Column color matching Testview style
+    func columnColor(_ index: Int) -> Color {
+        switch index {
+        case 0: return .yellow
+        case 1: return .purple
+        default: return .green
+        }
+    }
+    
+    // Load game data efficiently
+    func loadGameData(suppressCompletionCelebration: Bool = false) {
+        print("🔍 DEBUG: ===== LOAD GAME DATA START =====")
+        print("🔍 DEBUG: Game ID: \(game.id)")
+        print("🔍 DEBUG: Game rounds: \(game.rounds)")
+        print("🔍 DEBUG: Dynamic rounds: \(dynamicRounds)")
+        print("🔍 DEBUG: Game playerIDs: \(game.playerIDs)")
+        print("🔍 DEBUG: Current players before load: \(players.count)")
+        for (index, player) in players.enumerated() {
+            print("🔍 DEBUG: Player \(index) (\(player.name)) current scores: \(player.scores)")
+        }
+        print("🔍 DEBUG: Current unsavedScores keys: \(unsavedScores.keys)")
+        for (playerID, scores) in unsavedScores {
+            print("🔍 DEBUG: Unsaved scores for \(playerID): \(scores)")
+        }
+        isLoading = true
+        
+        Task {
+            do {
+                // Verify game still exists on backend
+                do {
+                    let getResult = try await Amplify.API.query(request: .get(Game.self, byId: game.id))
+                    switch getResult {
+                    case .success(let maybeGame):
+                        if maybeGame == nil {
+                            await MainActor.run {
+                                print("🔍 DEBUG: Game not found on backend. Notifying parent to show empty state.")
+                                self.isGameDeleted = true
+                                self.players = []
+                                self.unsavedScores = [:]
+                                self.lastSavedScores = [:]
+                                self.isLoading = false
+                                self.onGameDeleted?()
+                            }
+                            return
+                        }
+                    case .failure:
+                        break // transient; continue
+                    }
+                } catch {
+                    // network/transient; continue to try loading scores
+                }
+                // First, load usernames for registered users
+                await loadPlayerUsernames()
+                
+                // Fetch scores for this game only (server-side filtering)
+                let scoresQuery = Score.keys.gameID.eq(game.id)
+                let scoresResult = try await Amplify.API.query(request: .list(Score.self, where: scoresQuery))
+                
+                await MainActor.run {
+                    switch scoresResult {
+                    case .success(let gameScores):
+                        print("🔍 DEBUG: Found \(gameScores.count) scores for this game")
+                        
+                        // Process player names and scores
+                        var playerData: [String: (name: String, scores: [Int])] = [:]
+                        
+                        // Initialize scores for all players in the game
+                        for playerID in game.playerIDs {
+                            // Use the improved getPlayerName function that checks cache
+                            let playerName = getPlayerName(for: playerID)
+                            playerData[playerID] = (name: playerName, scores: Array(repeating: 0, count: dynamicRounds))
+                        }
+                        
+                        // Fill in actual scores from database
+                        print("🔍 DEBUG: Processing \(gameScores.count) scores from database")
+                        for score in gameScores {
+                            print("🔍 DEBUG: Score from DB - playerID: \(score.playerID), roundNumber: \(score.roundNumber), score: \(score.score)")
+                            if let existingPlayerData = playerData[score.playerID],
+                               score.roundNumber <= dynamicRounds {
+                                var updatedScores = existingPlayerData.scores
+                                let roundIndex = score.roundNumber - 1 // Convert 1-based round to 0-based index
+                                print("🔍 DEBUG: Updating player \(score.playerID) round \(score.roundNumber) (index \(roundIndex)) to score \(score.score)")
+                                updatedScores[roundIndex] = score.score
+                                playerData[score.playerID] = (name: existingPlayerData.name, scores: updatedScores)
+                            } else {
+                                print("🔍 DEBUG: Skipping score - playerID: \(score.playerID), roundNumber: \(score.roundNumber), dynamicRounds: \(dynamicRounds)")
+                            }
+                        }
+                        
+                        // Merge with unsaved scores to preserve current state
+                        for (playerID, unsavedPlayerScores) in unsavedScores {
+                            if let existingPlayerData = playerData[playerID] {
+                                var mergedScores = existingPlayerData.scores
+                                
+                                // Ensure the merged scores array has the correct size
+                                while mergedScores.count < dynamicRounds {
+                                    mergedScores.append(0)
+                                }
+                                if mergedScores.count > dynamicRounds {
+                                    mergedScores = Array(mergedScores.prefix(dynamicRounds))
+                                }
+                                
+                                // Apply unsaved scores (they take precedence)
+                                for (roundIndex, unsavedScore) in unsavedPlayerScores.enumerated() {
+                                    if roundIndex < mergedScores.count {
+                                        mergedScores[roundIndex] = unsavedScore
+                                    }
+                                }
+                                
+                                playerData[playerID] = (name: existingPlayerData.name, scores: mergedScores)
+                                print("🔍 DEBUG: Merged scores for \(playerID): \(mergedScores)")
+                            }
+                        }
+                        
+                        // Convert to TestPlayer array
+                        self.players = playerData.map { playerID, data in
+                            // Ensure scores array matches dynamic rounds
+                            var scores = data.scores
+                            while scores.count < dynamicRounds {
+                                scores.append(0) // Add zeros for missing rounds
+                            }
+                            // Truncate if there are more scores than rounds
+                            if scores.count > dynamicRounds {
+                                scores = Array(scores.prefix(dynamicRounds))
+                            }
+                            
+                            return TestPlayer(
+                                name: data.name,
+                                scores: scores,
+                                playerID: playerID
+                            )
+                        }.sorted { $0.name < $1.name }
+                        
+
+                        
+                        print("🔍 DEBUG: Created \(self.players.count) players")
+                        for (index, player) in self.players.enumerated() {
+                            print("🔍 DEBUG: Player \(index) (\(player.name)) final scores: \(player.scores)")
+                        }
+                        
+                        // Initialize last saved scores (only from database, not unsaved)
+                        self.lastSavedScores = playerData.mapValues { $0.scores }
+                        
+                        // Check for game completion and winner (unless suppressed)
+                        if !suppressCompletionCelebration {
+                        checkGameCompletionAndWinner()
+                        }
+                        
+
+                        
+
+                        
+                    case .failure(let error):
+                        print("Error loading scores: \(error)")
+                        // Fallback to empty players
+                        self.players = []
+                    }
+                    
+                    self.isLoading = false
+                    print("🔍 DEBUG: ===== LOAD GAME DATA END =====")
+                }
+                
+            } catch {
+                await MainActor.run {
+                    print("Error in loadGameData: \(error)")
+                    self.players = []
+                    self.isLoading = false
+                    print("🔍 DEBUG: ===== LOAD GAME DATA END (ERROR) =====")
+                }
+            }
+        }
+    }
+    
+    // Force refresh game data
+    func refreshGameData() {
+        gameUpdateCounter += 1
+    }
+    
+    // Save only unsaved scores without clearing the unsaved state
+    func saveUnsavedScoresOnly() async {
+        guard hasUnsavedChanges else { return }
+        
+        print("🔍 DEBUG: ===== SAVE UNSAVED SCORES ONLY START =====")
+        print("🔍 DEBUG: Unsaved scores keys: \(unsavedScores.keys)")
+        for (playerID, scores) in unsavedScores {
+            print("🔍 DEBUG: Player \(playerID) unsaved scores: \(scores)")
+        }
+        print("🔍 DEBUG: Last saved scores keys: \(lastSavedScores.keys)")
+        for (playerID, scores) in lastSavedScores {
+            print("🔍 DEBUG: Player \(playerID) last saved scores: \(scores)")
+        }
+        
+        do {
+            // First, fetch existing scores for this game only (server-side filtering)
+            let scoresQuery = Score.keys.gameID.eq(game.id)
+            let scoresResult = try await Amplify.API.query(request: .list(Score.self, where: scoresQuery))
+            
+            switch scoresResult {
+            case .success(let existingScores):
+                var existingScoreMap: [String: Score] = [:]
+                
+                print("🔍 DEBUG: Found \(existingScores.count) existing scores for this game")
+                
+                // Create a map of existing scores for quick lookup
+                for score in existingScores {
+                    let key = "\(score.playerID)-\(score.roundNumber)"
+                    existingScoreMap[key] = score
+                    print("🔍 DEBUG: Existing score: \(score.playerID) round \(score.roundNumber) = \(score.score)")
+                }
+                
+                // Process all unsaved changes
+                for (playerID, scores) in unsavedScores {
+                    print("🔍 DEBUG: Processing unsaved scores for player \(playerID): \(scores)")
+                    for (roundIndex, score) in scores.enumerated() {
+                        let roundNumber = roundIndex + 1
+                        
+                        // Ensure lastSavedScores array is properly sized
+                        var lastSavedScore = 0
+                        if let lastSavedArray = lastSavedScores[playerID], roundIndex < lastSavedArray.count {
+                            lastSavedScore = lastSavedArray[roundIndex]
+                        }
+                        
+                        print("🔍 DEBUG: Round \(roundNumber) - current: \(score), last saved: \(lastSavedScore)")
+                        
+                        // Only persist non-zero values. If zero and exists -> delete. If zero and doesn't exist -> skip.
+                            let scoreKey = "\(playerID)-\(roundNumber)"
+                        let existing = existingScoreMap[scoreKey]
+                        if score == 0 {
+                            if let existingScore = existing {
+                                print("🔍 DEBUG: Zero value and exists -> delete for player \(playerID) round \(roundNumber)")
+                                let _ = try await Amplify.API.mutate(request: .delete(existingScore))
+                            } else {
+                                print("🔍 DEBUG: Zero value and no existing -> skip create for player \(playerID) round \(roundNumber)")
+                            }
+                            continue
+                        }
+
+                        // Non-zero: create or update if changed
+                        if score != lastSavedScore || existing == nil {
+                            print("🔍 DEBUG: Persist non-zero \(score) for player \(playerID) round \(roundNumber)")
+                            let scoreObject = Score(
+                                id: "\(game.id)-\(playerID)-\(roundNumber)",
+                                gameID: game.id,
+                                playerID: playerID,
+                                roundNumber: roundNumber,
+                                score: score,
+                                createdAt: Temporal.DateTime.now(),
+                                updatedAt: Temporal.DateTime.now()
+                            )
+                            if existing != nil {
+                                let _ = try await Amplify.API.mutate(request: .update(scoreObject))
+                            } else {
+                                let _ = try await Amplify.API.mutate(request: .create(scoreObject))
+                            }
+                        } else {
+                            print("🔍 DEBUG: Non-zero unchanged and exists -> skip for player \(playerID) round \(roundNumber)")
+                        }
+                    }
+                }
+                
+                await MainActor.run {
+                    // Update the last saved state with the current unsaved scores
+                    for (playerID, scores) in unsavedScores {
+                        lastSavedScores[playerID] = scores
+                    }
+                    // Don't clear unsavedScores or hasUnsavedChanges - keep them for the UI
+                }
+                
+            case .failure(let error):
+                print("🔍 DEBUG: Failed to fetch existing scores: \(error)")
+            }
+            
+        } catch {
+            print("🔍 DEBUG: Error saving unsaved scores: \(error)")
+        }
+    }
+    
+    // Save unsaved changes to the backend
+    func saveChanges() {
+        guard hasUnsavedChanges || !players.isEmpty else { return }
+        
+        print("🔍 DEBUG: ===== SAVE CHANGES START =====")
+        print("🔍 DEBUG: Building full scores map from current table values for all players")
+        
+        // Build a complete map of scores for all players from the current table view
+        var scoresForAllPlayers: [String: [Int]] = [:]
+        for player in players {
+            var row = player.scores
+            // Ensure correct length for current dynamic rounds
+            while row.count < dynamicRounds { row.append(0) }
+            if row.count > dynamicRounds { row = Array(row.prefix(dynamicRounds)) }
+            scoresForAllPlayers[player.playerID] = row
+            print("🔍 DEBUG: Table scores for \(player.playerID): \(row)")
+        }
+        
+        Task {
+            do {
+                // Fetch existing scores for this game only (server-side filtering)
+                let scoresQuery = Score.keys.gameID.eq(game.id)
+                let scoresResult = try await Amplify.API.query(request: .list(Score.self, where: scoresQuery))
+                
+                switch scoresResult {
+                case .success(let existingScores):
+                    var existingScoreMap: [String: Score] = [:]
+                    print("🔍 DEBUG: Found \(existingScores.count) existing scores for this game")
+                    for score in existingScores {
+                        let key = "\(score.playerID)-\(score.roundNumber)"
+                        existingScoreMap[key] = score
+                        print("🔍 DEBUG: Existing score: \(score.playerID) round \(score.roundNumber) = \(score.score)")
+                    }
+                    
+                    // Process every player and every round based on the table values
+                    for (playerID, scoresRow) in scoresForAllPlayers {
+                        for (roundIndex, scoreValue) in scoresRow.enumerated() {
+                            let roundNumber = roundIndex + 1
+                            let lastSavedArray = lastSavedScores[playerID] ?? []
+                            let lastSavedScore = (roundIndex < lastSavedArray.count) ? lastSavedArray[roundIndex] : 0
+                            let scoreKey = "\(playerID)-\(roundNumber)"
+                            let existing = existingScoreMap[scoreKey]
+
+                            if scoreValue == 0 {
+                                // Zero: delete if exists; else do nothing
+                                if let existingScore = existing {
+                                    print("🔍 DEBUG: DELETE 0 for \(playerID) r\(roundNumber)")
+                                    let _ = try await Amplify.API.mutate(request: .delete(existingScore))
+                                } else {
+                                    print("🔍 DEBUG: SKIP create 0 for \(playerID) r\(roundNumber)")
+                                }
+                                continue
+                            }
+
+                            // Non-zero: create or update
+                            if existing == nil || scoreValue != lastSavedScore {
+                                print("🔍 DEBUG: UPSERT non-zero \(scoreValue) for \(playerID) r\(roundNumber)")
+                            let scoreObject = Score(
+                                id: "\(game.id)-\(playerID)-\(roundNumber)",
+                                gameID: game.id,
+                                playerID: playerID,
+                                roundNumber: roundNumber,
+                                score: scoreValue,
+                                createdAt: Temporal.DateTime.now(),
+                                updatedAt: Temporal.DateTime.now()
+                            )
+                                if existing != nil {
+                                    let _ = try await Amplify.API.mutate(request: .update(scoreObject))
+                                } else {
+                                    let _ = try await Amplify.API.mutate(request: .create(scoreObject))
+                                }
+                            } else {
+                                print("🔍 DEBUG: SKIP unchanged non-zero for \(playerID) r\(roundNumber)")
+                            }
+                        }
+                    }
+                    
+                    await MainActor.run {
+                        // Sync lastSavedScores with the table values we just persisted
+                        lastSavedScores = scoresForAllPlayers
+                        hasUnsavedChanges = false
+                        unsavedScores = [:]
+                        showToastMessage(message: "Game saved successfully", icon: "checkmark.circle.fill")
+                        // Avoid full reload to prevent flicker; table already reflects current state
+                    }
+                
+                case .failure(let error):
+                    print("🔍 DEBUG: Failed to fetch existing scores: \(error)")
+                }
+            } catch {
+                print("🔍 DEBUG: Error saving scores: \(error)")
+            }
+        }
+    }
+    
+    // Undo all unsaved changes
+    func undoChanges() {
+        // Revert to the last saved state
+        unsavedScores = [:]
+        hasUnsavedChanges = false
+        
+        // Update the players array to reflect the reverted changes
+        updatePlayersFromUnsavedScores()
+        
+        print("🔍 DEBUG: Undo performed - reverted to last saved state")
+    }
+    
+    // Update score for a specific player and round
+    func updateScore(playerID: String, round: Int, newScore: Int) {
+        print("🔍 DEBUG: ===== UPDATE SCORE =====")
+        print("🔍 DEBUG: playerID: \(playerID), round: \(round), newScore: \(newScore)")
+        print("🔍 DEBUG: Current dynamicRounds: \(dynamicRounds)")
+        
+        // Initialize unsaved scores if needed, preserving existing scores
+        if unsavedScores[playerID] == nil {
+            print("🔍 DEBUG: No unsaved scores found for playerID: \(playerID)")
+            // Start with the current player scores as the base
+            if let currentPlayer = players.first(where: { $0.playerID == playerID }) {
+                unsavedScores[playerID] = currentPlayer.scores
+                print("🔍 DEBUG: Initialized unsaved scores from current player: \(currentPlayer.scores)")
+            } else {
+                // Fallback to zeros if player not found
+                unsavedScores[playerID] = Array(repeating: 0, count: dynamicRounds)
+                print("🔍 DEBUG: Initialized unsaved scores with zeros: \(Array(repeating: 0, count: dynamicRounds))")
+            }
+        }
+        
+        // Ensure the unsaved scores array has enough elements for the current dynamic rounds
+        if var playerScores = unsavedScores[playerID] {
+            print("🔍 DEBUG: Original player scores: \(playerScores)")
+            // Resize the array if needed
+            while playerScores.count < dynamicRounds {
+                playerScores.append(0) // Add zeros for new rounds
+            }
+            // Truncate if there are more scores than rounds
+            if playerScores.count > dynamicRounds {
+                playerScores = Array(playerScores.prefix(dynamicRounds))
+            }
+            unsavedScores[playerID] = playerScores
+            print("🔍 DEBUG: Resized player scores: \(playerScores)")
+        }
+        
+        // Update only the specific round
+        if round > 0 && round <= dynamicRounds {
+            unsavedScores[playerID]?[round - 1] = newScore
+            print("🔍 DEBUG: Updated round \(round) to score \(newScore)")
+            print("🔍 DEBUG: Final unsaved scores for playerID \(playerID): \(unsavedScores[playerID] ?? [])")
+        }
+        
+        hasUnsavedChanges = true
+        
+        // Update the players array to reflect the change immediately
+        updatePlayersFromUnsavedScores()
+        
+        print("🔍 DEBUG: ===== UPDATE SCORE END =====")
+    }
+    
+    // Update the players array from unsaved scores
+    func updatePlayersFromUnsavedScores() {
+        print("🔍 DEBUG: ===== UPDATE PLAYERS FROM UNSAVED SCORES =====")
+        print("🔍 DEBUG: Current dynamicRounds: \(dynamicRounds)")
+        print("🔍 DEBUG: Players count: \(players.count)")
+        print("🔍 DEBUG: UnsavedScores keys: \(unsavedScores.keys)")
+        
+        for (index, player) in players.enumerated() {
+            print("🔍 DEBUG: Processing player \(index) (\(player.name))")
+            print("🔍 DEBUG: Current player scores: \(player.scores)")
+            
+            if let unsavedPlayerScores = unsavedScores[player.playerID] {
+                print("🔍 DEBUG: Found unsaved scores for player: \(unsavedPlayerScores)")
+                var updatedScores = player.scores
+                
+                // Ensure the updatedScores array has the correct size for dynamic rounds
+                while updatedScores.count < dynamicRounds {
+                    updatedScores.append(0) // Add zeros for missing rounds
+                }
+                if updatedScores.count > dynamicRounds {
+                    updatedScores = Array(updatedScores.prefix(dynamicRounds))
+                }
+                
+                print("🔍 DEBUG: Resized updatedScores: \(updatedScores)")
+                
+                // Only update the scores that have been changed in unsavedScores
+                for (roundIndex, unsavedScore) in unsavedPlayerScores.enumerated() {
+                    if roundIndex < updatedScores.count {
+                        // Only update if this round has been modified (different from last saved)
+                        let lastSavedArray = lastSavedScores[player.playerID] ?? []
+                        let lastSavedScore = (roundIndex < lastSavedArray.count) ? lastSavedArray[roundIndex] : 0
+                        if unsavedScore != lastSavedScore {
+                            updatedScores[roundIndex] = unsavedScore
+                            print("🔍 DEBUG: Updated round \(roundIndex) to \(unsavedScore)")
+                        }
+                    }
+                }
+                
+                players[index] = TestPlayer(
+                    name: player.name,
+                    scores: updatedScores,
+                    playerID: player.playerID
+                )
+                print("🔍 DEBUG: Final updated scores for player \(index): \(updatedScores)")
+            } else {
+                print("🔍 DEBUG: No unsaved scores found for player \(index)")
+                // If no unsaved scores for this player, revert to last saved state
+                let lastSavedPlayerScores = lastSavedScores[player.playerID] ?? Array(repeating: 0, count: dynamicRounds)
+                players[index] = TestPlayer(
+                    name: player.name,
+                    scores: lastSavedPlayerScores,
+                    playerID: player.playerID
+                )
+                print("🔍 DEBUG: Using last saved scores: \(lastSavedPlayerScores)")
+            }
+        }
+        
+        print("🔍 DEBUG: ===== UPDATE PLAYERS FROM UNSAVED SCORES END =====")
+    }
+    
+    // Move focus to next zero-valued score in the same round
+    func moveToNextZeroCellInSameRound() {
+        guard let currentPlayer = editingPlayer else { return }
+        let roundIndex = editingRound - 1
+        // Find current player's index in players
+        guard let currentIndex = players.firstIndex(where: { $0.playerID == currentPlayer.playerID }) else { return }
+        // Search forward wrapping around once
+        let total = players.count
+        var nextIndex: Int? = nil
+        for offset in 1...total { // check all others
+            let idx = (currentIndex + offset) % total
+            let val = (roundIndex < players[idx].scores.count) ? players[idx].scores[roundIndex] : 0
+            let pending = unsavedScores[players[idx].playerID]?[roundIndex]
+            let effective = pending ?? val
+            if effective == 0 {
+                nextIndex = idx
+                break
+            }
+        }
+        if let idx = nextIndex {
+            let player = players[idx]
+            editingPlayer = player
+            // Show empty input for zero
+            scoreInputText = ""
+            // Keep same round
+            isScoreFieldFocused = true
+        } else {
+            // No more zeros; dismiss keyboard and clear editing state
+            isScoreFieldFocused = false
+            scoreInputText = ""
+            editingPlayer = nil
+        }
+    }
+    
+    // Show score input dialog
+    func showScoreInputDialog(player: TestPlayer, round: Int, currentScore: Int) {
+        editingPlayer = player
+        editingRound = round
+        editingScore = currentScore
+        showScoreInput = true
+    }
+    
+    // Get player name efficiently
+    func getPlayerName(for playerID: String) -> String {
+        if playerID.contains(":") {
+            // Anonymous user with format "userID:displayName"
+            let components = playerID.split(separator: ":", maxSplits: 1)
+            if components.count == 2 {
+                return String(components[1])
+            }
+        }
+        
+        // For registered users, check if we have a cached username
+        if let cachedUsername = playerNames[playerID] {
+            return cachedUsername
+        }
+        
+        // Fallback to short ID if no cached username
+        return String(playerID.prefix(8))
+    }
+    
+    // Load usernames for registered users efficiently
+    func loadPlayerUsernames() async {
+        print("🔍 DEBUG: Loading usernames for registered users...")
+        
+        // Extract registered user IDs (those without ":" format)
+        let registeredUserIDs = game.playerIDs.filter { !$0.contains(":") }
+        
+        if registeredUserIDs.isEmpty {
+            print("🔍 DEBUG: No registered users to look up")
+            return
+        }
+        
+        print("🔍 DEBUG: Looking up usernames for \(registeredUserIDs.count) registered users")
+        
+        do {
+            // Query all users and filter locally for the specific user IDs we need
+            // This is still efficient since we're only looking up a few specific users
+            let result = try await Amplify.API.query(
+                request: .list(User.self)
+            )
+            
+            await MainActor.run {
+                switch result {
+                case .success(let allUsers):
+                    print("🔍 DEBUG: Successfully fetched \(allUsers.count) total users")
+                    
+                    // Filter to only the users we need
+                    let neededUsers = allUsers.filter { registeredUserIDs.contains($0.id) }
+                    print("🔍 DEBUG: Found \(neededUsers.count) users out of \(registeredUserIDs.count) needed")
+                    
+                    // Cache the usernames
+                    for user in neededUsers {
+                        self.playerNames[user.id] = user.username
+                        print("🔍 DEBUG: Cached username '\(user.username)' for user ID '\(user.id)'")
+                    }
+                    
+                    // Check for any missing users
+                    let foundUserIDs = Set(neededUsers.map { $0.id })
+                    let missingUserIDs = Set(registeredUserIDs).subtracting(foundUserIDs)
+                    
+                    if !missingUserIDs.isEmpty {
+                        print("🔍 DEBUG: Warning: Could not find usernames for \(missingUserIDs.count) users: \(missingUserIDs)")
+                    }
+                    
+                case .failure(let error):
+                    print("🔍 DEBUG: Error fetching usernames: \(error)")
+                }
+            }
+            
+        } catch {
+            print("🔍 DEBUG: Error in loadPlayerUsernames: \(error)")
+        }
+    }
+    
+    // MARK: - Toast Message View
+    struct ToastMessageView: View {
+        let message: String
+        let icon: String
+        @Binding var isVisible: Bool
+        
+        var body: some View {
+            HStack(spacing: 12) {
+                // Profile picture or icon
+                Circle()
+                    .fill(LinearGradient(
+                        colors: [.blue, .purple],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ))
+                    .frame(width: 24, height: 24)
+                    .overlay(
+                        Image(systemName: icon.isEmpty ? "checkmark" : icon)
+                            .font(.caption.bold())
+                            .foregroundColor(.white)
+                    )
+                
+                // Message text
+                Text(message)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundColor(.white)
+                
+                Spacer()
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color.green.opacity(0.9)) // Light green background for success
+            )
+            .padding(.horizontal, 20)
+            .transition(.move(edge: .bottom).combined(with: .opacity))
+            .animation(.easeInOut(duration: 0.5), value: isVisible) // Slower animation
+        }
+    }
+    
+    // MARK: - Dynamic Rounds Management
+    
+    func addRound() {
+        guard canUserEditGame() else { return }
+        
+        print("🔍 DEBUG: ===== ADD ROUND START =====")
+        print("🔍 DEBUG: Current dynamicRounds: \(dynamicRounds)")
+        print("🔍 DEBUG: Current players count: \(players.count)")
+        print("🔍 DEBUG: Current unsavedScores keys: \(unsavedScores.keys)")
+        
+        // Store current scores before adding round
+        let currentScores = unsavedScores
+        print("🔍 DEBUG: Stored current scores for \(currentScores.count) players")
+        
+        // Log current player scores
+        for (index, player) in players.enumerated() {
+            print("🔍 DEBUG: Player \(index) (\(player.name)) scores: \(player.scores)")
+        }
+        
+        // Add a new round
+        dynamicRounds += 1
+        print("🔍 DEBUG: New dynamicRounds: \(dynamicRounds)")
+        
+        // Resize all unsaved scores arrays to accommodate the new round
+        // while preserving existing scores
+        for (playerID, scores) in currentScores {
+            var updatedScores = scores
+            print("🔍 DEBUG: Player \(playerID) original scores: \(updatedScores)")
+            // Ensure we have enough elements for the new round count
+            while updatedScores.count < dynamicRounds {
+                updatedScores.append(0) // Add zeros for new rounds
+            }
+            unsavedScores[playerID] = updatedScores
+            print("🔍 DEBUG: Player \(playerID) updated scores: \(updatedScores)")
+        }
+        
+        // Also update the players array to reflect the new round count
+        // while preserving existing scores
+        for i in 0..<players.count {
+            var updatedScores = players[i].scores
+            print("🔍 DEBUG: Player \(i) (\(players[i].name)) original scores: \(updatedScores)")
+            while updatedScores.count < dynamicRounds {
+                updatedScores.append(0) // Add zeros for new rounds
+            }
+            players[i] = TestPlayer(
+                name: players[i].name,
+                scores: updatedScores,
+                playerID: players[i].playerID
+            )
+            print("🔍 DEBUG: Player \(i) (\(players[i].name)) updated scores: \(updatedScores)")
+        }
+        
+        print("🔍 DEBUG: After updating players array:")
+        for (index, player) in players.enumerated() {
+            print("🔍 DEBUG: Player \(index) (\(player.name)) final scores: \(player.scores)")
+        }
+        
+        // Update the game object
+        var updatedGame = game
+        updatedGame.rounds = dynamicRounds
+        updatedGame.updatedAt = Temporal.DateTime.now()
+        
+        // Update the binding
+        self.game = updatedGame
+        
+        // Show success message
+        showToastMessage(message: "Round \(dynamicRounds) added", icon: "plus.circle.fill")
+        
+        print("🔍 DEBUG: ===== ADD ROUND END =====")
+        
+        // Save the game update and any unsaved scores first
+        Task {
+            do {
+                // First, save any unsaved scores to ensure they're preserved
+                if hasUnsavedChanges {
+                    print("🔍 DEBUG: Saving unsaved scores before adding round")
+                    await saveUnsavedScoresOnly()
+                }
+                
+                let result = try await Amplify.API.mutate(request: .update(updatedGame))
+                switch result {
+                case .success(let updatedGame):
+                    await MainActor.run {
+                        self.game = updatedGame
+                        self.onGameUpdated?(updatedGame)
+                    }
+                case .failure(let error):
+                    print("🔍 DEBUG: Failed to update game with new round: \(error)")
+                    await MainActor.run {
+                        showToastMessage(message: "Failed to save round", icon: "exclamationmark.circle.fill")
+                    }
+                }
+            } catch {
+                print("🔍 DEBUG: Error updating game: \(error)")
+                await MainActor.run {
+                    showToastMessage(message: "Error updating game", icon: "exclamationmark.circle.fill")
+                }
+            }
+        }
+    }
+    
+    func removeRound() {
+        guard canUserEditGame() && dynamicRounds > 1 else { return }
+        
+        print("🔍 DEBUG: ===== REMOVE ROUND START =====")
+        print("🔍 DEBUG: Removing round \(roundToRemove)")
+        print("🔍 DEBUG: Current dynamicRounds: \(dynamicRounds)")
+        
+        // Store current scores before removing round
+        let currentScores = unsavedScores
+        
+        // Remove the round
+        dynamicRounds -= 1
+        
+        // Resize all unsaved scores arrays to match the new round count
+        // while preserving existing scores
+        for (playerID, scores) in currentScores {
+            var updatedScores = scores
+            // Truncate to the new round count
+            if updatedScores.count > dynamicRounds {
+                updatedScores = Array(updatedScores.prefix(dynamicRounds))
+            }
+            unsavedScores[playerID] = updatedScores
+        }
+        
+        // Also update the players array to reflect the new round count
+        // while preserving existing scores
+        for i in 0..<players.count {
+            var updatedScores = players[i].scores
+            if updatedScores.count > dynamicRounds {
+                updatedScores = Array(updatedScores.prefix(dynamicRounds))
+            }
+            players[i] = TestPlayer(
+                name: players[i].name,
+                scores: updatedScores,
+                playerID: players[i].playerID
+            )
+        }
+        
+        // Update the game object
+        var updatedGame = game
+        updatedGame.rounds = dynamicRounds
+        updatedGame.updatedAt = Temporal.DateTime.now()
+        
+        // Update the binding
+        self.game = updatedGame
+        
+        // Show success message
+        showToastMessage(message: "Round \(roundToRemove) removed", icon: "minus.circle.fill")
+        
+        // Save the game update and delete scores for the removed round
+        Task {
+            do {
+                print("🔍 DEBUG: Deleting scores for round \(roundToRemove)")
+                
+                // Fetch scores for this game only (server-side filtering)
+                let scoresQuery = Score.keys.gameID.eq(game.id)
+                let scoresResult = try await Amplify.API.query(request: .list(Score.self, where: scoresQuery))
+                
+                switch scoresResult {
+                case .success(let gameScores):
+                    print("🔍 DEBUG: Found \(gameScores.count) scores for this game")
+                    
+                    // Delete scores for the removed round
+                    let scoresToDelete = gameScores.filter { $0.roundNumber == roundToRemove }
+                    print("🔍 DEBUG: Found \(scoresToDelete.count) scores to delete for round \(roundToRemove)")
+                    
+                    for score in scoresToDelete {
+                        print("🔍 DEBUG: Deleting score for player \(score.playerID), round \(score.roundNumber)")
+                        let deleteResult = try await Amplify.API.mutate(request: .delete(score))
+                        switch deleteResult {
+                        case .success(let deletedScore):
+                            print("🔍 DEBUG: Successfully deleted score: \(deletedScore.id)")
+                        case .failure(let error):
+                            print("🔍 DEBUG: Failed to delete score: \(error)")
+                        }
+                    }
+                    
+                    // Now update the game object
+                    let result = try await Amplify.API.mutate(request: .update(updatedGame))
+                    switch result {
+                    case .success(let updatedGame):
+                        await MainActor.run {
+                            self.game = updatedGame
+                            self.onGameUpdated?(updatedGame)
+                        }
+                        print("🔍 DEBUG: Successfully updated game after removing round")
+                    case .failure(let error):
+                        print("🔍 DEBUG: Failed to update game after removing round: \(error)")
+                        await MainActor.run {
+                            showToastMessage(message: "Failed to save changes", icon: "exclamationmark.circle.fill")
+                        }
+                    }
+                    
+                case .failure(let error):
+                    print("🔍 DEBUG: Failed to fetch scores for deletion: \(error)")
+                    await MainActor.run {
+                        showToastMessage(message: "Failed to clean up scores", icon: "exclamationmark.circle.fill")
+                    }
+                }
+                
+            } catch {
+                print("🔍 DEBUG: Error removing round: \(error)")
+                await MainActor.run {
+                    showToastMessage(message: "Error updating game", icon: "exclamationmark.circle.fill")
+                }
+            }
+        }
+        
+        print("🔍 DEBUG: ===== REMOVE ROUND END =====")
+    }
+    
+    // MARK: - Show Toast Message
+    func showToastMessage(message: String, icon: String = "checkmark") {
+        toastMessage = message
+        toastIcon = icon
+        showToast = true
+        
+        // Animate in
+        withAnimation(.easeInOut(duration: 0.5)) {
+            toastOpacity = 1.0
+        }
+        
+        // Auto-hide after 3 seconds with slow fade-out
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+            withAnimation(.easeInOut(duration: 1.5)) { // Very slow fade-out animation
+                toastOpacity = 0.0
+            }
+            
+            // Hide the toast view after fade-out completes
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                showToast = false
+                toastOpacity = 0.0
+            }
+        }
+    }
+
+    // MARK: - Silent Save (no celebration or toast)
+    func awaitSaveChangesSilently() {
+        guard hasUnsavedChanges || !players.isEmpty else { return }
+        var scoresForAllPlayers: [String: [Int]] = [:]
+        for player in players {
+            var row = player.scores
+            while row.count < dynamicRounds { row.append(0) }
+            if row.count > dynamicRounds { row = Array(row.prefix(dynamicRounds)) }
+            scoresForAllPlayers[player.playerID] = row
+        }
+        Task {
+            do {
+                let scoresQuery = Score.keys.gameID.eq(game.id)
+                let scoresResult = try await Amplify.API.query(request: .list(Score.self, where: scoresQuery))
+                switch scoresResult {
+                case .success(let existingScores):
+                    var existingScoreMap: [String: Score] = [:]
+                    for score in existingScores {
+                        let key = "\(score.playerID)-\(score.roundNumber)"
+                        existingScoreMap[key] = score
+                    }
+                    for (playerID, scoresRow) in scoresForAllPlayers {
+                        for (roundIndex, scoreValue) in scoresRow.enumerated() {
+                            let roundNumber = roundIndex + 1
+                            let scoreKey = "\(playerID)-\(roundNumber)"
+                            let existing = existingScoreMap[scoreKey]
+                            if scoreValue == 0 {
+                                if let existingScore = existing {
+                                    let _ = try await Amplify.API.mutate(request: .delete(existingScore))
+                                }
+                                continue
+                            }
+                            let lastSavedArray = lastSavedScores[playerID] ?? []
+                            let lastSavedScore = (roundIndex < lastSavedArray.count) ? lastSavedArray[roundIndex] : 0
+                            if existing == nil || scoreValue != lastSavedScore {
+                                let scoreObject = Score(
+                                    id: "\(game.id)-\(playerID)-\(roundNumber)",
+                                    gameID: game.id,
+                                    playerID: playerID,
+                                    roundNumber: roundNumber,
+                                    score: scoreValue,
+                                    createdAt: Temporal.DateTime.now(),
+                                    updatedAt: Temporal.DateTime.now()
+                                )
+                                if existing != nil {
+                                    let _ = try await Amplify.API.mutate(request: .update(scoreObject))
+                                } else {
+                                    let _ = try await Amplify.API.mutate(request: .create(scoreObject))
+                                }
+                            }
+                        }
+                    }
+                    await MainActor.run {
+                        lastSavedScores = scoresForAllPlayers
+                        hasUnsavedChanges = false
+                        unsavedScores = [:]
+                        // Do not reload data to avoid flicker; local state is already up to date
+                    }
+                case .failure:
+                    break
+                }
+            } catch {
+                // Silent failure
+            }
+        }
+    }
+
+    // MARK: - Complete Game
+    func completeGame() {
+        guard canUserEditGame() && isGameComplete() else { return }
+        var updated = game
+        updated.gameStatus = .completed
+        updated.updatedAt = Temporal.DateTime.now()
+        Task {
+            do {
+                let result = try await Amplify.API.mutate(request: .update(updated))
+                switch result {
+                case .success(let saved):
+                    await MainActor.run {
+                        self.game = saved
+                        self.onGameUpdated?(saved)
+                        showToastMessage(message: "Game marked complete", icon: "flag.checkered")
+                    }
+                case .failure(let error):
+                    await MainActor.run {
+                        showToastMessage(message: "Failed to complete game", icon: "exclamationmark.circle.fill")
+                    }
+                    print("🔍 DEBUG: Failed to mark complete: \(error)")
+                }
+            } catch {
+                await MainActor.run {
+                    showToastMessage(message: "Error completing game", icon: "exclamationmark.circle.fill")
+                }
+                print("🔍 DEBUG: Error completing game: \(error)")
+            }
+        }
+    }
+
+}
+
+
+
+struct Scoreboardviewtest_Previews: PreviewProvider {
+    static var previews: some View {
+        // Create a sample game for preview
+        let sampleGame = Game(
+            id: "sample-game-id",
+            hostUserID: "host-user-id",
+            playerIDs: ["player1", "player2"],
+            rounds: 5,
+            customRules: nil,
+            finalScores: [],
+            gameStatus: .active,
+            createdAt: Temporal.DateTime.now(),
+            updatedAt: Temporal.DateTime.now()
+        )
+        Scoreboardviewtest(game: .constant(sampleGame))
+    }
+}
+
+// MARK: - Celebration View
+struct CelebrationView: View {
+    let message: String
+    let winner: TestPlayer?
+    let onDismiss: () -> Void
+    
+    @State private var balloonPositions: [CGPoint] = []
+    @State private var showConfetti = false
+    @State private var showMessage = false
+    
+    var body: some View {
+        ZStack {
+            // Semi-transparent background
+            Color.black.opacity(0.7)
+                .ignoresSafeArea()
+                .onTapGesture {
+                    onDismiss()
+                }
+            
+            // Celebration content
+            VStack(spacing: 30) {
+                // Trophy icon
+                Image(systemName: "trophy.fill")
+                    .font(.system(size: 80))
+                    .foregroundColor(.yellow)
+                    .scaleEffect(showMessage ? 1.2 : 0.8)
+                    .animation(.spring(response: 0.6, dampingFraction: 0.6), value: showMessage)
+                
+                // Winner message
+                VStack(spacing: 16) {
+                    Text("🎉 GAME COMPLETE! 🎉")
+                        .font(.title.bold())
+                        .foregroundColor(.white)
+                        .multilineTextAlignment(.center)
+                    
+                    Text(message)
+                        .font(.title2)
+                        .foregroundColor(.white)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+                }
+                .opacity(showMessage ? 1 : 0)
+                .animation(.easeIn(duration: 0.5), value: showMessage)
+                
+                // Dismiss button
+                Button("Continue") {
+                    onDismiss()
+                }
+                .font(.title3.bold())
+                .foregroundColor(.white)
+                .padding(.horizontal, 40)
+                .padding(.vertical, 12)
+                .background(Color.blue)
+                .cornerRadius(25)
+                .opacity(showMessage ? 1 : 0)
+                .animation(.easeIn(duration: 0.5).delay(0.3), value: showMessage)
+            }
+            .padding(40)
+            .background(
+                RoundedRectangle(cornerRadius: 20)
+                    .fill(Color(.systemBackground))
+                    .shadow(radius: 20)
+            )
+            .scaleEffect(showMessage ? 1 : 0.8)
+            .animation(.spring(response: 0.6, dampingFraction: 0.6), value: showMessage)
+            
+            // Floating balloons
+            ForEach(0..<12, id: \.self) { index in
+                BalloonView(color: balloonColors[index % balloonColors.count])
+                    .position(
+                        x: balloonPositions.indices.contains(index) ? balloonPositions[index].x : 0,
+                        y: balloonPositions.indices.contains(index) ? balloonPositions[index].y : UIScreen.main.bounds.height + 100
+                    )
+                    .animation(
+                        .easeInOut(duration: 3)
+                        .delay(Double(index) * 0.2),
+                        value: balloonPositions
+                    )
+            }
+            
+            // Confetti
+            if showConfetti {
+                ConfettiView()
+            }
+        }
+        .onAppear {
+            // Start animations
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                showMessage = true
+                showConfetti = true
+                generateBalloonPositions()
+            }
+        }
+    }
+    
+    private func generateBalloonPositions() {
+        let screenWidth = UIScreen.main.bounds.width
+        let screenHeight = UIScreen.main.bounds.height
+        
+        balloonPositions = (0..<12).map { _ in
+            CGPoint(
+                x: CGFloat.random(in: 50...(screenWidth - 50)),
+                y: CGFloat.random(in: 100...(screenHeight - 200))
+            )
+        }
+    }
+    
+    private let balloonColors: [Color] = [
+        .red, .blue, .green, .yellow, .orange, .purple, .pink, .cyan
+    ]
+}
+
+// MARK: - Balloon View
+struct BalloonView: View {
+    let color: Color
+    @State private var isFloating = false
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            // Balloon body
+            Circle()
+                .fill(color)
+                .frame(width: 40, height: 50)
+                .overlay(
+                    Circle()
+                        .stroke(Color.white, lineWidth: 2)
+                )
+            
+            // Balloon string
+            Rectangle()
+                .fill(Color.gray)
+                .frame(width: 2, height: 30)
+        }
+        .offset(y: isFloating ? -10 : 0)
+        .animation(
+            .easeInOut(duration: 2)
+            .repeatForever(autoreverses: true),
+            value: isFloating
+        )
+        .onAppear {
+            isFloating = true
+        }
+    }
+}
+
+// MARK: - Confetti View
+struct ConfettiView: View {
+    @State private var confettiPieces: [ConfettiPiece] = []
+    
+    var body: some View {
+        ZStack {
+            ForEach(confettiPieces, id: \.id) { piece in
+                ConfettiPieceView(piece: piece)
+            }
+        }
+        .onAppear {
+            generateConfetti()
+        }
+    }
+    
+    private func generateConfetti() {
+        let colors: [Color] = [.red, .blue, .green, .yellow, .orange, .purple, .pink]
+        let screenWidth = UIScreen.main.bounds.width
+        let screenHeight = UIScreen.main.bounds.height
+        
+        confettiPieces = (0..<50).map { _ in
+            ConfettiPiece(
+                id: UUID(),
+                color: colors.randomElement() ?? .blue,
+                position: CGPoint(
+                    x: CGFloat.random(in: 0...screenWidth),
+                    y: CGFloat.random(in: 0...screenHeight)
+                ),
+                rotation: Double.random(in: 0...360),
+                scale: Double.random(in: 0.5...1.5)
+            )
+        }
+    }
+}
+
+struct ConfettiPiece {
+    let id: UUID
+    let color: Color
+    let position: CGPoint
+    let rotation: Double
+    let scale: Double
+}
+
+struct ConfettiPieceView: View {
+    let piece: ConfettiPiece
+    @State private var isAnimating = false
+    
+    var body: some View {
+        Rectangle()
+            .fill(piece.color)
+            .frame(width: 8, height: 8)
+            .position(piece.position)
+            .rotationEffect(.degrees(piece.rotation))
+            .scaleEffect(piece.scale)
+            .opacity(isAnimating ? 0 : 1)
+            .animation(
+                .easeOut(duration: 3)
+                .delay(Double.random(in: 0...2)),
+                value: isAnimating
+            )
+            .onAppear {
+                DispatchQueue.main.asyncAfter(deadline: .now() + Double.random(in: 0...1)) {
+                    isAnimating = true
+                }
+            }
+    }
+}
+
+

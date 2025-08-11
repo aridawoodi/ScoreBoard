@@ -1,0 +1,478 @@
+//
+//  CreateGameView.swift
+//  ScoreBoard
+//
+//  Created by Ari Dawoodi on 11/5/24.
+//
+
+import SwiftUI
+import Amplify
+
+struct CreateGameView: View {
+    @Binding var showCreateGame: Bool
+    let onGameCreated: (Game) -> Void
+    
+    @State private var gameName = ""
+    @State private var customRules = ""
+    @State private var rounds = 3
+    @State private var hostJoinAsPlayer = false
+    @State private var hostPlayerName = ""
+    @State private var newPlayerName = ""
+    @State private var searchText = ""
+    @State private var players: [Player] = []
+    @State private var searchResults: [User] = []
+    @State private var isSearching = false
+    @State private var isLoading = false
+    @State private var showAlert = false
+    @State private var alertMessage = ""
+    @State private var currentUser: AuthUser?
+    @State private var currentUserProfile: User?
+    
+    private var isIPad: Bool {
+        UIDevice.current.userInterfaceIdiom == .pad
+    }
+    
+    private var titleFont: Font {
+        isIPad ? .title2 : .title3
+    }
+    
+    private var bodyFont: Font {
+        isIPad ? .title3 : .body
+    }
+    
+    private var sectionSpacing: CGFloat {
+        isIPad ? 24 : 16
+    }
+    
+    var body: some View {
+        GeometryReader { geometry in
+            NavigationStack {
+                ScrollView {
+                    CreateGameContentView(
+                        gameName: $gameName,
+                        customRules: $customRules,
+                        rounds: $rounds,
+                        hostJoinAsPlayer: $hostJoinAsPlayer,
+                        hostPlayerName: $hostPlayerName,
+                        newPlayerName: $newPlayerName,
+                        searchText: $searchText,
+                        players: $players,
+                        searchResults: $searchResults,
+                        isSearching: $isSearching,
+                        currentUser: $currentUser,
+                        currentUserProfile: $currentUserProfile,
+                        isIPad: isIPad,
+                        titleFont: titleFont,
+                        bodyFont: bodyFont,
+                        sectionSpacing: sectionSpacing,
+                        addPlayer: addPlayer,
+                        searchUsers: searchUsers,
+                        addRegisteredPlayer: addRegisteredPlayer,
+                        removePlayer: removePlayer
+                    )
+                }
+                .navigationTitle("Create Game")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        Button("Cancel") {
+                            clearForm()
+                            showCreateGame = false
+                        }
+                    }
+                    
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button("Create") {
+                            createGame()
+                        }
+                        .disabled(players.isEmpty || isLoading)
+                    }
+                }
+            }
+            .alert("Error", isPresented: $showAlert) {
+                Button("OK") { }
+            } message: {
+                Text(alertMessage)
+            }
+            .onAppear {
+                loadCurrentUser()
+            }
+        }
+    }
+    
+    private func clearForm() {
+        gameName = ""
+        customRules = ""
+        rounds = 3
+        hostJoinAsPlayer = false
+        hostPlayerName = ""
+        newPlayerName = ""
+        searchText = ""
+        players = []
+        searchResults = []
+        isSearching = false
+        isLoading = false
+        showAlert = false
+        alertMessage = ""
+    }
+    
+    private func loadCurrentUser() {
+        Task {
+            do {
+                // Check if we're in guest mode
+                let isGuestUser = UserDefaults.standard.bool(forKey: "is_guest_user")
+                
+                if isGuestUser {
+                    // Handle guest user
+                    let guestUserId = UserDefaults.standard.string(forKey: "current_guest_user_id") ?? ""
+                    print("🔍 DEBUG: Loading guest user with ID: \(guestUserId)")
+                    
+                    // Create a mock AuthUser for guest
+                    let guestUser = GuestUser(
+                        userId: guestUserId,
+                        username: "Guest User",
+                        email: "guest@scoreboard.app"
+                    )
+                    
+                    await MainActor.run {
+                        self.currentUser = guestUser
+                    }
+                    
+                    // Try to fetch guest user profile
+                    do {
+                        let result = try await Amplify.API.query(request: .get(User.self, byId: guestUserId))
+                        switch result {
+                        case .success(let profile):
+                            print("🔍 DEBUG: Successfully fetched guest user profile: \(profile?.username ?? "unknown")")
+                            await MainActor.run {
+                                self.currentUserProfile = profile
+                                print("🔍 DEBUG: Updated currentUserProfile to: \(profile?.username ?? "unknown")")
+                            }
+                        case .failure(let error):
+                            print("🔍 DEBUG: Failed to fetch guest user profile: \(error)")
+                            await MainActor.run {
+                                self.currentUser = guestUser
+                                self.currentUserProfile = nil
+                            }
+                        }
+                    } catch {
+                        print("🔍 DEBUG: Error querying guest user profile: \(error)")
+                        await MainActor.run {
+                            self.currentUser = guestUser
+                            self.currentUserProfile = nil
+                        }
+                    }
+                } else {
+                    // Handle regular authenticated user
+                    let user = try await Amplify.Auth.getCurrentUser()
+                    await MainActor.run {
+                        self.currentUser = user
+                    }
+                    
+                    // Try to fetch user profile
+                    do {
+                        let result = try await Amplify.API.query(request: .get(User.self, byId: user.userId))
+                        switch result {
+                        case .success(let profile):
+                            print("🔍 DEBUG: Successfully fetched user profile: \(profile?.username ?? "unknown")")
+                            await MainActor.run {
+                                self.currentUserProfile = profile
+                                print("🔍 DEBUG: Updated currentUserProfile to: \(profile?.username ?? "unknown")")
+                            }
+                        case .failure(let error):
+                            print("🔍 DEBUG: Failed to fetch user profile: \(error)")
+                            await MainActor.run {
+                                self.currentUser = user
+                                self.currentUserProfile = nil
+                            }
+                        }
+                    } catch {
+                        print("🔍 DEBUG: Error querying user profile: \(error)")
+                        await MainActor.run {
+                            self.currentUser = user
+                            self.currentUserProfile = nil
+                        }
+                    }
+                }
+            } catch {
+                print("Error loading current user: \(error)")
+            }
+        }
+    }
+    
+    func createGame() {
+        guard !players.isEmpty else {
+            alertMessage = "Please add at least one player."
+            showAlert = true
+            return
+        }
+        isLoading = true
+        Task {
+            do {
+                print("🔍 DEBUG: Starting game creation...")
+                
+                // Check if we're in guest mode
+                let isGuestUser = UserDefaults.standard.bool(forKey: "is_guest_user")
+                let currentUserId: String
+                
+                if isGuestUser {
+                    // For guest users, get the stored guest user ID
+                    currentUserId = UserDefaults.standard.string(forKey: "current_guest_user_id") ?? ""
+                    print("🔍 DEBUG: Guest user ID: \(currentUserId)")
+                } else {
+                    // For regular users, get from Amplify Auth
+                    let user = try await Amplify.Auth.getCurrentUser()
+                    currentUserId = user.userId
+                    print("🔍 DEBUG: Current user ID: \(currentUserId)")
+                }
+                
+                var playerIDs = players.map { $0.userId ?? $0.name } // Use user ID if registered, name if anonymous
+                print("🔍 DEBUG: Player IDs: \(playerIDs)")
+                
+                // Add host as player if option is enabled
+                if hostJoinAsPlayer {
+                    if let currentUser = currentUser {
+                        // Always use the user ID for registered users, not username
+                        playerIDs.append(currentUser.userId)
+                        print("🔍 DEBUG: Added host as registered user with ID: \(currentUser.userId)")
+                    } else {
+                        // Host is anonymous - use their chosen display name
+                        let hostName = hostPlayerName.trimmingCharacters(in: .whitespacesAndNewlines)
+                        if !hostName.isEmpty {
+                            playerIDs.append(hostName)
+                            print("🔍 DEBUG: Added host as anonymous user: \(hostName)")
+                        }
+                    }
+                }
+                
+                let game = Game(
+                    gameName: gameName.isEmpty ? nil : gameName,
+                    hostUserID: currentUserId,
+                    playerIDs: playerIDs,
+                    rounds: 1, // Start with 1 round for dynamic rounds
+                    customRules: customRules.isEmpty ? nil : customRules,
+                    finalScores: [],
+                    gameStatus: .active,
+                    createdAt: Temporal.DateTime.now(),
+                    updatedAt: Temporal.DateTime.now()
+                )
+                print("🔍 DEBUG: Creating game with data: hostUserID=\(game.hostUserID), playerIDs=\(game.playerIDs), rounds=\(game.rounds)")
+                
+                let result = try await Amplify.API.mutate(request: .create(game))
+                await MainActor.run {
+                    isLoading = false
+                    switch result {
+                    case .success(let createdGame):
+                        print("🔍 DEBUG: Game created successfully with ID: \(createdGame.id)")
+                        print("🔍 DEBUG: Calling onGameCreated callback")
+                        onGameCreated(createdGame)
+                        print("🔍 DEBUG: onGameCreated callback completed")
+                    case .failure(let error):
+                        print("🔍 DEBUG: Game creation failed with error: \(error)")
+                        alertMessage = "Failed to create game: \(error.localizedDescription)"
+                        showAlert = true
+                    }
+                }
+            } catch {
+                print("🔍 DEBUG: Error in game creation: \(error)")
+                await MainActor.run {
+                    isLoading = false
+                    alertMessage = "Error: \(error.localizedDescription)"
+                    showAlert = true
+                }
+            }
+        }
+    }
+    
+    private func addPlayer() {
+        let trimmedName = newPlayerName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else { return }
+        
+        let player = Player(name: trimmedName, isRegistered: false, userId: nil)
+        players.append(player)
+        newPlayerName = ""
+    }
+    
+    private func searchUsers(query: String) {
+        guard !query.isEmpty else {
+            searchResults = []
+            return
+        }
+        
+        isSearching = true
+        Task {
+            do {
+                let result = try await Amplify.API.query(request: .list(User.self, where: User.keys.username.contains(query)))
+                await MainActor.run {
+                    switch result {
+                    case .success(let users):
+                        searchResults = users.filter { $0.username.contains(query) || $0.email.contains(query) }
+                    case .failure(let error):
+                        print("Search error: \(error)")
+                        searchResults = []
+                    }
+                    isSearching = false
+                }
+            } catch {
+                await MainActor.run {
+                    print("Search error: \(error)")
+                    searchResults = []
+                    isSearching = false
+                }
+            }
+        }
+    }
+    
+    private func addRegisteredPlayer(_ user: User) {
+        let player = Player(name: user.username, isRegistered: true, userId: user.id)
+        players.append(player)
+        searchText = ""
+        searchResults = []
+    }
+    
+    private func removePlayer(_ player: Player) {
+        players.removeAll { $0.id == player.id }
+    }
+}
+
+// MARK: - CreateGameContentView
+struct CreateGameContentView: View {
+    @Binding var gameName: String
+    @Binding var customRules: String
+    @Binding var rounds: Int
+    @Binding var hostJoinAsPlayer: Bool
+    @Binding var hostPlayerName: String
+    @Binding var newPlayerName: String
+    @Binding var searchText: String
+    @Binding var players: [Player]
+    @Binding var searchResults: [User]
+    @Binding var isSearching: Bool
+    @Binding var currentUser: AuthUser?
+    @Binding var currentUserProfile: User?
+    
+    let isIPad: Bool
+    let titleFont: Font
+    let bodyFont: Font
+    let sectionSpacing: CGFloat
+    let addPlayer: () -> Void
+    let searchUsers: (String) -> Void
+    let addRegisteredPlayer: (User) -> Void
+    let removePlayer: (Player) -> Void
+    
+    var body: some View {
+        VStack(spacing: sectionSpacing) {
+            // Game Settings
+            VStack(alignment: .leading, spacing: isIPad ? 16 : 12) {
+                Text("Game Settings")
+                    .font(titleFont)
+                    .fontWeight(.semibold)
+                
+                TextField("Enter game name (optional)", text: $gameName)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                    .font(bodyFont)
+                
+                TextField("Enter custom rules (optional)", text: $customRules)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                    .font(bodyFont)
+
+                // Commented out for dynamic rounds - rounds will be added during gameplay
+                // Stepper("Number of Rounds: \(rounds)", value: $rounds, in: 1...10)
+                //     .font(bodyFont)
+                
+                Text("Rounds will be added dynamically during gameplay")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            .padding(isIPad ? 24 : 16)
+            .background(Color(.systemGray6))
+            .cornerRadius(isIPad ? 16 : 10)
+            
+            // Host Join Option
+            VStack(alignment: .leading, spacing: isIPad ? 16 : 12) {
+                Text("Host Options")
+                    .font(titleFont)
+                    .fontWeight(.semibold)
+                
+                Toggle(isOn: $hostJoinAsPlayer) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Join as Player")
+                            .font(bodyFont)
+                            .fontWeight(.medium)
+                        Text("Add yourself to the scoreboard to play")
+                            .font(isIPad ? .body : .caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .toggleStyle(SwitchToggleStyle(tint: .blue))
+                
+                if hostJoinAsPlayer {
+                    VStack(alignment: .leading, spacing: isIPad ? 12 : 8) {
+                        Text("Your Display Name")
+                            .font(isIPad ? .title3 : .subheadline)
+                            .foregroundColor(.secondary)
+                        
+                        if let user = currentUser {
+                            let displayName = currentUserProfile?.username ?? user.userId
+                            RegisteredUserView(
+                                displayName: displayName,
+                                isIPad: isIPad,
+                                currentUserProfile: currentUserProfile,
+                                user: user
+                            )
+                        } else {
+                            TextField("Enter your display name", text: $hostPlayerName)
+                                .textFieldStyle(RoundedBorderTextFieldStyle())
+                                .font(bodyFont)
+                        }
+                    }
+                }
+            }
+            .padding(isIPad ? 24 : 16)
+            .background(Color(.systemGray6))
+            .cornerRadius(isIPad ? 16 : 10)
+            
+            // Player Management
+            PlayerManagementView(
+                players: $players,
+                newPlayerName: $newPlayerName,
+                searchText: $searchText,
+                searchResults: $searchResults,
+                isSearching: $isSearching,
+                addPlayer: addPlayer,
+                searchUsers: searchUsers,
+                addRegisteredPlayer: addRegisteredPlayer,
+                removePlayer: removePlayer
+            )
+        }
+        .padding()
+    }
+}
+
+// MARK: - RegisteredUserView
+struct RegisteredUserView: View {
+    let displayName: String
+    let isIPad: Bool
+    let currentUserProfile: User?
+    let user: AuthUser
+    
+    var body: some View {
+        HStack {
+            Image(systemName: "person.circle.fill")
+                .foregroundColor(.green)
+                .font(.system(size: isIPad ? 20 : 16))
+            Text("Registered User")
+                .font(isIPad ? .body : .caption)
+                .foregroundColor(.green)
+            Spacer()
+            Text(displayName)
+                .font(isIPad ? .body : .caption)
+                .foregroundColor(.secondary)
+                .onAppear {
+                    print("🔍 DEBUG: Displaying username: \(displayName)")
+                    print("🔍 DEBUG: currentUserProfile: \(currentUserProfile?.username ?? "nil")")
+                }
+        }
+        .id("profile-display-\(currentUserProfile?.username ?? user.userId)")
+        .fixedSize(horizontal: false, vertical: true)
+    }
+}
