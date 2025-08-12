@@ -55,6 +55,9 @@ struct ScoreBoardApp: App {
             try Amplify.configure()
             
             print("Amplify configured successfully")
+            
+            // API is configured to use API key authentication by default
+            // This allows guest users to access the API
         } catch {
             print("Failed to configure Amplify: \(error)")
         }

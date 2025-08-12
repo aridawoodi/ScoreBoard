@@ -32,11 +32,12 @@ class UserService: ObservableObject {
             let isGuestUser = UserDefaults.standard.bool(forKey: "is_guest_user")
             
             if isGuestUser {
-                // Handle guest user
+                // Handle guest user - create profile in database with guest authentication
                 let guestUserId = UserDefaults.standard.string(forKey: "current_guest_user_id") ?? ""
                 print("🔍 DEBUG: Guest user with ID: \(guestUserId)")
                 
-                // Check if a User profile already exists for this guest ID
+                // First, try to find existing guest user profile
+                print("🔍 DEBUG: Attempting to query users for guest user...")
                 let listResult = try await Amplify.API.query(request: .list(User.self))
                 switch listResult {
                 case .success(let allUsers):
@@ -45,16 +46,28 @@ class UserService: ObservableObject {
                         await MainActor.run {
                             self.currentUser = existingUser
                             self.isLoading = false
+                            NotificationCenter.default.post(name: NSNotification.Name("UserProfileLoaded"), object: existingUser)
                         }
                         return existingUser
                     }
                 case .failure(let error):
                     print("🔍 DEBUG: Error fetching users for guest: \(error)")
+                    print("🔍 DEBUG: Query error localized description: \(error.localizedDescription)")
+                    print("🔍 DEBUG: Query error error description: \(error.errorDescription)")
+                    
+                    // Check if this is an authentication error
+                    if error.localizedDescription.contains("401") || error.localizedDescription.contains("Unauthorized") {
+                        print("🔍 DEBUG: Query failed due to authentication error - API key may have expired")
+                    }
                 }
                 
-                // Create a new User profile for the guest if not found
-                let guestUsername = "Guest User"
+                // Create new guest user profile in database
+                let guestUsername = "Guest_" + String(guestUserId.prefix(8))
                 let guestEmail = "guest@scoreboard.app"
+                
+                print("🔍 DEBUG: Creating guest user profile in database")
+                print("🔍 DEBUG: Guest username: \(guestUsername)")
+                print("🔍 DEBUG: Guest email: \(guestEmail)")
                 
                 let newUser = User(
                     id: guestUserId,
@@ -71,14 +84,65 @@ class UserService: ObservableObject {
                     await MainActor.run {
                         self.currentUser = savedUser
                         self.isLoading = false
+                        NotificationCenter.default.post(name: NSNotification.Name("UserProfileCreated"), object: savedUser)
                     }
                     return savedUser
                 case .failure(let error):
                     print("🔍 DEBUG: Failed to create guest user profile: \(error)")
-                    await MainActor.run {
-                        self.isLoading = false
+                    print("🔍 DEBUG: Error localized description: \(error.localizedDescription)")
+                    print("🔍 DEBUG: Error error description: \(error.errorDescription)")
+                    print("🔍 DEBUG: Error recovery suggestion: \(error.recoverySuggestion)")
+                    
+                    // Check if this is a conditional check failure (profile already exists)
+                    if error.localizedDescription.contains("conditional request failed") || 
+                       error.localizedDescription.contains("ConditionalCheckFailedException") {
+                        print("🔍 DEBUG: Profile already exists, trying to fetch it...")
+                        
+                        // Try to fetch the existing profile
+                        do {
+                            let listResult = try await Amplify.API.query(request: .list(User.self))
+                            switch listResult {
+                            case .success(let allUsers):
+                                if let existingUser = allUsers.first(where: { $0.id == guestUserId }) {
+                                    print("🔍 DEBUG: Found existing guest user profile after creation failure: \(existingUser.username)")
+                                    await MainActor.run {
+                                        self.currentUser = existingUser
+                                        self.isLoading = false
+                                        NotificationCenter.default.post(name: NSNotification.Name("UserProfileLoaded"), object: existingUser)
+                                    }
+                                    return existingUser
+                                }
+                            case .failure(let fetchError):
+                                print("🔍 DEBUG: Failed to fetch existing profile: \(fetchError)")
+                            }
+                        } catch {
+                            print("🔍 DEBUG: Exception while fetching existing profile: \(error)")
+                        }
                     }
-                    return nil
+                    
+                    // Check if this is an authentication error
+                    if error.localizedDescription.contains("401") || error.localizedDescription.contains("Unauthorized") {
+                        print("🔍 DEBUG: This appears to be an authentication error - API key may have expired")
+                        print("🔍 DEBUG: Need to regenerate API key in Amplify backend")
+                    }
+                    
+                    // Create local fallback if database creation fails
+                    let localUser = User(
+                        id: guestUserId,
+                        username: guestUsername,
+                        email: guestEmail,
+                        createdAt: Temporal.DateTime.now(),
+                        updatedAt: Temporal.DateTime.now()
+                    )
+                    
+                    print("🔍 DEBUG: Created local guest user profile as fallback")
+                    await MainActor.run {
+                        self.currentUser = localUser
+                        self.isLoading = false
+                        self.error = "Failed to create guest profile in database, but using local profile: \(error.localizedDescription)"
+                        NotificationCenter.default.post(name: NSNotification.Name("UserProfileCreated"), object: localUser)
+                    }
+                    return localUser
                 }
             } else {
                 // Handle regular authenticated user
@@ -99,6 +163,8 @@ class UserService: ObservableObject {
                     await MainActor.run {
                         self.currentUser = existingUser
                         self.isLoading = false
+                        // Notify other parts of the app that user profile was loaded
+                        NotificationCenter.default.post(name: NSNotification.Name("UserProfileLoaded"), object: existingUser)
                     }
                     return existingUser
                 }
@@ -216,6 +282,8 @@ class UserService: ObservableObject {
                 print("🔍 DEBUG: User created successfully: \(createdUser)")
                 await MainActor.run {
                     self.currentUser = createdUser
+                    // Notify other parts of the app that user profile was created
+                    NotificationCenter.default.post(name: NSNotification.Name("UserProfileCreated"), object: createdUser)
                 }
                 return createdUser
             case .failure(let error):
@@ -804,51 +872,6 @@ class UserService: ObservableObject {
         }
     }
     
-    /// Creates a guest user profile
-    func createGuestProfile(_ guestUser: GuestUser) async -> User? {
-        do {
-            print("🔍 DEBUG: Creating guest profile for: \(guestUser.userId)")
-            
-            // Check if guest user already exists
-            let listResult = try await Amplify.API.query(request: .list(User.self))
-            switch listResult {
-            case .success(let allUsers):
-                if let existingGuest = allUsers.first(where: { $0.id == guestUser.userId }) {
-                    print("🔍 DEBUG: Guest user already exists: \(existingGuest.username)")
-                    await MainActor.run {
-                        self.currentUser = existingGuest
-                    }
-                    return existingGuest
-                }
-            case .failure(let error):
-                print("🔍 DEBUG: Error checking for existing guest user: \(error)")
-            }
-            
-            // Create new guest user
-            let newGuestUser = User(
-                id: guestUser.userId,
-                username: guestUser.username,
-                email: guestUser.email,
-                createdAt: Temporal.DateTime.now(),
-                updatedAt: Temporal.DateTime.now()
-            )
-            
-            let createResult = try await Amplify.API.mutate(request: .create(newGuestUser))
-            
-            switch createResult {
-            case .success(let createdGuest):
-                print("🔍 DEBUG: Successfully created guest user: \(createdGuest.username)")
-                await MainActor.run {
-                    self.currentUser = createdGuest
-                }
-                return createdGuest
-            case .failure(let error):
-                print("🔍 DEBUG: Failed to create guest user: \(error)")
-                return nil
-            }
-        } catch {
-            print("🔍 DEBUG: Error creating guest profile: \(error)")
-            return nil
-        }
-    }
+    // Guest profile creation is now handled in ensureUserProfile
+    // This method is no longer needed
 } 

@@ -60,7 +60,7 @@ struct ProfileTabView: View {
                                 .fontWeight(.bold)
                                 .foregroundColor(.primary)
                             
-                            if AmplifyService.isGuestUser(profile) {
+                            if profile.id.hasPrefix("guest_") {
                                 Text("Guest Mode")
                                     .font(.caption)
                                     .foregroundColor(.orange)
@@ -107,7 +107,7 @@ struct ProfileTabView: View {
                             .padding(.leading, 60)
                         
                         // Show guest mode info for guest users
-                        if AmplifyService.isGuestUser(currentUser) {
+                        if currentUser.id.hasPrefix("guest_") {
                             SettingsRow(
                                 icon: "info.circle.fill",
                                 title: "Guest Mode Active",
@@ -146,7 +146,7 @@ struct ProfileTabView: View {
                     
                     // Delete Account Option
                     if let currentUser = userService.currentUser {
-                        if !AmplifyService.isGuestUser(currentUser) {
+                        if !currentUser.id.hasPrefix("guest_") {
                             // Only show delete account for regular users
                             SettingsRow(
                                 icon: "trash.circle.fill",
