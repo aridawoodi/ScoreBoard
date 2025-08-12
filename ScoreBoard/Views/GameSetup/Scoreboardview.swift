@@ -1,5 +1,5 @@
 //
-//  Scoreboardviewtest.swift
+//  Scoreboardview.swift
 //  ScoreBoard
 //
 //  Created by Ari Dawoodi on 7/24/25.
@@ -26,22 +26,20 @@ struct ScoreCell: View {
             }
         }) {
             Text(displayText ?? (currentScore == 0 ? "" : "\(currentScore)"))
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 8)
-                .background(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(backgroundColor)
-                )
+                .font(.system(size: 16, weight: .medium, design: .default))
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .background(backgroundColor)
+                .foregroundColor(currentScore == 0 ? .secondary : .primary)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .stroke(isFocused ? Color.accentColor : Color.clear, lineWidth: 1)
+                    Rectangle()
+                        .stroke(Color.gray.opacity(0.3), lineWidth: 0.5)
                 )
-                .scaleEffect(x: 1.0, y: isFocused ? 1.06 : 1.0, anchor: .center)
-                .shadow(color: Color.black.opacity(isFocused ? 0.22 : 0), radius: isFocused ? 8 : 0, x: 0, y: isFocused ? 3 : 0)
+                .scaleEffect(x: 1.0, y: isFocused ? 1.02 : 1.0, anchor: .center)
+                .shadow(color: Color.black.opacity(isFocused ? 0.15 : 0), radius: isFocused ? 4 : 0, x: 0, y: isFocused ? 2 : 0)
                 .zIndex(isFocused ? 10 : 0)
         }
         .buttonStyle(PlainButtonStyle())
-        .animation(.spring(response: 0.25, dampingFraction: 0.82), value: isFocused)
+        .animation(.spring(response: 0.2, dampingFraction: 0.8), value: isFocused)
     }
 }
 
@@ -53,7 +51,7 @@ struct TestPlayer: Identifiable {
     var total: Int { scores.reduce(0, +) }
 }
 
-struct Scoreboardviewtest: View {
+struct Scoreboardview: View {
     @Binding var game: Game
     @State private var selectedRound = 1
     @State private var players: [TestPlayer] = []
@@ -229,7 +227,7 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
     // MARK: - Helper Functions
     
     private func onAppearAction() {
-        print("🔍 DEBUG: Scoreboardviewtest onAppear - Game ID: \(game.id)")
+        print("🔍 DEBUG: Scoreboardview onAppear - Game ID: \(game.id)")
         print("🔍 DEBUG: Current game rounds: \(game.rounds)")
         print("🔍 DEBUG: Last known rounds: \(lastKnownGameRounds)")
         
@@ -394,6 +392,7 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                     } else {
                         scoreboardTableView
                             .padding(.top, 12)
+                            .padding(.horizontal, 8)
                     }
                 }
 
@@ -563,7 +562,7 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
     }
     
     private var scoreboardTableView: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 0) {
             headerRow
             scoreRows
             // Add Round small plus button aligned to the left below the last round
@@ -578,8 +577,13 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                     }
                     Spacer()
                 }
-                .padding(.top, 6)
+                .padding(.top, 8)
+                .padding(.horizontal)
             }
+        }
+        .background(Color(.systemBackground))
+        .cornerRadius(8)
+        .shadow(color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
             
             // Save and Undo buttons below the table
             if hasUnsavedChanges {
@@ -727,31 +731,37 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
         HStack(spacing: 0) {
             ForEach(Array(players.enumerated()), id: \.offset) { index, player in
                 VStack(spacing: 0) {
-                Text(player.name)
-                        .font(.headline)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
+                    Text(player.name)
+                        .font(.system(size: 14, weight: .semibold, design: .default))
+                        .lineLimit(1)
+                        .truncationMode(.tail)
                         .frame(maxWidth: .infinity)
-                        .padding(.horizontal, 6)
-                        .padding(.top, 4)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 8)
+                        .background(Color(.systemGray6))
+                        .overlay(
+                            Rectangle()
+                                .stroke(Color.gray.opacity(0.4), lineWidth: 0.5)
+                        )
+                    
                     Text("\(player.total)")
-                        .font(.title3)
-                        .bold()
-                        .padding(6)
-                        .frame(maxWidth: .infinity)
-                        .background(columnColor(index).opacity(0.9))
-                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                        .font(.system(size: 18, weight: .bold, design: .default))
+                        .frame(maxWidth: .infinity, minHeight: 36)
+                        .background(columnColor(index).opacity(0.8))
+                        .foregroundColor(.white)
+                        .overlay(
+                            Rectangle()
+                                .stroke(Color.gray.opacity(0.4), lineWidth: 0.5)
+                        )
                 }
                 .frame(maxWidth: .infinity)
-                .padding(4)
-                .background(
-                    RoundedRectangle(cornerRadius: 8)
-                        .stroke(Color.gray.opacity(0.4), lineWidth: 1)
-                )
-                .background(Color.blue.opacity(0.05))
             }
         }
         .frame(maxWidth: .infinity)
+        .overlay(
+            Rectangle()
+                .stroke(Color.gray.opacity(0.6), lineWidth: 1)
+        )
     }
     
     private var scoreRows: some View {
@@ -775,15 +785,22 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                                 }
                             },
                             currentScore: score,
-                            backgroundColor: columnColor(colIndex).opacity(0.5),
+                            backgroundColor: columnColor(colIndex).opacity(0.3),
                             displayText: (editingPlayer?.playerID == player.playerID && editingRound == roundIndex + 1 && isScoreFieldFocused) ? (scoreInputText) : nil,
                             isFocused: (editingPlayer?.playerID == player.playerID && editingRound == roundIndex + 1 && isScoreFieldFocused)
                         )
                     }
                 }
-                Divider()
+                .overlay(
+                    Rectangle()
+                        .stroke(Color.gray.opacity(0.6), lineWidth: 1)
+                )
             }
         }
+        .overlay(
+            Rectangle()
+                .stroke(Color.gray.opacity(0.6), lineWidth: 1)
+        )
     }
     
     private var totalRow: some View {
@@ -810,12 +827,15 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
         return Color.green.opacity(0.15)
     }
     
-    // Column color matching Testview style
+    // Column color matching Excel-like style
     func columnColor(_ index: Int) -> Color {
         switch index {
-        case 0: return .yellow
-        case 1: return .purple
-        default: return .green
+        case 0: return Color(red: 0.2, green: 0.6, blue: 0.9) // Excel blue
+        case 1: return Color(red: 0.9, green: 0.4, blue: 0.2) // Excel orange
+        case 2: return Color(red: 0.2, green: 0.7, blue: 0.3) // Excel green
+        case 3: return Color(red: 0.8, green: 0.2, blue: 0.6) // Excel purple
+        case 4: return Color(red: 0.9, green: 0.6, blue: 0.1) // Excel gold
+        default: return Color(red: 0.6, green: 0.6, blue: 0.6) // Excel gray
         }
     }
     
@@ -1800,7 +1820,7 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
 
 
 
-struct Scoreboardviewtest_Previews: PreviewProvider {
+struct Scoreboardview_Previews: PreviewProvider {
     static var previews: some View {
         // Create a sample game for preview
         let sampleGame = Game(
@@ -1814,7 +1834,7 @@ struct Scoreboardviewtest_Previews: PreviewProvider {
             createdAt: Temporal.DateTime.now(),
             updatedAt: Temporal.DateTime.now()
         )
-        Scoreboardviewtest(game: .constant(sampleGame))
+        Scoreboardview(game: .constant(sampleGame))
     }
 }
 
