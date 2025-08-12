@@ -48,12 +48,29 @@ func getCurrentUser() async -> (userId: String, isGuest: Bool)? {
     }
 }
 
-/// Create a GuestUser for guest users
-func createGuestUser(userId: String) -> GuestUser {
-    return GuestUser(
-        userId: userId,
-        username: "Guest User",
-        email: "guest@scoreboard.app"
-    )
+// Guest user creation is now handled directly in UserService.ensureUserProfile()
+// This function is no longer needed
+
+/// Ensure API calls work for guest users by using API key authentication
+func ensureGuestAPIAccess() async {
+    let isGuestUser = UserDefaults.standard.bool(forKey: "is_guest_user")
+    if isGuestUser {
+        print("🔍 DEBUG: Ensuring API access for guest user")
+        
+        // Test API access by trying to list games
+        do {
+            print("🔍 DEBUG: Testing API access for guest user...")
+            let result = try await Amplify.API.query(request: .list(Game.self))
+            switch result {
+            case .success(let games):
+                print("🔍 DEBUG: API access successful! Found \(games.count) games")
+            case .failure(let error):
+                print("🔍 DEBUG: API access failed: \(error)")
+                print("🔍 DEBUG: This indicates the API key may have expired or there's a configuration issue")
+            }
+        } catch {
+            print("🔍 DEBUG: API test failed with exception: \(error)")
+        }
+    }
 }
 

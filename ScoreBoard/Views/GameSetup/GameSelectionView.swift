@@ -23,6 +23,11 @@ struct GameSelectionView: View {
     @State private var showDeleteError = false
     @State private var deleteErrorMessage = ""
     
+    // Filter to only show active games
+    var activeGames: [Game] {
+        games.filter { $0.gameStatus == .active }
+    }
+    
     var body: some View {
         NavigationView {
             VStack(spacing: 20) {
@@ -46,7 +51,7 @@ struct GameSelectionView: View {
                 // Game List
                 ScrollView {
                     LazyVStack(spacing: 12) {
-                        ForEach(games, id: \.id) { game in
+                        ForEach(activeGames, id: \.id) { game in
                             GameCardView(
                                 game: game, 
                                 usernameCache: usernameCache,
@@ -145,8 +150,8 @@ struct GameSelectionView: View {
     
     func loadUsernamesFromCache() {
         Task {
-            // Get all unique player IDs from all games
-            let allPlayerIDs = Set(games.flatMap { $0.playerIDs })
+            // Get all unique player IDs from active games only
+            let allPlayerIDs = Set(activeGames.flatMap { $0.playerIDs })
             
             // Use the cache service to get usernames
             _ = await usernameCache.getUsernames(for: Array(allPlayerIDs))

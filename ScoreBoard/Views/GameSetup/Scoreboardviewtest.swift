@@ -474,20 +474,20 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
         }
     }
     
-    private var scoreInputSheet: some View {
-        Group {
-            if let player = editingPlayer {
-                ScoreInputView(
-                    playerName: player.name,
-                    currentScore: editingScore,
-                    onScoreChanged: { newScore in
-                        updateScore(playerID: player.playerID, round: editingRound, newScore: newScore)
-                    },
-                    isIPad: UIDevice.current.userInterfaceIdiom == .pad
-                )
-            }
-        }
-    }
+//    private var scoreInputSheet: some View {
+//        Group {
+//            if let player = editingPlayer {
+//                ScoreInputView(
+//                    playerName: player.name,
+//                    currentScore: editingScore,
+//                    onScoreChanged: { newScore in
+//                        updateScore(playerID: player.playerID, round: editingRound, newScore: newScore)
+//                    },
+//                    isIPad: UIDevice.current.userInterfaceIdiom == .pad
+//                )
+//            }
+//        }
+//    }
     
     // MARK: - View Components
     

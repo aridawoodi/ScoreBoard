@@ -51,7 +51,10 @@ struct ContentView: View {
                     .onAppear {
                         if state is SignedInState {
                             authStatus = .signedIn
-                            // Remove automatic profile creation - users can do this from Profile tab
+                            // Automatically create user profile when user signs in
+                            Task {
+                                await userService.ensureUserProfile()
+                            }
                         }
                     }
                 }
@@ -247,9 +250,10 @@ struct ContentView: View {
         let isGuestUser = UserDefaults.standard.bool(forKey: "is_guest_user")
         
         if isGuestUser {
-            // For guest users, clear the state and persistent guest ID
+            // For guest users, clear the state but keep the persistent guest ID
+            // This allows the same guest user to sign back in with the same profile
             print("Guest user signing out")
-            UserDefaults.standard.removeObject(forKey: "persistent_guest_id")
+            // Don't remove persistent_guest_id - keep it for future sign-ins
             UserDefaults.standard.removeObject(forKey: "current_guest_user_id")
             UserDefaults.standard.removeObject(forKey: "is_guest_user")
             await MainActor.run {
@@ -277,54 +281,41 @@ struct ContentView: View {
     }
     
     func signInAsGuest() async {
-        do {
-            print("🔍 DEBUG: Starting guest sign-in...")
-            
-            // Check if we already have a guest ID stored for this device
-            let guestIdKey = "persistent_guest_id"
-            let existingGuestId = UserDefaults.standard.string(forKey: guestIdKey)
-            
-            let guestId: String
-            if let existingId = existingGuestId {
-                // Reuse existing guest ID
-                guestId = existingId
-                print("🔍 DEBUG: Reusing existing guest ID: \(guestId)")
-            } else {
-                // Create new guest ID and store it
-                guestId = "guest_\(UUID().uuidString)"
-                UserDefaults.standard.set(guestId, forKey: guestIdKey)
-                print("🔍 DEBUG: Created new guest ID: \(guestId)")
-            }
-            
-            // For guest users, we need to create a mock authentication session
-            // since Amplify requires authentication for API calls
-            // We'll use a simple approach by creating a temporary Cognito session
-            
-            // Create guest user profile in database
-            let guestUser = GuestUser(
-                userId: guestId,
-                username: "Guest User",
-                email: "guest@scoreboard.app"
-            )
-            
-            let guestProfile = await UserService.shared.createGuestProfile(guestUser)
-            
-            if guestProfile != nil {
-                print("🔍 DEBUG: Guest user profile ready")
-                
-                // Store guest authentication info for API calls
-                UserDefaults.standard.set(guestId, forKey: "current_guest_user_id")
-                UserDefaults.standard.set(true, forKey: "is_guest_user")
-                
-                await MainActor.run {
-                    authStatus = .signedIn
-                }
-            } else {
-                print("🔍 DEBUG: Failed to create guest profile")
-            }
-        } catch {
-            print("🔍 DEBUG: Error during guest sign-in: \(error)")
+        print("🔍 DEBUG: Starting guest sign-in...")
+        
+        // Check if we already have a guest ID stored for this device
+        let guestIdKey = "persistent_guest_id"
+        let existingGuestId = UserDefaults.standard.string(forKey: guestIdKey)
+        
+        let guestId: String
+        if let existingId = existingGuestId {
+            // Reuse existing guest ID
+            guestId = existingId
+            print("🔍 DEBUG: Reusing existing guest ID: \(guestId)")
+        } else {
+            // Create new guest ID and store it
+            guestId = "guest_\(UUID().uuidString)"
+            UserDefaults.standard.set(guestId, forKey: guestIdKey)
+            print("🔍 DEBUG: Created new guest ID: \(guestId)")
         }
+        
+        // Store guest authentication info for API calls
+        UserDefaults.standard.set(guestId, forKey: "current_guest_user_id")
+        UserDefaults.standard.set(true, forKey: "is_guest_user")
+        
+        print("🔍 DEBUG: Guest authentication info stored in UserDefaults")
+        
+        // Ensure API access for guest users
+        await ensureGuestAPIAccess()
+        
+        await MainActor.run {
+            print("🔍 DEBUG: Setting authStatus to .signedIn")
+            authStatus = .signedIn
+        }
+        
+        // Automatically create user profile for guest user
+        print("🔍 DEBUG: Ensuring guest user profile exists...")
+        await userService.ensureUserProfile()
     }
 
     func loadUserGames() {
@@ -348,7 +339,7 @@ struct ContentView: View {
                     print("🔍 DEBUG: Current user ID: \(currentUserId)")
                 }
                 
-                // Use DataManager to load games efficiently
+                // Use DataManager to load games efficiently (skipped for guest users)
                 await DataManager.shared.loadGames()
                 
                 await MainActor.run {

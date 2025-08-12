@@ -24,71 +24,14 @@ class AmplifyService {
 extension AmplifyService {
     // MARK: - Guest Authentication
     
-    /// Sign in as a guest user
-    static func signInAsGuest() async -> AuthUser? {
-        do {
-            print("🔍 DEBUG: Starting guest sign-in...")
-            
-            // For guest access, we'll use a simple approach with a temporary user
-            // In a production app, you'd want to use Cognito Identity Pool with unauthenticated identities
-            let guestUserId = "guest_\(UUID().uuidString)"
-            
-            // Create a temporary guest user
-            let guestUser = GuestUser(
-                userId: guestUserId,
-                username: "Guest_\(String(guestUserId.prefix(8)))",
-                email: "guest@temp.com"
-            )
-            
-            print("🔍 DEBUG: Created guest user with ID: \(guestUserId)")
-            return guestUser
-            
-        } catch {
-            print("🔍 DEBUG: Error signing in as guest: \(error)")
-            return nil
-        }
-    }
+    // Guest sign-in is now handled in ContentView
+    // This method is no longer needed
     
-    /// Check if current user is a guest
-    static func isGuestUser(_ user: AuthUser) -> Bool {
-        return user.userId.hasPrefix("guest_")
-    }
+    // Guest user detection is now done directly with id.hasPrefix("guest_")
+    // These methods are no longer needed
     
-    /// Check if a User object is a guest user
-    static func isGuestUser(_ user: User) -> Bool {
-        return user.id.hasPrefix("guest_")
-    }
-    
-    /// Create guest profile in database
-    static func createGuestProfile(identityId: String) async -> User? {
-        do {
-            print("🔍 DEBUG: Creating guest profile for ID: \(identityId)")
-            
-            let guestUsername = "Guest_" + String(identityId.prefix(8))
-            
-            let guestUser = User(
-                id: identityId,
-                username: guestUsername,
-                email: "guest@temp.com",
-                createdAt: Temporal.DateTime.now(),
-                updatedAt: Temporal.DateTime.now()
-            )
-            
-            let result = try await Amplify.API.mutate(request: .create(guestUser))
-            
-            switch result {
-            case .success(let createdUser):
-                print("🔍 DEBUG: Successfully created guest profile: \(createdUser.username)")
-                return createdUser
-            case .failure(let error):
-                print("🔍 DEBUG: Failed to create guest profile: \(error)")
-                return nil
-            }
-        } catch {
-            print("🔍 DEBUG: Error creating guest profile: \(error)")
-            return nil
-        }
-    }
+    // Guest profile creation is now handled in UserService.ensureUserProfile()
+    // This method is no longer needed since guest users work with local profiles only
     
     // MARK: - Existing Methods
     

@@ -160,12 +160,18 @@ struct ProfileEditView: View {
                 // Check if current user is a guest
                 isGuestUser = UserDefaults.standard.bool(forKey: "is_guest_user")
                 
-                // Only fetch Cognito email for authenticated users, not guest users
+                // Handle email loading
                 Task {
                     if isGuestUser {
-                        // For guest users, use a placeholder email
-                        await MainActor.run {
-                            self.email = "guest@scoreboard.app"
+                        // For guest users, use the email from the user profile or default
+                        if let user = userService.currentUser {
+                            await MainActor.run {
+                                self.email = user.email
+                            }
+                        } else {
+                            await MainActor.run {
+                                self.email = "guest@scoreboard.app"
+                            }
                         }
                     } else {
                         // For authenticated users, fetch Cognito email
@@ -186,9 +192,30 @@ struct ProfileEditView: View {
     }
     
     func loadCurrentProfile() {
-        if let user = userService.currentUser {
-            username = user.username
-            // Do not set email here, let onAppear fetch from Cognito
+        Task {
+            // Load the current user profile first
+            await userService.loadCurrentUserProfile()
+            
+            await MainActor.run {
+                if let user = userService.currentUser {
+                    username = user.username
+                    // Email will be set in onAppear based on user type
+                } else {
+                    // If no user profile exists, try to create one for guest users
+                    let isGuestUser = UserDefaults.standard.bool(forKey: "is_guest_user")
+                    if isGuestUser {
+                        // For guest users, ensure the profile exists by calling ensureUserProfile
+                        Task {
+                            if let guestProfile = await userService.ensureUserProfile() {
+                                await MainActor.run {
+                                    username = guestProfile.username
+                                    email = guestProfile.email
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
     
