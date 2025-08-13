@@ -285,53 +285,19 @@ struct CreateGameView: View {
     }
     
     private func addPlayer() {
-        let trimmedName = newPlayerName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedName.isEmpty else { return }
-        
-        let player = Player(name: trimmedName, isRegistered: false, userId: nil)
-        players.append(player)
-        newPlayerName = ""
+        PlayerManagementFunctions.addPlayer(newPlayerName: $newPlayerName, players: $players)
     }
     
     private func searchUsers(query: String) {
-        guard !query.isEmpty else {
-            searchResults = []
-            return
-        }
-        
-        isSearching = true
-        Task {
-            do {
-                let result = try await Amplify.API.query(request: .list(User.self, where: User.keys.username.contains(query)))
-                await MainActor.run {
-                    switch result {
-                    case .success(let users):
-                        searchResults = users.filter { $0.username.contains(query) || $0.email.contains(query) }
-                    case .failure(let error):
-                        print("Search error: \(error)")
-                        searchResults = []
-                    }
-                    isSearching = false
-                }
-            } catch {
-                await MainActor.run {
-                    print("Search error: \(error)")
-                    searchResults = []
-                    isSearching = false
-                }
-            }
-        }
+        PlayerManagementFunctions.searchUsers(query: query, searchResults: $searchResults, isSearching: $isSearching)
     }
     
     private func addRegisteredPlayer(_ user: User) {
-        let player = Player(name: user.username, isRegistered: true, userId: user.id)
-        players.append(player)
-        searchText = ""
-        searchResults = []
+        PlayerManagementFunctions.addRegisteredPlayer(user, players: $players, searchText: $searchText, searchResults: $searchResults)
     }
     
     private func removePlayer(_ player: Player) {
-        players.removeAll { $0.id == player.id }
+        PlayerManagementFunctions.removePlayer(player, players: $players)
     }
 }
 

@@ -33,12 +33,7 @@ struct PlayerLeaderboardView: View {
                     }
                     
                     // Timeframe Picker
-                    Picker("Timeframe", selection: $selectedTimeframe) {
-                        ForEach(Timeframe.allCases, id: \.self) { timeframe in
-                            Text(timeframe.rawValue).tag(timeframe)
-                        }
-                    }
-                    .pickerStyle(.segmented)
+                    LeaderboardTimeframeSegmentedPicker(selection: $selectedTimeframe)
                 }
                 .padding()
                 .background(Color(.systemBackground))

@@ -345,32 +345,8 @@
 //         }
 //     }
     
-//     func removePlayer(_ player: Player) {
-//         players.removeAll { $0.id == player.id }
-//     }
-    
-//     func searchUsers() {
-//         guard searchText.count >= 2 else { return }
-        
-//         // Check cache first
-//         if let cachedResults = cachedSearchResults[searchText] {
-//             print("🔍 DEBUG: Using cached search results for '\(searchText)'")
-//             searchResults = cachedResults
-//             return
-//         }
-        
-//         isSearching = true
-//         Task {
-//             let results = await AmplifyService.searchUsersByName(query: searchText)
-//             await MainActor.run {
-//                 // Cache the results
-//                 self.cachedSearchResults[searchText] = results
-//                 self.searchResults = results
-//                 self.isSearching = false
-//                 print("🔍 DEBUG: Cached search results for '\(searchText)' - found \(results.count) users")
-//             }
-//         }
-//     }
+    // Player management functions are now centralized in PlayerManagementFunctions
+    // Use PlayerManagementFunctions.addPlayer, removePlayer, searchUsers, addRegisteredPlayer
 
 //     func updateGame() {
 //         guard !players.isEmpty else {

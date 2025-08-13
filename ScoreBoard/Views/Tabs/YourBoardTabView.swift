@@ -18,8 +18,8 @@ struct YourBoardTabView: View {
         NavigationStack {
             VStack {
                 if let selectedGame = navigationState.selectedGame {
-                    // Show selected game with new Scoreboardviewtest
-                    Scoreboardviewtest(game: Binding(
+                    // Show selected game with new Scoreboardview
+                    Scoreboardview(game: Binding(
                         get: { navigationState.selectedGame ?? selectedGame },
                         set: { newGame in
                             navigationState.selectedGame = newGame
@@ -46,8 +46,8 @@ struct YourBoardTabView: View {
                     }
 
                 } else if let latestGame = navigationState.latestGame {
-                    // Show latest game with new Scoreboardviewtest
-                    Scoreboardviewtest(game: .constant(latestGame)) { updatedGame in
+                    // Show latest game with new Scoreboardview
+                    Scoreboardview(game: .constant(latestGame)) { updatedGame in
                         print("🔍 DEBUG: ===== GAME UPDATE IN YOUR BOARD TAB (LATEST) =====")
                         print("🔍 DEBUG: Updating latestGame from \(latestGame.id) to \(updatedGame.id)")
                         print("🔍 DEBUG: Old rounds: \(latestGame.rounds), New rounds: \(updatedGame.rounds)")

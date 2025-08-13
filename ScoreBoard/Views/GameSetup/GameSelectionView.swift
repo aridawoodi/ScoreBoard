@@ -23,9 +23,20 @@ struct GameSelectionView: View {
     @State private var showDeleteError = false
     @State private var deleteErrorMessage = ""
     
-    // Filter to only show active games
-    var activeGames: [Game] {
-        games.filter { $0.gameStatus == .active }
+    @State private var selectedGameStatus: GameStatus = .active
+    
+    // Filter games by selected status
+    var filteredGames: [Game] {
+        games.filter { $0.gameStatus == selectedGameStatus }
+    }
+    
+    // Count games by status
+    var activeGameCount: Int {
+        games.filter { $0.gameStatus == .active }.count
+    }
+    
+    var completedGameCount: Int {
+        games.filter { $0.gameStatus == .completed }.count
     }
     
     var body: some View {
@@ -48,10 +59,21 @@ struct GameSelectionView: View {
                 }
                 .padding(.top, 40)
                 
+                // Status Slider
+                VStack(spacing: 12) {
+                    GameStatusSegmentedPicker(
+                        selection: $selectedGameStatus,
+                        activeCount: activeGameCount,
+                        completedCount: completedGameCount
+                    )
+                    .padding(.horizontal)
+                }
+                .padding(.bottom, 10)
+                
                 // Game List
                 ScrollView {
                     LazyVStack(spacing: 12) {
-                        ForEach(activeGames, id: \.id) { game in
+                        ForEach(filteredGames, id: \.id) { game in
                             GameCardView(
                                 game: game, 
                                 usernameCache: usernameCache,
@@ -150,8 +172,8 @@ struct GameSelectionView: View {
     
     func loadUsernamesFromCache() {
         Task {
-            // Get all unique player IDs from active games only
-            let allPlayerIDs = Set(activeGames.flatMap { $0.playerIDs })
+            // Get all unique player IDs from all games (active and completed)
+            let allPlayerIDs = Set(games.flatMap { $0.playerIDs })
             
             // Use the cache service to get usernames
             _ = await usernameCache.getUsernames(for: Array(allPlayerIDs))
@@ -187,6 +209,16 @@ struct GameCardView: View {
                                 .background(Color.blue)
                                 .cornerRadius(4)
                         }
+                        
+                        // Game status indicator
+                        Text(game.gameStatus == .active ? "Active" : "Completed")
+                            .font(.caption2)
+                            .fontWeight(.medium)
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(game.gameStatus == .active ? Color.green : Color.orange)
+                            .cornerRadius(4)
                     }
                     
                     Text("\(game.rounds) Rounds")
@@ -303,5 +335,22 @@ struct GameCardView: View {
         )
         .scaleEffect(isSelected ? 1.02 : 1.0)
         .animation(.easeInOut(duration: 0.2), value: isSelected)
+    }
+}
+
+// MARK: - Corner Radius Extension
+extension View {
+    func cornerRadius(_ radius: CGFloat, corners: UIRectCorner) -> some View {
+        clipShape(RoundedCorner(radius: radius, corners: corners))
+    }
+}
+
+struct RoundedCorner: Shape {
+    var radius: CGFloat = .infinity
+    var corners: UIRectCorner = .allCorners
+
+    func path(in rect: CGRect) -> Path {
+        let path = UIBezierPath(roundedRect: rect, byRoundingCorners: corners, cornerRadii: CGSize(width: radius, height: radius))
+        return Path(path.cgPath)
     }
 } 

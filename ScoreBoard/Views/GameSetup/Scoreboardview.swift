@@ -26,16 +26,20 @@ struct ScoreCell: View {
             }
         }) {
             Text(displayText ?? (currentScore == 0 ? "" : "\(currentScore)"))
-                .font(.system(size: 16, weight: .medium, design: .default))
+                .font(.system(size: 16, weight: .medium))
+                .foregroundColor(.primary)
                 .frame(maxWidth: .infinity, minHeight: 44)
                 .background(backgroundColor)
-                .foregroundColor(currentScore == 0 ? .secondary : .primary)
                 .overlay(
                     Rectangle()
                         .stroke(Color.gray.opacity(0.3), lineWidth: 0.5)
                 )
+                .overlay(
+                    Rectangle()
+                        .stroke(isFocused ? Color.accentColor : Color.clear, lineWidth: 2)
+                )
                 .scaleEffect(x: 1.0, y: isFocused ? 1.02 : 1.0, anchor: .center)
-                .shadow(color: Color.black.opacity(isFocused ? 0.15 : 0), radius: isFocused ? 4 : 0, x: 0, y: isFocused ? 2 : 0)
+                .shadow(color: Color.black.opacity(isFocused ? 0.1 : 0), radius: isFocused ? 2 : 0, x: 0, y: isFocused ? 1 : 0)
                 .zIndex(isFocused ? 10 : 0)
         }
         .buttonStyle(PlainButtonStyle())
@@ -184,8 +188,8 @@ func markCelebrationAsShown() {
 
 /// Get the winner of the game (if completed)
 func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
-    guard isGameComplete() && !players.isEmpty else { 
-        return (nil, "", false) 
+    guard isGameComplete() && !players.isEmpty else {
+        return (nil, "", false)
     }
     
     let sortedPlayers = players.sorted { $0.total > $1.total }
@@ -299,15 +303,15 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
             }
 
             // Winner banner overlay near bottom, below the toast area
-            if isGameComplete() {
-                VStack {
-                    Spacer()
-                    gameCompletionBanner
-                        .padding(.bottom, 40)
-                }
-                .allowsHitTesting(false)
-                .transition(.opacity)
-            }
+            // if isGameComplete() {
+            //     VStack {
+            //         Spacer()
+            //         gameCompletionBanner
+            //             .padding(.bottom, 40)
+            //     }
+            //     .allowsHitTesting(false)
+            //     .transition(.opacity)
+            // }
         }
         .sheet(isPresented: $showEditBoard) {
             EditBoardView(game: game) { updatedGame in
@@ -377,6 +381,7 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                 .overlay(Divider(), alignment: .top)
             }
         }
+        .ignoresSafeArea(.keyboard, edges: .bottom) // Allow keyboard to push content up
     }
     
     private var mainContentView: some View {
@@ -392,7 +397,6 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                     } else {
                         scoreboardTableView
                             .padding(.top, 12)
-                            .padding(.horizontal, 8)
                     }
                 }
 
@@ -535,9 +539,43 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                 Spacer()
             }
             
-            // Edit Board button - pencil icon only
-            HStack {
+            // Edit Board and Complete Game buttons
+            HStack(spacing: 16) {
                 Spacer()
+                
+                // Complete Game button (only when all scores filled and user can edit)
+                if canUserEditGame() && isGameComplete() {
+                    if game.gameStatus == .completed {
+                        Button(action: {}) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "checkmark.seal.fill")
+                                Text("Completed")
+                            }
+                            .font(.caption)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(Color.green)
+                            .foregroundColor(.white)
+                            .cornerRadius(6)
+                        }
+                        .disabled(true)
+                    } else if canUserEditScores() {
+                        Button(action: { completeGame() }) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "flag.checkered")
+                                Text("Complete Game")
+                            }
+                            .font(.caption)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(Color.purple)
+                            .foregroundColor(.white)
+                            .cornerRadius(6)
+                        }
+                    }
+                }
+                
+                // Edit Board button
                 Button(action: {
                     showEditBoard = true
                 }) {
@@ -562,28 +600,33 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
     }
     
     private var scoreboardTableView: some View {
-        VStack(spacing: 0) {
-            headerRow
-            scoreRows
-            // Add Round small plus button aligned to the left below the last round
-            if canUserEditGame() && canUserEditScores() {
-                HStack {
-                    Button(action: { addRound() }) {
-                        Image(systemName: "plus.circle.fill")
-                            .font(.system(size: 22, weight: .semibold))
-                            .foregroundColor(.blue)
-                            .frame(width: 22, height: 22)
-                            .accessibilityLabel("Add Round")
+        VStack(spacing: 16) {
+            // Excel-like table container with scroll
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(spacing: 0) {
+                        headerRow
+                        scoreRows
+                        addRoundButton
                     }
-                    Spacer()
+                    .background(Color(.systemBackground))
+                    .overlay(
+                        Rectangle()
+                            .stroke(Color.gray.opacity(0.5), lineWidth: 1.5)
+                    )
+                    .cornerRadius(4)
+                    .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
                 }
-                .padding(.top, 8)
-                .padding(.horizontal)
+                .frame(maxHeight: UIScreen.main.bounds.height * 0.6) // Limit height to 60% of screen
+                .onChange(of: editingRound) { _, newRound in
+                    // Auto-scroll to the editing round when keyboard appears
+                    if isScoreFieldFocused {
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            proxy.scrollTo("round-\(newRound)", anchor: .center)
+                        }
+                    }
+                }
             }
-        }
-        .background(Color(.systemBackground))
-        .cornerRadius(8)
-        .shadow(color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
             
             // Save and Undo buttons below the table
             if hasUnsavedChanges {
@@ -604,93 +647,7 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                         .cornerRadius(8)
                     }
                     
-                    // Save button (disabled per request)
-//                    Button(action: {
-//                        saveChanges()
-//                    }) {
-//                        HStack(spacing: 4) {
-//                            Image(systemName: "checkmark.circle.fill")
-//                            Text("Save")
-//                        }
-//                        .font(.subheadline)
-//                        .padding(.horizontal, 16)
-//                        .padding(.vertical, 8)
-//                        .background(Color.green)
-//                        .foregroundColor(.white)
-//                        .cornerRadius(8)
-//                    }
-
                     Spacer()
-
-                    // Complete Game button (only when all scores filled and user can edit)
-                    if canUserEditGame() && canUserEditScores() && isGameComplete() {
-                        if game.gameStatus == .completed {
-                            Button(action: {}) {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "checkmark.seal.fill")
-                                    Text("Completed")
-                                }
-                                .font(.subheadline)
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 8)
-                                .background(Color.green)
-                                .foregroundColor(.white)
-                                .cornerRadius(8)
-                            }
-                            .disabled(true)
-                        } else {
-                    Button(action: {
-                                completeGame()
-                    }) {
-                        HStack(spacing: 4) {
-                                    Image(systemName: "flag.checkered")
-                                    Text("Complete Game")
-                                }
-                                .font(.subheadline)
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 8)
-                                .background(Color.purple)
-                                .foregroundColor(.white)
-                                .cornerRadius(8)
-                            }
-                        }
-                    }
-                }
-                .padding(.top, 8)
-            }
-
-            // If nothing to save, still offer Complete Game when eligible
-            if !hasUnsavedChanges && canUserEditGame() && canUserEditScores() && isGameComplete() {
-                HStack {
-                    Spacer()
-                    if game.gameStatus == .completed {
-                        Button(action: {}) {
-                            HStack(spacing: 4) {
-                                Image(systemName: "checkmark.seal.fill")
-                                Text("Completed")
-                        }
-                        .font(.subheadline)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
-                        .background(Color.green)
-                        .foregroundColor(.white)
-                        .cornerRadius(8)
-                        }
-                        .disabled(true)
-                    } else {
-                        Button(action: { completeGame() }) {
-                            HStack(spacing: 4) {
-                                Image(systemName: "flag.checkered")
-                                Text("Complete Game")
-                            }
-                            .font(.subheadline)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 8)
-                            .background(Color.purple)
-                            .foregroundColor(.white)
-                            .cornerRadius(8)
-                        }
-                    }
                 }
                 .padding(.top, 8)
             }
@@ -729,77 +686,159 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
     
     private var headerRow: some View {
         HStack(spacing: 0) {
+            // Round header (empty space for round numbers)
+            VStack(spacing: 0) {
+                Text("")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(.secondary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.horizontal, 4)
+                    .padding(.top, 8)
+                    .padding(.bottom, 4)
+                
+                Text("")
+                    .frame(maxWidth: .infinity, minHeight: 32)
+                    .background(Color(.systemGray6))
+                    .overlay(
+                        Rectangle()
+                            .stroke(Color.gray.opacity(0.3), lineWidth: 0.5)
+                    )
+            }
+            .frame(width: 30)
+            .background(Color(.systemBackground))
+            .overlay(
+                Rectangle()
+                    .stroke(Color.gray.opacity(0.4), lineWidth: 1)
+            )
+            
             ForEach(Array(players.enumerated()), id: \.offset) { index, player in
                 VStack(spacing: 0) {
                     Text(player.name)
-                        .font(.system(size: 14, weight: .semibold, design: .default))
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.primary)
                         .lineLimit(1)
                         .truncationMode(.tail)
                         .frame(maxWidth: .infinity)
                         .padding(.horizontal, 8)
-                        .padding(.vertical, 8)
-                        .background(Color(.systemGray6))
-                        .overlay(
-                            Rectangle()
-                                .stroke(Color.gray.opacity(0.4), lineWidth: 0.5)
-                        )
+                        .padding(.top, 8)
+                        .padding(.bottom, 4)
                     
                     Text("\(player.total)")
-                        .font(.system(size: 18, weight: .bold, design: .default))
-                        .frame(maxWidth: .infinity, minHeight: 36)
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundColor(.primary)
+                        .frame(maxWidth: .infinity, minHeight: 32)
                         .background(columnColor(index).opacity(0.8))
-                        .foregroundColor(.white)
                         .overlay(
                             Rectangle()
-                                .stroke(Color.gray.opacity(0.4), lineWidth: 0.5)
+                                .stroke(Color.gray.opacity(0.3), lineWidth: 0.5)
                         )
                 }
                 .frame(maxWidth: .infinity)
+                .background(Color(.systemBackground))
+                .overlay(
+                    Rectangle()
+                        .stroke(Color.gray.opacity(0.4), lineWidth: 1)
+                )
             }
         }
         .frame(maxWidth: .infinity)
-        .overlay(
-            Rectangle()
-                .stroke(Color.gray.opacity(0.6), lineWidth: 1)
-        )
     }
     
     private var scoreRows: some View {
         VStack(spacing: 0) {
             ForEach(0..<dynamicRounds, id: \.self) { roundIndex in
+                scoreRow(for: roundIndex)
+            }
+        }
+    }
+    
+    private var addRoundButton: some View {
+        Group {
+            if canUserEditGame() && canUserEditScores() {
                 HStack(spacing: 0) {
-                    ForEach(Array(players.enumerated()), id: \.offset) { colIndex, player in
-                        let score = roundIndex < player.scores.count ? player.scores[roundIndex] : 0
-                        ScoreCell(
-                            player: player,
-                            roundIndex: roundIndex,
-                            canEdit: canUserEditScores(),
-                            onScoreTap: { _ in
-                                // Make sure the hidden text field is ready to receive input
-                                DispatchQueue.main.async {
-                                    guard canUserEditScores() else { return }
-                                    editingPlayer = player
-                                    editingRound = roundIndex + 1
-                                    scoreInputText = score == 0 ? "" : String(score)
-                                    isScoreFieldFocused = true
-                                }
-                            },
-                            currentScore: score,
-                            backgroundColor: columnColor(colIndex).opacity(0.3),
-                            displayText: (editingPlayer?.playerID == player.playerID && editingRound == roundIndex + 1 && isScoreFieldFocused) ? (scoreInputText) : nil,
-                            isFocused: (editingPlayer?.playerID == player.playerID && editingRound == roundIndex + 1 && isScoreFieldFocused)
+                    // Empty space for round number column alignment
+                    Rectangle()
+                        .fill(Color.clear)
+                        .frame(width: 30, height: 44)
+                        .overlay(
+                            Rectangle()
+                                .stroke(Color.gray.opacity(0.3), lineWidth: 0.5)
+                        )
+                    
+                    // Add round button spanning all player columns
+                    Button(action: { addRound() }) {
+                        HStack {
+                            Image(systemName: "plus.circle.fill")
+                                .font(.system(size: 18, weight: .semibold))
+                                .foregroundColor(.blue)
+                            Text("Add Round")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(.blue)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 44)
+                        .background(Color.blue.opacity(0.05))
+                        .overlay(
+                            Rectangle()
+                                .stroke(Color.blue.opacity(0.3), lineWidth: 1)
                         )
                     }
+                    .buttonStyle(PlainButtonStyle())
                 }
+                .padding(.top, 2)
+            }
+        }
+    }
+    
+    private func scoreRow(for roundIndex: Int) -> some View {
+        HStack(spacing: 0) {
+            // Round number indicator
+            let isCurrentRound = editingRound == roundIndex + 1 && isScoreFieldFocused
+            let roundTextColor = isCurrentRound ? Color.accentColor : Color.secondary
+            let roundBackgroundColor = isCurrentRound ? Color.accentColor.opacity(0.1) : Color(.systemGray6)
+            let roundBorderColor = isCurrentRound ? Color.accentColor : Color.gray.opacity(0.3)
+            let roundBorderWidth = isCurrentRound ? 1.5 : 0.5
+            
+            Text("\(roundIndex + 1)")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(roundTextColor)
+                .frame(width: 30, height: 44)
+                .background(roundBackgroundColor)
                 .overlay(
                     Rectangle()
-                        .stroke(Color.gray.opacity(0.6), lineWidth: 1)
+                        .stroke(roundBorderColor, lineWidth: roundBorderWidth)
+                )
+            
+            ForEach(players.indices, id: \.self) { colIndex in
+                let player = players[colIndex]
+                let score = roundIndex < player.scores.count ? player.scores[roundIndex] : 0
+                let isEditingThisCell = editingPlayer?.playerID == player.playerID && editingRound == roundIndex + 1 && isScoreFieldFocused
+                
+                ScoreCell(
+                    player: player,
+                    roundIndex: roundIndex,
+                    canEdit: canUserEditScores(),
+                    onScoreTap: { _ in
+                        // Make sure the hidden text field is ready to receive input
+                        DispatchQueue.main.async {
+                            guard canUserEditScores() else { return }
+                            editingPlayer = player
+                            editingRound = roundIndex + 1
+                            scoreInputText = score == 0 ? "" : String(score)
+                            isScoreFieldFocused = true
+                        }
+                    },
+                    currentScore: score,
+                    backgroundColor: columnColor(colIndex).opacity(0.3),
+                    displayText: isEditingThisCell ? scoreInputText : nil,
+                    isFocused: isEditingThisCell
                 )
             }
         }
+        .id("round-\(roundIndex + 1)") // Add ID for scrolling
         .overlay(
             Rectangle()
-                .stroke(Color.gray.opacity(0.6), lineWidth: 1)
+                .stroke(Color.gray.opacity(0.2), lineWidth: 0.5)
         )
     }
     
@@ -827,15 +866,12 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
         return Color.green.opacity(0.15)
     }
     
-    // Column color matching Excel-like style
+    // Column color matching Testview style
     func columnColor(_ index: Int) -> Color {
         switch index {
-        case 0: return Color(red: 0.2, green: 0.6, blue: 0.9) // Excel blue
-        case 1: return Color(red: 0.9, green: 0.4, blue: 0.2) // Excel orange
-        case 2: return Color(red: 0.2, green: 0.7, blue: 0.3) // Excel green
-        case 3: return Color(red: 0.8, green: 0.2, blue: 0.6) // Excel purple
-        case 4: return Color(red: 0.9, green: 0.6, blue: 0.1) // Excel gold
-        default: return Color(red: 0.6, green: 0.6, blue: 0.6) // Excel gray
+        case 0: return .yellow
+        case 1: return .purple
+        default: return .green
         }
     }
     
@@ -1788,15 +1824,24 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
     // MARK: - Complete Game
     func completeGame() {
         guard canUserEditGame() && isGameComplete() else { return }
+        
+        // Update local state immediately for better UX
         var updated = game
         updated.gameStatus = .completed
         updated.updatedAt = Temporal.DateTime.now()
+        
+        // Update local game state immediately
+        self.game = updated
+        self.gameUpdateCounter += 1
+        
         Task {
             do {
                 let result = try await Amplify.API.mutate(request: .update(updated))
                 switch result {
                 case .success(let saved):
                     await MainActor.run {
+                        print("🔍 DEBUG: Game completed successfully on backend")
+                        // Update with the saved version from backend to ensure consistency
                         self.game = saved
                         self.onGameUpdated?(saved)
                         showToastMessage(message: "Game marked complete", icon: "flag.checkered")
@@ -2050,5 +2095,3 @@ struct ConfettiPieceView: View {
             }
     }
 }
-
-
