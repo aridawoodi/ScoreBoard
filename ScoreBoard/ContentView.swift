@@ -104,24 +104,24 @@ struct ContentView: View {
                     switch selectedTab {
                     case 0:
                         JoinScoreboardTabView(
-                            navigationState: $navigationState,
+                            navigationState: navigationState,
                             showJoinGame: $showJoinGame,
                             showGameSelection: $showGameSelection,
                             selectedTab: $selectedTab
                         )
                     case 1:
                         AnalyticsTabView(
-                            navigationState: $navigationState,
+                            navigationState: navigationState,
                             selectedTab: $selectedTab
                         )
                     case 2:
                         YourBoardTabView(
-                            navigationState: $navigationState,
+                            navigationState: navigationState,
                             selectedTab: $selectedTab
                         )
                     case 3:
                         CreateScoreboardTabView(
-                            navigationState: $navigationState,
+                            navigationState: navigationState,
                             showCreateGame: $showCreateGame,
                             selectedTab: $selectedTab
                         )
@@ -138,7 +138,7 @@ struct ContentView: View {
                         )
                     default:
                         YourBoardTabView(
-                            navigationState: $navigationState,
+                            navigationState: navigationState,
                             selectedTab: $selectedTab
                         )
                     }

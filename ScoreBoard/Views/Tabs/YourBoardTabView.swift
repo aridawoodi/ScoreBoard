@@ -9,11 +9,12 @@ import SwiftUI
 
 // MARK: - Your Board Tab View
 struct YourBoardTabView: View {
-    @Binding var navigationState: NavigationState
+    @ObservedObject var navigationState: NavigationState
     @Binding var selectedTab: Int
     @StateObject private var onboardingManager = OnboardingManager()
     @State private var showOnboardingTooltip = false
     @State private var forceViewReset = false
+    @State private var viewRefreshCounter = 0
     
     var body: some View {
         NavigationStack {
@@ -144,6 +145,18 @@ struct YourBoardTabView: View {
                                 // Reset force view reset flag
                                 forceViewReset = false
                                 
+                                // Force view refresh by triggering objectWillChange
+                                navigationState.objectWillChange.send()
+                                
+                                // Increment refresh counter to force view update
+                                viewRefreshCounter += 1
+                                
+                                // Add a small delay to ensure UI updates
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                    // Force another refresh to ensure view updates
+                                    viewRefreshCounter += 1
+                                }
+                                
                                 print("🔍 DEBUG: After 2-player creation - selectedGame: \(navigationState.selectedGame?.id ?? "nil")")
                                 print("🔍 DEBUG: After 2-player creation - userGames count: \(navigationState.userGames.count)")
                                 print("🔍 DEBUG: After 2-player creation - forceViewReset: \(forceViewReset)")
@@ -165,6 +178,18 @@ struct YourBoardTabView: View {
                                 // Reset force view reset flag
                                 forceViewReset = false
                                 
+                                // Force view refresh by triggering objectWillChange
+                                navigationState.objectWillChange.send()
+                                
+                                // Increment refresh counter to force view update
+                                viewRefreshCounter += 1
+                                
+                                // Add a small delay to ensure UI updates
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                    // Force another refresh to ensure view updates
+                                    viewRefreshCounter += 1
+                                }
+                                
                                 print("🔍 DEBUG: After 4-player creation - selectedGame: \(navigationState.selectedGame?.id ?? "nil")")
                                 print("🔍 DEBUG: After 4-player creation - userGames count: \(navigationState.userGames.count)")
                                 print("🔍 DEBUG: After 4-player creation - forceViewReset: \(forceViewReset)")
@@ -181,7 +206,7 @@ struct YourBoardTabView: View {
                 
                 Spacer()
             }
-            .id("YourBoardTab-\(navigationState.selectedGame?.id ?? "nil")-\(navigationState.userGames.count)")
+            .id("YourBoardTab-\(navigationState.selectedGame?.id ?? "nil")-\(navigationState.userGames.count)-\(viewRefreshCounter)")
             .navigationBarTitleDisplayMode(.large)
             .onAppear {
                 print("🔍 DEBUG: ===== YOUR BOARD TAB ON APPEAR =====")

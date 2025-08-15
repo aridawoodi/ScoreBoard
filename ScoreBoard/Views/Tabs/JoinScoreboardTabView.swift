@@ -9,7 +9,7 @@ import SwiftUI
 
 // MARK: - Join Scoreboard Tab View
 struct JoinScoreboardTabView: View {
-    @Binding var navigationState: NavigationState
+    @ObservedObject var navigationState: NavigationState
     @Binding var showJoinGame: Bool
     @Binding var showGameSelection: Bool
     @Binding var selectedTab: Int

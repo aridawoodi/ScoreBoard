@@ -9,7 +9,7 @@ import SwiftUI
 
 // MARK: - Create Scoreboard Tab View
 struct CreateScoreboardTabView: View {
-    @Binding var navigationState: NavigationState
+    @ObservedObject var navigationState: NavigationState
     @Binding var showCreateGame: Bool
     @Binding var selectedTab: Int
     @StateObject private var onboardingManager = OnboardingManager()

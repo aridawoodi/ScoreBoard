@@ -9,7 +9,7 @@ import SwiftUI
 
 // MARK: - Analytics Tab View
 struct AnalyticsTabView: View {
-    @Binding var navigationState: NavigationState
+    @ObservedObject var navigationState: NavigationState
     @Binding var selectedTab: Int
     @StateObject private var analyticsService = AnalyticsService.shared
     @State private var playerStats: PlayerStats?
