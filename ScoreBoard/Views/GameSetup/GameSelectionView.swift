@@ -44,10 +44,6 @@ struct GameSelectionView: View {
             VStack(spacing: 20) {
                 // Header
                 VStack(spacing: 8) {
-                    Image(systemName: "gamecontroller.fill")
-                        .font(.system(size: 48))
-                        .foregroundColor(.green)
-                    
                     Text("Select a Game")
                         .font(.title)
                         .fontWeight(.bold)
@@ -57,7 +53,7 @@ struct GameSelectionView: View {
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
                 }
-                .padding(.top, 40)
+                .padding(.top, 20)
                 
                 // Status Slider
                 VStack(spacing: 12) {

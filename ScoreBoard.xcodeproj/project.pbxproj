@@ -31,6 +31,7 @@
 		5E2CB2FE2E431690006EC186 /* ProfileTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E2CB2FC2E431690006EC186 /* ProfileTabView.swift */; };
 		5E2CB3012E4316A1006EC186 /* FloatingTabBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E2CB2FF2E4316A1006EC186 /* FloatingTabBar.swift */; };
 		5E2CB3032E4319A5006EC186 /* NavigationState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E2CB3022E4319A5006EC186 /* NavigationState.swift */; };
+		5E2F66E22E4EAD870016B28D /* QuickGameCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E2F66E12E4EAD860016B28D /* QuickGameCard.swift */; };
 		5E5A911D2CD8849600EFE5C2 /* ScoreBoardApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E5A911C2CD8849600EFE5C2 /* ScoreBoardApp.swift */; };
 		5E5A911F2CD8849600EFE5C2 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E5A911E2CD8849600EFE5C2 /* ContentView.swift */; };
 		5E5A91232CD8849700EFE5C2 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 5E5A91222CD8849700EFE5C2 /* Assets.xcassets */; };
@@ -106,6 +107,7 @@
 		5E2CB2FC2E431690006EC186 /* ProfileTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileTabView.swift; sourceTree = "<group>"; };
 		5E2CB2FF2E4316A1006EC186 /* FloatingTabBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingTabBar.swift; sourceTree = "<group>"; };
 		5E2CB3022E4319A5006EC186 /* NavigationState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigationState.swift; sourceTree = "<group>"; };
+		5E2F66E12E4EAD860016B28D /* QuickGameCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickGameCard.swift; sourceTree = "<group>"; };
 		5E5A91192CD8849600EFE5C2 /* ScoreBoard.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ScoreBoard.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		5E5A911C2CD8849600EFE5C2 /* ScoreBoardApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoreBoardApp.swift; sourceTree = "<group>"; };
 		5E5A911E2CD8849600EFE5C2 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -333,6 +335,7 @@
 				5E62D03D2E44523A00B7BDB3 /* PlayerManagementView.swift */,
 				5EFE186B2E2A0B7E0056C708 /* JoinGameView.swift */,
 				5EFE18692E2A0B720056C708 /* CreateGameView.swift */,
+				5E2F66E12E4EAD860016B28D /* QuickGameCard.swift */,
 				5E62D04E2E467BEB00B7BDB3 /* EditBoardView.swift */,
 				5EFE186F2E2A0B9E0056C708 /* NameInputView.swift */,
 				5EFE18702E2A0BAE0056C708 /* JoinOptionsView.swift */,
@@ -492,6 +495,7 @@
 				5E2CB2EA2E42C8A3006EC186 /* DataManager.swift in Sources */,
 				5EFE18722E2A0BBE0056C708 /* GameSelectionView.swift in Sources */,
 				5EFE18732E2A0BCE0056C708 /* UserService.swift in Sources */,
+				5E2F66E22E4EAD870016B28D /* QuickGameCard.swift in Sources */,
 				5EF0B40B2E4AD019007D1718 /* PlayerAnalyticsView.swift in Sources */,
 				5EF0B40C2E4AD019007D1718 /* SampleAnalyticsView.swift in Sources */,
 				5EF0B40D2E4AD019007D1718 /* AnalyticsService.swift in Sources */,

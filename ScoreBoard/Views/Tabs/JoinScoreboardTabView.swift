@@ -39,13 +39,14 @@ struct JoinScoreboardTabView: View {
                     }
                 }) {
                     HStack {
-                        Image(systemName: navigationState.hasGames ? "gamecontroller.fill" : "person.2.circle.fill")
-                            .font(.title2)
-                            .foregroundColor(navigationState.hasGames ? .green : .primary)
+                        Image("logo")
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 24, height: 24)
                         VStack(alignment: .leading) {
                             Text("My Scoreboards")
                                 .font(.headline)
-                            Text("\(navigationState.gameCount) active game\(navigationState.gameCount == 1 ? "" : "s")")
+                            Text("\(navigationState.gameCount) Board\(navigationState.gameCount == 1 ? "" : "s")")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }

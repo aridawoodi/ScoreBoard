@@ -442,3 +442,30 @@ struct RegisteredUserView: View {
         .fixedSize(horizontal: false, vertical: true)
     }
 }
+
+// MARK: - Preview
+struct CreateGameView_Previews: PreviewProvider {
+    static var previews: some View {
+        NavigationView {
+            CreateGameView(
+                showCreateGame: .constant(true),
+                onGameCreated: { game in
+                    print("Preview: Game created with ID: \(game.id)")
+                }
+            )
+        }
+        .previewDisplayName("Create Game View")
+        
+        // iPad Preview
+        NavigationView {
+            CreateGameView(
+                showCreateGame: .constant(true),
+                onGameCreated: { game in
+                    print("Preview: Game created with ID: \(game.id)")
+                }
+            )
+        }
+        .previewDevice(PreviewDevice(rawValue: "iPad Pro (11-inch)"))
+        .previewDisplayName("Create Game View - iPad")
+    }
+}

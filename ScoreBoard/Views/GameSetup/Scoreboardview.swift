@@ -97,6 +97,22 @@ struct Scoreboardview: View {
     @State private var toastOpacity: Double = 0.0 // Add opacity state for animation
     @State private var showCopiedFeedback = false // Show copied feedback
     @State private var isGameDeleted = false // Flag when backend no longer has this game
+    
+    // Delete mode states
+    @State private var isDeleteMode = false // Toggle delete mode
+    @State private var showDeletePlayerAlert = false // Show alert for deleting player
+    @State private var showDeleteRoundAlert = false // Show alert for deleting round
+    @State private var showDeleteGameAlert = false // Show alert for deleting game
+    @State private var playerToDelete: TestPlayer? // Track which player to delete
+    @State private var roundToDelete: Int = 0 // Track which round to delete
+    
+    // Computed property to ensure delete mode is only active when game is active
+    private var effectiveDeleteMode: Bool {
+        return isDeleteMode && game.gameStatus == .active && canUserEditGame()
+    }
+    
+    // Force view refresh when game status changes
+    @State private var gameStatusRefreshTrigger = 0
 
     let onGameUpdated: ((Game) -> Void)?
     let onGameDeleted: (() -> Void)?
@@ -114,14 +130,26 @@ struct Scoreboardview: View {
     
     /// Check if the game is complete (all scores filled)
     func isGameComplete() -> Bool {
-        // All non-zero for current rounds
-        guard !players.isEmpty, game.rounds > 0 else { return false }
-        for player in players {
-            if player.scores.count < game.rounds { return false }
-            for idx in 0..<game.rounds {
-                if player.scores[idx] == 0 { return false }
+        // All non-zero for current dynamic rounds
+        guard !players.isEmpty, dynamicRounds > 0 else { 
+            print("🔍 DEBUG: isGameComplete() - players empty or dynamicRounds <= 0")
+            return false 
+        }
+        
+        for (playerIndex, player) in players.enumerated() {
+            if player.scores.count < dynamicRounds { 
+                print("🔍 DEBUG: isGameComplete() - Player \(player.name) has \(player.scores.count) scores, need \(dynamicRounds)")
+                return false 
+            }
+            for idx in 0..<dynamicRounds {
+                if player.scores[idx] == 0 { 
+                    print("🔍 DEBUG: isGameComplete() - Player \(player.name) has 0 score at round \(idx + 1)")
+                    return false 
+                }
             }
         }
+        
+        print("🔍 DEBUG: isGameComplete() - Game is complete! All scores filled.")
         return true
     }
     
@@ -402,6 +430,7 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
 
                 Spacer()
             }
+            .id(gameStatusRefreshTrigger) // Force view refresh when game status changes
             // Hidden inline input to trigger the standard iOS number pad
             TextField("", text: $scoreInputText)
                 .keyboardType(.numberPad)
@@ -442,6 +471,17 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                 currentGameId = newGameId
                 loadGameData()
             }
+            .onChange(of: game.gameStatus) { _, newStatus in
+                print("🔍 DEBUG: Game status changed to \(newStatus)")
+                // Automatically disable delete mode when game is completed
+                if newStatus == .completed && isDeleteMode {
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        isDeleteMode = false
+                    }
+                }
+                // Force view refresh when game status changes
+                gameStatusRefreshTrigger += 1
+            }
             
             // Celebration overlay
             if showCelebration {
@@ -474,6 +514,37 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
             Button("Cancel", role: .cancel) { }
         } message: {
             Text("Remove round \(roundToRemove)? This will delete all scores for this round.")
+        }
+        
+        .alert("Delete Player", isPresented: $showDeletePlayerAlert) {
+            Button("Delete", role: .destructive) {
+                if let player = playerToDelete {
+                    deletePlayer(player)
+                }
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            if let player = playerToDelete {
+                Text("Delete \(player.name) from this game? This will remove all their scores and cannot be undone.")
+            }
+        }
+        
+        .alert("Delete Round", isPresented: $showDeleteRoundAlert) {
+            Button("Delete", role: .destructive) {
+                deleteRound(roundToDelete)
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Delete round \(roundToDelete)? This will remove all scores for this round and cannot be undone.")
+        }
+        
+        .alert("Delete Game", isPresented: $showDeleteGameAlert) {
+            Button("Delete", role: .destructive) {
+                deleteGame()
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Delete this entire game? This will permanently remove the game and all its scores. This action cannot be undone.")
         }
     }
     
@@ -560,7 +631,14 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                         }
                         .disabled(true)
                     } else if canUserEditScores() {
-                        Button(action: { completeGame() }) {
+                        Button(action: { 
+                            print("🔍 DEBUG: Complete Game button pressed")
+                            print("🔍 DEBUG: Game status before: \(game.gameStatus)")
+                            print("🔍 DEBUG: isGameComplete(): \(isGameComplete())")
+                            print("🔍 DEBUG: canUserEditGame(): \(canUserEditGame())")
+                            print("🔍 DEBUG: canUserEditScores(): \(canUserEditScores())")
+                            completeGame() 
+                        }) {
                             HStack(spacing: 4) {
                                 Image(systemName: "flag.checkered")
                                 Text("Complete Game")
@@ -572,6 +650,19 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                             .foregroundColor(.white)
                             .cornerRadius(6)
                         }
+                    }
+                }
+                
+                // Delete Mode button (only when game is active and user can edit)
+                if canUserEditGame() && game.gameStatus == .active {
+                    Button(action: {
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            isDeleteMode.toggle()
+                        }
+                    }) {
+                        Image(systemName: isDeleteMode ? "trash.circle.fill" : "trash.circle")
+                            .font(.system(size: 24, weight: .medium))
+                            .foregroundColor(isDeleteMode ? .red : .gray)
                     }
                 }
                 
@@ -589,6 +680,7 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
         .padding(.horizontal)
         .padding(.top, 8)
         .padding(.bottom, 16) // Add spacing between header and table
+        .id(gameStatusRefreshTrigger) // Force header refresh when game status changes
     }
     
     private var loadingView: some View {
@@ -601,6 +693,34 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
     
     private var scoreboardTableView: some View {
         VStack(spacing: 16) {
+            // Delete Game Button (only in delete mode)
+            if effectiveDeleteMode {
+                HStack {
+                    Button(action: {
+                        showDeleteGameAlert = true
+                    }) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "trash.circle.fill")
+                                .font(.system(size: 16, weight: .semibold))
+                            Text("Delete Board")
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                        }
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(
+                            RoundedRectangle(cornerRadius: 16)
+                                .fill(Color.red)
+                        )
+                    }
+                    .transition(.scale.combined(with: .opacity))
+                    
+                    Spacer()
+                }
+                .padding(.horizontal, 4)
+            }
+            
             // Excel-like table container with scroll
             ScrollViewReader { proxy in
                 ScrollView {
@@ -704,7 +824,7 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                             .stroke(Color.gray.opacity(0.3), lineWidth: 0.5)
                     )
             }
-            .frame(width: 30)
+            .frame(width: effectiveDeleteMode ? 40 : 30)
             .background(Color(.systemBackground))
             .overlay(
                 Rectangle()
@@ -713,15 +833,31 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
             
             ForEach(Array(players.enumerated()), id: \.offset) { index, player in
                 VStack(spacing: 0) {
-                    Text(player.name)
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(.primary)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                        .frame(maxWidth: .infinity)
-                        .padding(.horizontal, 8)
-                        .padding(.top, 8)
-                        .padding(.bottom, 4)
+                    HStack {
+                        Text(player.name)
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(.primary)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                            .frame(maxWidth: .infinity)
+                        
+                        // Delete player icon (only in delete mode)
+                        if effectiveDeleteMode {
+                            Button(action: {
+                                playerToDelete = player
+                                showDeletePlayerAlert = true
+                            }) {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.system(size: 16))
+                                    .foregroundColor(.red)
+                            }
+                            .padding(.trailing, 4)
+                            .transition(.scale.combined(with: .opacity))
+                        }
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.top, 8)
+                    .padding(.bottom, 4)
                     
                     Text("\(player.total)")
                         .font(.system(size: 18, weight: .bold))
@@ -759,7 +895,7 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                     // Empty space for round number column alignment
                     Rectangle()
                         .fill(Color.clear)
-                        .frame(width: 30, height: 44)
+                        .frame(width: effectiveDeleteMode ? 40 : 30, height: 44)
                         .overlay(
                             Rectangle()
                                 .stroke(Color.gray.opacity(0.3), lineWidth: 0.5)
@@ -799,15 +935,32 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
             let roundBorderColor = isCurrentRound ? Color.accentColor : Color.gray.opacity(0.3)
             let roundBorderWidth = isCurrentRound ? 1.5 : 0.5
             
-            Text("\(roundIndex + 1)")
-                .font(.system(size: 12, weight: .medium))
-                .foregroundColor(roundTextColor)
-                .frame(width: 30, height: 44)
-                .background(roundBackgroundColor)
-                .overlay(
-                    Rectangle()
-                        .stroke(roundBorderColor, lineWidth: roundBorderWidth)
-                )
+            HStack(spacing: 2) {
+                Text("\(roundIndex + 1)")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(roundTextColor)
+                    .frame(width: 20, height: 44)
+                
+                // Delete round icon (only in delete mode)
+                if effectiveDeleteMode {
+                    Button(action: {
+                        roundToDelete = roundIndex + 1
+                        showDeleteRoundAlert = true
+                    }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 12))
+                            .foregroundColor(.red)
+                    }
+                    .frame(width: 10, height: 44)
+                    .transition(.scale.combined(with: .opacity))
+                }
+            }
+            .frame(width: effectiveDeleteMode ? 40 : 30, height: 44)
+            .background(roundBackgroundColor)
+            .overlay(
+                Rectangle()
+                    .stroke(roundBorderColor, lineWidth: roundBorderWidth)
+            )
             
             ForEach(players.indices, id: \.self) { colIndex in
                 let player = players[colIndex]
@@ -843,20 +996,26 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
     }
     
     private var totalRow: some View {
-        HStack {
+        HStack(spacing: 0) {
             // Consistent first column (round + delete icon space)
-            HStack(spacing: 4) {
-                Text("")
-                    .frame(width: 44, alignment: .center)
-                Color.clear
-                    .frame(width: 20, height: 1)
-            }
+                            Rectangle()
+                    .fill(Color.clear)
+                    .frame(width: effectiveDeleteMode ? 40 : 30, height: 44)
+                    .overlay(
+                        Rectangle()
+                            .stroke(Color.gray.opacity(0.3), lineWidth: 0.5)
+                    )
             
             ForEach(players) { player in
                 let total = player.total
                 Text("\(total)")
-                    .frame(maxWidth: .infinity)
+                    .frame(maxWidth: .infinity, minHeight: 44)
                     .fontWeight(.bold)
+                    .background(Color(.systemGray6))
+                    .overlay(
+                        Rectangle()
+                            .stroke(Color.gray.opacity(0.3), lineWidth: 0.5)
+                    )
             }
         }
     }
@@ -1729,6 +1888,278 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
         print("🔍 DEBUG: ===== REMOVE ROUND END =====")
     }
     
+    func deletePlayer(_ player: TestPlayer) {
+        guard canUserEditGame() && players.count > 1 else { return }
+        
+        print("🔍 DEBUG: ===== DELETE PLAYER START =====")
+        print("🔍 DEBUG: Deleting player: \(player.name) (\(player.playerID))")
+        
+        // Remove player from local arrays
+        players.removeAll { $0.playerID == player.playerID }
+        unsavedScores.removeValue(forKey: player.playerID)
+        playerNames.removeValue(forKey: player.playerID)
+        
+        // Update the game object
+        var updatedGame = game
+        updatedGame.playerIDs.removeAll { $0 == player.playerID }
+        updatedGame.updatedAt = Temporal.DateTime.now()
+        
+        // Update the binding
+        self.game = updatedGame
+        
+        // Exit delete mode
+        isDeleteMode = false
+        
+        // Show success message
+        showToastMessage(message: "\(player.name) removed from game", icon: "person.badge.minus")
+        
+        // Save the game update and delete scores for the removed player
+        Task {
+            do {
+                print("🔍 DEBUG: Deleting scores for player \(player.playerID)")
+                
+                // Fetch scores for this game and player
+                let scoresQuery = Score.keys.gameID.eq(game.id).and(Score.keys.playerID.eq(player.playerID))
+                let scoresResult = try await Amplify.API.query(request: .list(Score.self, where: scoresQuery))
+                
+                switch scoresResult {
+                case .success(let playerScores):
+                    print("🔍 DEBUG: Found \(playerScores.count) scores for player \(player.playerID)")
+                    
+                    // Delete all scores for this player
+                    for score in playerScores {
+                        print("🔍 DEBUG: Deleting score for player \(score.playerID), round \(score.roundNumber)")
+                        let deleteResult = try await Amplify.API.mutate(request: .delete(score))
+                        switch deleteResult {
+                        case .success(let deletedScore):
+                            print("🔍 DEBUG: Successfully deleted score: \(deletedScore.id)")
+                        case .failure(let error):
+                            print("🔍 DEBUG: Failed to delete score: \(error)")
+                        }
+                    }
+                    
+                    // Now update the game object
+                    let result = try await Amplify.API.mutate(request: .update(updatedGame))
+                    switch result {
+                    case .success(let updatedGame):
+                        await MainActor.run {
+                            self.game = updatedGame
+                            self.onGameUpdated?(updatedGame)
+                        }
+                        print("🔍 DEBUG: Successfully updated game after deleting player")
+                    case .failure(let error):
+                        print("🔍 DEBUG: Failed to update game after deleting player: \(error)")
+                        await MainActor.run {
+                            showToastMessage(message: "Failed to save changes", icon: "exclamationmark.circle.fill")
+                        }
+                    }
+                    
+                case .failure(let error):
+                    print("🔍 DEBUG: Failed to fetch scores for deletion: \(error)")
+                    await MainActor.run {
+                        showToastMessage(message: "Failed to delete player scores", icon: "exclamationmark.circle.fill")
+                    }
+                }
+            } catch {
+                print("🔍 DEBUG: Error deleting player: \(error)")
+                await MainActor.run {
+                    showToastMessage(message: "Error deleting player", icon: "exclamationmark.circle.fill")
+                }
+            }
+        }
+    }
+    
+    func deleteRound(_ roundNumber: Int) {
+        guard canUserEditGame() && dynamicRounds > 1 && roundNumber <= dynamicRounds else { return }
+        
+        print("🔍 DEBUG: ===== DELETE ROUND START =====")
+        print("🔍 DEBUG: Deleting round \(roundNumber)")
+        print("🔍 DEBUG: Current dynamicRounds: \(dynamicRounds)")
+        
+        // Store current scores before removing round
+        let currentScores = unsavedScores
+        
+        // Remove the round
+        dynamicRounds -= 1
+        
+        // Resize all unsaved scores arrays to match the new round count
+        // while preserving existing scores (excluding the deleted round)
+        for (playerID, scores) in currentScores {
+            var updatedScores = scores
+            // Remove the specific round and shift remaining scores
+            if roundNumber <= updatedScores.count {
+                updatedScores.remove(at: roundNumber - 1)
+            }
+            // Truncate to the new round count
+            if updatedScores.count > dynamicRounds {
+                updatedScores = Array(updatedScores.prefix(dynamicRounds))
+            }
+            unsavedScores[playerID] = updatedScores
+        }
+        
+        // Also update the players array to reflect the new round count
+        // while preserving existing scores (excluding the deleted round)
+        for i in 0..<players.count {
+            var updatedScores = players[i].scores
+            // Remove the specific round and shift remaining scores
+            if roundNumber <= updatedScores.count {
+                updatedScores.remove(at: roundNumber - 1)
+            }
+            // Truncate to the new round count
+            if updatedScores.count > dynamicRounds {
+                updatedScores = Array(updatedScores.prefix(dynamicRounds))
+            }
+            players[i] = TestPlayer(
+                name: players[i].name,
+                scores: updatedScores,
+                playerID: players[i].playerID
+            )
+        }
+        
+        // Update the game object
+        var updatedGame = game
+        updatedGame.rounds = dynamicRounds
+        updatedGame.updatedAt = Temporal.DateTime.now()
+        
+        // Update the binding
+        self.game = updatedGame
+        
+        // Exit delete mode
+        isDeleteMode = false
+        
+        // Show success message
+        showToastMessage(message: "Round \(roundNumber) deleted", icon: "minus.circle.fill")
+        
+        // Save the game update and delete scores for the removed round
+        Task {
+            do {
+                print("🔍 DEBUG: Deleting scores for round \(roundNumber)")
+                
+                // Fetch scores for this game only (server-side filtering)
+                let scoresQuery = Score.keys.gameID.eq(game.id)
+                let scoresResult = try await Amplify.API.query(request: .list(Score.self, where: scoresQuery))
+                
+                switch scoresResult {
+                case .success(let gameScores):
+                    print("🔍 DEBUG: Found \(gameScores.count) scores for this game")
+                    
+                    // Delete scores for the removed round
+                    let scoresToDelete = gameScores.filter { $0.roundNumber == roundNumber }
+                    print("🔍 DEBUG: Found \(scoresToDelete.count) scores to delete for round \(roundNumber)")
+                    
+                    for score in scoresToDelete {
+                        print("🔍 DEBUG: Deleting score for player \(score.playerID), round \(score.roundNumber)")
+                        let deleteResult = try await Amplify.API.mutate(request: .delete(score))
+                        switch deleteResult {
+                        case .success(let deletedScore):
+                            print("🔍 DEBUG: Successfully deleted score: \(deletedScore.id)")
+                        case .failure(let error):
+                            print("🔍 DEBUG: Failed to delete score: \(error)")
+                        }
+                    }
+                    
+                    // Now update the game object
+                    let result = try await Amplify.API.mutate(request: .update(updatedGame))
+                    switch result {
+                    case .success(let updatedGame):
+                        await MainActor.run {
+                            self.game = updatedGame
+                            self.onGameUpdated?(updatedGame)
+                        }
+                        print("🔍 DEBUG: Successfully updated game after deleting round")
+                    case .failure(let error):
+                        print("🔍 DEBUG: Failed to update game after deleting round: \(error)")
+                        await MainActor.run {
+                            showToastMessage(message: "Failed to save changes", icon: "exclamationmark.circle.fill")
+                        }
+                    }
+                    
+                case .failure(let error):
+                    print("🔍 DEBUG: Failed to fetch scores for deletion: \(error)")
+                    await MainActor.run {
+                        showToastMessage(message: "Failed to delete round scores", icon: "exclamationmark.circle.fill")
+                    }
+                }
+            } catch {
+                print("🔍 DEBUG: Error deleting round: \(error)")
+                await MainActor.run {
+                    showToastMessage(message: "Error deleting round", icon: "exclamationmark.circle.fill")
+                }
+            }
+        }
+    }
+    
+    func deleteGame() {
+        guard canUserEditGame() && game.gameStatus == .active else { return }
+        
+        print("🔍 DEBUG: ===== DELETE GAME START =====")
+        print("🔍 DEBUG: Deleting game: \(game.id)")
+        
+        // Exit delete mode
+        isDeleteMode = false
+        
+        // Show success message
+        showToastMessage(message: "Game deleted", icon: "trash.circle.fill")
+        
+        // Delete the game and all related scores
+        Task {
+            do {
+                print("🔍 DEBUG: Deleting all scores for game \(game.id)")
+                
+                // Fetch all scores for this game
+                let scoresQuery = Score.keys.gameID.eq(game.id)
+                let scoresResult = try await Amplify.API.query(request: .list(Score.self, where: scoresQuery))
+                
+                switch scoresResult {
+                case .success(let gameScores):
+                    print("🔍 DEBUG: Found \(gameScores.count) scores to delete for game \(game.id)")
+                    
+                    // Delete all scores for this game
+                    for score in gameScores {
+                        print("🔍 DEBUG: Deleting score for player \(score.playerID), round \(score.roundNumber)")
+                        let deleteResult = try await Amplify.API.mutate(request: .delete(score))
+                        switch deleteResult {
+                        case .success(let deletedScore):
+                            print("🔍 DEBUG: Successfully deleted score: \(deletedScore.id)")
+                        case .failure(let error):
+                            print("🔍 DEBUG: Failed to delete score: \(error)")
+                        }
+                    }
+                    
+                    // Now delete the game itself
+                    let gameDeleteResult = try await Amplify.API.mutate(request: .delete(game))
+                    switch gameDeleteResult {
+                    case .success(let deletedGame):
+                        print("🔍 DEBUG: Successfully deleted game: \(deletedGame.id)")
+                        await MainActor.run {
+                            // Notify parent that game was deleted
+                            self.onGameDeleted?()
+                        }
+                    case .failure(let error):
+                        print("🔍 DEBUG: Failed to delete game: \(error)")
+                        await MainActor.run {
+                            showToastMessage(message: "Failed to delete game", icon: "exclamationmark.circle.fill")
+                        }
+                    }
+                    
+                case .failure(let error):
+                    print("🔍 DEBUG: Failed to fetch scores for deletion: \(error)")
+                    await MainActor.run {
+                        showToastMessage(message: "Failed to delete game scores", icon: "exclamationmark.circle.fill")
+                    }
+                }
+                
+            } catch {
+                print("🔍 DEBUG: Error deleting game: \(error)")
+                await MainActor.run {
+                    showToastMessage(message: "Error deleting game", icon: "exclamationmark.circle.fill")
+                }
+            }
+        }
+        
+        print("🔍 DEBUG: ===== DELETE GAME END =====")
+    }
+    
     // MARK: - Show Toast Message
     func showToastMessage(message: String, icon: String = "checkmark") {
         toastMessage = message
@@ -1823,7 +2254,13 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
 
     // MARK: - Complete Game
     func completeGame() {
-        guard canUserEditGame() && isGameComplete() else { return }
+        print("🔍 DEBUG: completeGame() called")
+        print("🔍 DEBUG: canUserEditGame(): \(canUserEditGame())")
+        print("🔍 DEBUG: isGameComplete(): \(isGameComplete())")
+        guard canUserEditGame() && isGameComplete() else { 
+            print("🔍 DEBUG: completeGame() - Guard failed, returning early")
+            return 
+        }
         
         // Update local state immediately for better UX
         var updated = game
@@ -1833,6 +2270,18 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
         // Update local game state immediately
         self.game = updated
         self.gameUpdateCounter += 1
+        
+        print("🔍 DEBUG: completeGame() - Local game status updated to: \(self.game.gameStatus)")
+        
+        // Immediately disable delete mode when game is completed
+        withAnimation(.easeInOut(duration: 0.3)) {
+            isDeleteMode = false
+        }
+        
+        // Force view refresh to update all UI elements
+        gameStatusRefreshTrigger += 1
+        
+        print("🔍 DEBUG: completeGame() - View refresh triggered, gameStatusRefreshTrigger: \(gameStatusRefreshTrigger)")
         
         Task {
             do {
