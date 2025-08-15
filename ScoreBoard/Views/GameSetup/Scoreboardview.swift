@@ -19,31 +19,118 @@ struct ScoreCell: View {
     let displayText: String?
     let isFocused: Bool
     
+    @Environment(\.colorScheme) var colorScheme
+    
     var body: some View {
         Button(action: {
             if canEdit {
                 onScoreTap(currentScore)
             }
         }) {
-            Text(displayText ?? (currentScore == 0 ? "" : "\(currentScore)"))
-                .font(.system(size: 16, weight: .medium))
-                .foregroundColor(.primary)
-                .frame(maxWidth: .infinity, minHeight: 44)
-                .background(backgroundColor)
-                .overlay(
-                    Rectangle()
-                        .stroke(Color.gray.opacity(0.3), lineWidth: 0.5)
-                )
-                .overlay(
-                    Rectangle()
-                        .stroke(isFocused ? Color.accentColor : Color.clear, lineWidth: 2)
-                )
-                .scaleEffect(x: 1.0, y: isFocused ? 1.02 : 1.0, anchor: .center)
-                .shadow(color: Color.black.opacity(isFocused ? 0.1 : 0), radius: isFocused ? 2 : 0, x: 0, y: isFocused ? 1 : 0)
-                .zIndex(isFocused ? 10 : 0)
+            HStack {
+                Text(displayText ?? (currentScore == 0 ? "" : "\(currentScore)"))
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(.primary)
+                
+                // Add edit indicator for empty cells
+                if currentScore == 0 && canEdit {
+                    Image(systemName: "pencil.circle")
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary)
+                        .opacity(0.6)
+                }
+            }
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(cellBackgroundColor)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 6)
+                    .stroke(cellBorderColor, lineWidth: cellBorderWidth)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 6)
+                    .stroke(isFocused ? Color.accentColor : Color.clear, lineWidth: 2)
+            )
+            .scaleEffect(x: 1.0, y: isFocused ? 1.02 : 1.0, anchor: .center)
+            .shadow(color: shadowColor, radius: shadowRadius, x: 0, y: shadowOffset)
+            .zIndex(isFocused ? 10 : 0)
         }
         .buttonStyle(PlainButtonStyle())
         .animation(.spring(response: 0.2, dampingFraction: 0.8), value: isFocused)
+    }
+    
+    // Dynamic background color based on editability and color scheme
+    private var cellBackgroundColor: Color {
+        if isFocused {
+            return backgroundColor.opacity(0.8)
+        } else if canEdit {
+            return colorScheme == .dark ? 
+                backgroundColor.opacity(0.4) : 
+                backgroundColor.opacity(0.6)
+        } else {
+            return colorScheme == .dark ? 
+                Color(.systemGray6) : 
+                Color(.systemGray5)
+        }
+    }
+    
+    // Dynamic border color
+    private var cellBorderColor: Color {
+        if isFocused {
+            return Color.accentColor
+        } else if canEdit {
+            return colorScheme == .dark ? 
+                Color.gray.opacity(0.4) : 
+                Color.gray.opacity(0.3)
+        } else {
+            return Color.gray.opacity(0.2)
+        }
+    }
+    
+    // Dynamic border width
+    private var cellBorderWidth: CGFloat {
+        if isFocused {
+            return 2.0
+        } else if canEdit {
+            return 1.0
+        } else {
+            return 0.5
+        }
+    }
+    
+    // Dynamic shadow properties
+    private var shadowColor: Color {
+        if isFocused {
+            return Color.black.opacity(0.15)
+        } else if canEdit {
+            return colorScheme == .dark ? 
+                Color.white.opacity(0.05) : 
+                Color.black.opacity(0.05)
+        } else {
+            return Color.clear
+        }
+    }
+    
+    private var shadowRadius: CGFloat {
+        if isFocused {
+            return 4.0
+        } else if canEdit {
+            return 2.0
+        } else {
+            return 0.0
+        }
+    }
+    
+    private var shadowOffset: CGFloat {
+        if isFocused {
+            return 2.0
+        } else if canEdit {
+            return 1.0
+        } else {
+            return 0.0
+        }
     }
 }
 
@@ -818,16 +905,19 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                 
                 Text("")
                     .frame(maxWidth: .infinity, minHeight: 32)
-                    .background(Color(.systemGray6))
+                    .background(
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(Color(.systemGray6))
+                    )
                     .overlay(
-                        Rectangle()
+                        RoundedRectangle(cornerRadius: 6)
                             .stroke(Color.gray.opacity(0.3), lineWidth: 0.5)
                     )
             }
             .frame(width: effectiveDeleteMode ? 40 : 30)
             .background(Color(.systemBackground))
             .overlay(
-                Rectangle()
+                RoundedRectangle(cornerRadius: 6)
                     .stroke(Color.gray.opacity(0.4), lineWidth: 1)
             )
             
@@ -863,16 +953,19 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                         .font(.system(size: 18, weight: .bold))
                         .foregroundColor(.primary)
                         .frame(maxWidth: .infinity, minHeight: 32)
-                        .background(columnColor(index).opacity(0.8))
+                        .background(
+                            RoundedRectangle(cornerRadius: 6)
+                                .fill(Color(.systemBackground))
+                        )
                         .overlay(
-                            Rectangle()
+                            RoundedRectangle(cornerRadius: 6)
                                 .stroke(Color.gray.opacity(0.3), lineWidth: 0.5)
                         )
                 }
                 .frame(maxWidth: .infinity)
                 .background(Color(.systemBackground))
                 .overlay(
-                    Rectangle()
+                    RoundedRectangle(cornerRadius: 6)
                         .stroke(Color.gray.opacity(0.4), lineWidth: 1)
                 )
             }
@@ -897,7 +990,7 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                         .fill(Color.clear)
                         .frame(width: effectiveDeleteMode ? 40 : 30, height: 44)
                         .overlay(
-                            Rectangle()
+                            RoundedRectangle(cornerRadius: 6)
                                 .stroke(Color.gray.opacity(0.3), lineWidth: 0.5)
                         )
                     
@@ -913,9 +1006,12 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                         }
                         .frame(maxWidth: .infinity)
                         .frame(height: 44)
-                        .background(Color.blue.opacity(0.05))
+                        .background(
+                            RoundedRectangle(cornerRadius: 6)
+                                .fill(Color.blue.opacity(0.05))
+                        )
                         .overlay(
-                            Rectangle()
+                            RoundedRectangle(cornerRadius: 6)
                                 .stroke(Color.blue.opacity(0.3), lineWidth: 1)
                         )
                     }
@@ -931,7 +1027,6 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
             // Round number indicator
             let isCurrentRound = editingRound == roundIndex + 1 && isScoreFieldFocused
             let roundTextColor = isCurrentRound ? Color.accentColor : Color.secondary
-            let roundBackgroundColor = isCurrentRound ? Color.accentColor.opacity(0.1) : Color(.systemGray6)
             let roundBorderColor = isCurrentRound ? Color.accentColor : Color.gray.opacity(0.3)
             let roundBorderWidth = isCurrentRound ? 1.5 : 0.5
             
@@ -956,9 +1051,9 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                 }
             }
             .frame(width: effectiveDeleteMode ? 40 : 30, height: 44)
-            .background(roundBackgroundColor)
+            .background(Color(.systemBackground))
             .overlay(
-                Rectangle()
+                RoundedRectangle(cornerRadius: 6)
                     .stroke(roundBorderColor, lineWidth: roundBorderWidth)
             )
             
@@ -982,7 +1077,7 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                         }
                     },
                     currentScore: score,
-                    backgroundColor: columnColor(colIndex).opacity(0.3),
+                    backgroundColor: columnColor(colIndex),
                     displayText: isEditingThisCell ? scoreInputText : nil,
                     isFocused: isEditingThisCell
                 )
@@ -990,7 +1085,7 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
         }
         .id("round-\(roundIndex + 1)") // Add ID for scrolling
         .overlay(
-            Rectangle()
+            RoundedRectangle(cornerRadius: 6)
                 .stroke(Color.gray.opacity(0.2), lineWidth: 0.5)
         )
     }
@@ -1025,12 +1120,18 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
         return Color.green.opacity(0.15)
     }
     
-    // Column color matching Testview style
+    // Column color matching Testview style with better dark mode support
     func columnColor(_ index: Int) -> Color {
         switch index {
-        case 0: return .yellow
-        case 1: return .purple
-        default: return .green
+        case 0: return .orange
+        case 1: return .blue
+        case 2: return .green
+        case 3: return .purple
+        case 4: return .pink
+        case 5: return .teal
+        case 6: return .indigo
+        case 7: return .mint
+        default: return .cyan
         }
     }
     
