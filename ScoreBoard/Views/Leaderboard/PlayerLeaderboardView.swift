@@ -28,7 +28,7 @@ struct PlayerLeaderboardView: View {
                     HStack {
                         Text("Everyone")
                             .font(.headline)
-                            .foregroundColor(.primary)
+                            .foregroundColor(.white)
                         Spacer()
                     }
                     
@@ -36,17 +36,25 @@ struct PlayerLeaderboardView: View {
                     LeaderboardTimeframeSegmentedPicker(selection: $selectedTimeframe)
                 }
                 .padding()
-                .background(Color(.systemBackground))
+                .background(Color.black.opacity(0.3))
                 
                 // Search Bar
                 HStack {
                     Image(systemName: "magnifyingglass")
-                        .foregroundColor(.secondary)
-                    TextField("Search players...", text: $searchText)
-                        .textFieldStyle(.plain)
+                        .foregroundColor(.white.opacity(0.7))
+                    ZStack(alignment: .leading) {
+                        if searchText.isEmpty {
+                            Text("Search players...")
+                                .foregroundColor(.white.opacity(0.5))
+                                .font(.body)
+                        }
+                        TextField("", text: $searchText)
+                            .foregroundColor(.white)
+                            .textFieldStyle(.plain)
+                    }
                 }
                 .padding()
-                .background(Color(.systemGray6))
+                .background(Color.black.opacity(0.3))
                 .cornerRadius(10)
                 .padding(.horizontal)
                 .padding(.bottom, 8)
@@ -59,7 +67,7 @@ struct PlayerLeaderboardView: View {
                             .scaleEffect(1.2)
                         Text("Loading leaderboard...")
                             .font(.headline)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(.white.opacity(0.7))
                             .padding(.top)
                         Spacer()
                     }
@@ -70,19 +78,23 @@ struct PlayerLeaderboardView: View {
                             HStack {
                                 Text("Rank")
                                     .font(.headline)
+                                    .foregroundColor(.white)
                                     .frame(width: 50, alignment: .leading)
                                 Text("Player")
                                     .font(.headline)
+                                    .foregroundColor(.white)
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                 Text("Games")
                                     .font(.headline)
+                                    .foregroundColor(.white)
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                 Text("Points")
                                     .font(.headline)
+                                    .foregroundColor(.white)
                                     .frame(width: 80, alignment: .trailing)
                             }
                             .padding()
-                            .background(Color(.systemGray6))
+                            .background(Color.black.opacity(0.3))
                             
                             // Player Rows
                             ForEach(filteredPlayers.indices, id: \.self) { index in
@@ -101,19 +113,19 @@ struct PlayerLeaderboardView: View {
                     }
                 }
             }
-            .navigationTitle("Scoreboard")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("Back") {
                         dismiss()
                     }
+                    .foregroundColor(.white)
                 }
                 
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("X") {
                         dismiss()
                     }
+                    .foregroundColor(.white)
                 }
             }
             .onAppear {
@@ -126,6 +138,7 @@ struct PlayerLeaderboardView: View {
                     await dataManager.refreshData()
                 }
             }
+            .gradientBackground()
         }
     }
     
@@ -152,7 +165,7 @@ struct PlayerLeaderboardRow: View {
         case 1: return .yellow
         case 2: return .gray
         case 3: return .orange
-        default: return .primary
+        default: return .white
         }
     }
     
@@ -183,7 +196,7 @@ struct PlayerLeaderboardRow: View {
             // Nickname
             Text(player.nickname)
                 .font(.body)
-                .foregroundColor(.primary)
+                .foregroundColor(.white)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .lineLimit(1)
             
@@ -192,13 +205,13 @@ struct PlayerLeaderboardRow: View {
                 ForEach(player.games.prefix(2), id: \.self) { gameName in
                     Text(gameName)
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(.white.opacity(0.7))
                         .lineLimit(1)
                 }
                 if player.games.count > 2 {
                     Text("+\(player.games.count - 2) more")
                         .font(.caption2)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(.white.opacity(0.7))
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -206,11 +219,11 @@ struct PlayerLeaderboardRow: View {
             // Points
             Text(formatPoints(player.points))
                 .font(.body)
-                .foregroundColor(.primary)
+                .foregroundColor(.white)
                 .frame(width: 80, alignment: .trailing)
         }
         .padding()
-        .background(Color(.systemBackground))
+        .background(Color.black.opacity(0.3))
     }
     
     private func formatPoints(_ points: Int) -> String {

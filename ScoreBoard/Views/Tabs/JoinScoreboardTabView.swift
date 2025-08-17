@@ -22,6 +22,7 @@ struct JoinScoreboardTabView: View {
             VStack(spacing: 16) {
                 
                 // My Scoreboards Button
+                let strokeColor: Color = navigationState.hasGames ? Color.green : Color.white.opacity(0.3)
                 Button(action: {
                     // Force refresh user games before checking
                     Task {
@@ -46,28 +47,31 @@ struct JoinScoreboardTabView: View {
                         VStack(alignment: .leading) {
                             Text("My Scoreboards")
                                 .font(.headline)
+                                .foregroundColor(.white)
                             Text("\(navigationState.gameCount) Board\(navigationState.gameCount == 1 ? "" : "s")")
                                 .font(.caption)
-                                .foregroundColor(.secondary)
+                                .foregroundColor(.white.opacity(0.7))
                         }
                         Spacer()
                         HStack(spacing: 4) {
+                            let chevronColor: Color = navigationState.hasGames ? .green : .white.opacity(0.7)
+                            let countColor: Color = navigationState.hasGames ? .green : .white.opacity(0.7)
+                            
                             Image(systemName: "chevron.right")
-                                .foregroundColor(navigationState.hasGames ? .green : .secondary)
+                                .foregroundColor(chevronColor)
                             Text("\(navigationState.gameCount)")
                                 .font(.caption.bold())
-                                .foregroundColor(navigationState.hasGames ? .green : .secondary)
+                                .foregroundColor(countColor)
                         }
                     }
-                    .padding()
-                    .background(Color(.systemBackground))
-                    .cornerRadius(12)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(navigationState.hasGames ? Color.green : Color(.systemGray4), lineWidth: 1)
-                    )
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .background(Color.white.opacity(0.05))
+                    .cornerRadius(8)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(PlainButtonStyle())
+                .scaleEffect(1.0)
+                .animation(.easeInOut(duration: 0.1), value: true)
                 
                 // Join a Board Button
                 Button(action: {
@@ -80,23 +84,23 @@ struct JoinScoreboardTabView: View {
                         VStack(alignment: .leading) {
                             Text("Join a Board")
                                 .font(.headline)
+                                .foregroundColor(.white)
                             Text("Enter a game code to join")
                                 .font(.caption)
-                                .foregroundColor(.secondary)
+                                .foregroundColor(.white.opacity(0.7))
                         }
                         Spacer()
                         Image(systemName: "chevron.right")
                             .foregroundColor(.blue)
                     }
-                    .padding()
-                    .background(Color(.systemBackground))
-                    .cornerRadius(12)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color.blue, lineWidth: 1)
-                    )
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .background(Color.white.opacity(0.05))
+                    .cornerRadius(8)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(PlainButtonStyle())
+                .scaleEffect(1.0)
+                .animation(.easeInOut(duration: 0.1), value: true)
                 
                 // Player Leaderboard Button
                 Button(action: {
@@ -109,29 +113,28 @@ struct JoinScoreboardTabView: View {
                         VStack(alignment: .leading) {
                             Text("Player Leaderboard")
                                 .font(.headline)
+                                .foregroundColor(.white)
                             Text("View all players and their scores")
                                 .font(.caption)
-                                .foregroundColor(.secondary)
+                                .foregroundColor(.white.opacity(0.7))
                         }
                         Spacer()
                         Image(systemName: "chevron.right")
                             .foregroundColor(.purple)
                     }
-                    .padding()
-                    .background(Color(.systemBackground))
-                    .cornerRadius(12)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color.purple, lineWidth: 1)
-                    )
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .background(Color.white.opacity(0.05))
+                    .cornerRadius(8)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(PlainButtonStyle())
+                .scaleEffect(1.0)
+                .animation(.easeInOut(duration: 0.1), value: true)
                 
                 Spacer()
             }
             .padding()
-            .navigationTitle("Join Scoreboard")
-            .navigationBarTitleDisplayMode(.inline)
+            .gradientBackground()
             .refreshable {
                 // Pull to refresh functionality
                 await navigationState.refreshUserGames()

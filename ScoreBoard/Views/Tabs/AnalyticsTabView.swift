@@ -17,30 +17,27 @@ struct AnalyticsTabView: View {
     @State private var showSampleData = false
     
     var body: some View {
-        NavigationStack {
-            Group {
-                if isLoading {
-                    VStack(spacing: 16) {
-                        ProgressView()
-                            .scaleEffect(1.2)
-                        Text("Loading analytics...")
-                            .font(.headline)
-                            .foregroundColor(.secondary)
-                    }
-                } else if let stats = playerStats {
-                    // Show real analytics data
-                    PlayerAnalyticsView()
-                        .onAppear {
-                            // The PlayerAnalyticsView will handle its own data loading
-                        }
-                } else {
-                    // Show sample data with clear indication it's sample data
-                    SampleAnalyticsView()
+        Group {
+            if isLoading {
+                VStack(spacing: 16) {
+                    ProgressView()
+                        .scaleEffect(1.2)
+                    Text("Loading analytics...")
+                        .font(.headline)
+                        .foregroundColor(.white.opacity(0.7))
                 }
+            } else if let stats = playerStats {
+                // Show real analytics data
+                PlayerAnalyticsView()
+                    .onAppear {
+                        // The PlayerAnalyticsView will handle its own data loading
+                    }
+            } else {
+                // Show sample data with clear indication it's sample data
+                SampleAnalyticsView()
             }
-            .navigationTitle("Analytics")
-            .navigationBarTitleDisplayMode(.large)
         }
+        .gradientBackground()
         .onAppear {
             loadAnalyticsData()
         }

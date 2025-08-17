@@ -12,7 +12,7 @@ struct GradientBackgroundView: View {
         LinearGradient(
             gradient: Gradient(colors: [
                 Color("GradientBackground"), // Dark green from asset
-                Color.black // Very dark gray / almost black (#0b0b0b)
+                Color.black // Very dark gray / almost black
             ]),
             startPoint: .top,
             endPoint: .bottom
@@ -24,17 +24,10 @@ struct GradientBackgroundView: View {
 // Extension to make it easy to apply the gradient background to any view
 extension View {
     func gradientBackground() -> some View {
-        self.background(
-            LinearGradient(
-                gradient: Gradient(colors: [
-                    Color("GradientBackground"), // Dark green from asset
-                    Color.black // Very dark gray / almost black (#0b0b0b)
-                ]),
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .ignoresSafeArea(.all, edges: .all)
-        )
+        ZStack {
+            GradientBackgroundView()
+            self
+        }
     }
 }
 

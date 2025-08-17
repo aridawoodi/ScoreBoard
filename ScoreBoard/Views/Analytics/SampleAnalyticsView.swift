@@ -104,7 +104,7 @@ struct SampleAnalyticsView: View {
             }
             .padding()
         }
-        .background(Color(.systemGroupedBackground))
+        .background(Color.clear)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 AnalyticsTimeframeSegmentedPicker(selection: $selectedTimeframe)
@@ -145,6 +145,7 @@ struct SampleAnalyticsView: View {
         } message: {
             Text(currentStatInfo)
         }
+        .gradientBackground()
     }
 }
 
@@ -159,22 +160,22 @@ struct SampleDataIndicator: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Sample Analytics Data")
                     .font(.headline)
-                    .foregroundColor(.primary)
+                    .foregroundColor(.white)
                 
                 Text("This shows what your analytics will look like once you start playing games. Create or join a game to see your real statistics!")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(.white.opacity(0.7))
                     .multilineTextAlignment(.leading)
             }
             
             Spacer()
         }
         .padding()
-        .background(Color(.systemBackground))
+        .background(Color.black.opacity(0.3))
         .cornerRadius(12)
         .overlay(
             RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.blue.opacity(0.3), lineWidth: 1)
+                .stroke(Color.white.opacity(0.3), lineWidth: 1)
         )
     }
 }

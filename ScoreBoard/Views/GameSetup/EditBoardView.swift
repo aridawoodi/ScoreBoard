@@ -52,15 +52,35 @@ struct EditBoardView: View {
                     VStack(alignment: .leading, spacing: 12) {
                         
                         TextField("Enter game name", text: $gameName)
-                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                            .foregroundColor(.white)
+                            .padding()
+                            .background(Color.black.opacity(0.5))
+                            .cornerRadius(8)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                            )
                         
                         TextField("Enter custom rules (optional)", text: $customRules)
-                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                            .foregroundColor(.white)
+                            .padding()
+                            .background(Color.black.opacity(0.5))
+                            .cornerRadius(8)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                            )
 
-                        Stepper("Number of Rounds: \(rounds)", value: $rounds, in: 1...10)
+                        HStack {
+                            Text("Number of Rounds: \(rounds)")
+                                .foregroundColor(.white)
+                            Spacer()
+                            Stepper("", value: $rounds, in: 1...10)
+                                .labelsHidden()
+                        }
                     }
                     .padding()
-                    .background(Color(.systemGray6))
+                    .background(Color.black.opacity(0.3))
                     .cornerRadius(10)
 
                     // Player Management
@@ -88,8 +108,10 @@ struct EditBoardView: View {
                             }
                         }
                         .disabled(isLoading)
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.large)
+                        .foregroundColor(.white)
+                        .padding()
+                        .background(Color.green)
+                        .cornerRadius(12)
                         
                         Button(action: {
                             showDeleteAlert = true
@@ -97,20 +119,26 @@ struct EditBoardView: View {
                             Text("Delete Board")
                         }
                         .disabled(isLoading)
-                        .buttonStyle(.bordered)
-                        .foregroundColor(.red)
-                        .controlSize(.large)
+                        .foregroundColor(.white)
+                        .padding()
+                        .background(Color.red)
+                        .cornerRadius(12)
                     }
                 }
                 .padding()
             }
             .navigationTitle("Edit Board")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbarBackground(Color.clear, for: .navigationBar)
             .navigationBarItems(
                 leading: Button("Cancel") {
                     dismiss()
                 }
+                .foregroundColor(.white)
             )
+            .gradientBackground()
             .alert("Board Update", isPresented: $showAlert) {
                 Button("OK") { }
             } message: {

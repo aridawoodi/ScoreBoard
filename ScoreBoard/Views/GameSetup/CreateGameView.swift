@@ -48,52 +48,54 @@ struct CreateGameView: View {
         GeometryReader { geometry in
             NavigationStack {
                 ScrollView {
-                    CreateGameContentView(
-                        gameName: $gameName,
-                        customRules: $customRules,
-                        rounds: $rounds,
-                        hostJoinAsPlayer: $hostJoinAsPlayer,
-                        hostPlayerName: $hostPlayerName,
-                        newPlayerName: $newPlayerName,
-                        searchText: $searchText,
-                        players: $players,
-                        searchResults: $searchResults,
-                        isSearching: $isSearching,
-                        currentUser: $currentUser,
-                        currentUserProfile: $currentUserProfile,
-                        isIPad: isIPad,
-                        titleFont: titleFont,
-                        bodyFont: bodyFont,
-                        sectionSpacing: sectionSpacing,
-                        addPlayer: addPlayer,
-                        searchUsers: searchUsers,
-                        addRegisteredPlayer: addRegisteredPlayer,
-                        removePlayer: removePlayer
-                    )
+                CreateGameContentView(
+                    gameName: $gameName,
+                    customRules: $customRules,
+                    rounds: $rounds,
+                    hostJoinAsPlayer: $hostJoinAsPlayer,
+                    hostPlayerName: $hostPlayerName,
+                    newPlayerName: $newPlayerName,
+                    searchText: $searchText,
+                    players: $players,
+                    searchResults: $searchResults,
+                    isSearching: $isSearching,
+                    currentUser: $currentUser,
+                    currentUserProfile: $currentUserProfile,
+                    isIPad: isIPad,
+                    titleFont: titleFont,
+                    bodyFont: bodyFont,
+                    sectionSpacing: sectionSpacing,
+                    addPlayer: addPlayer,
+                    searchUsers: searchUsers,
+                    addRegisteredPlayer: addRegisteredPlayer,
+                    removePlayer: removePlayer
+                )
+            }
+            .gradientBackground()
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        clearForm()
+                        showCreateGame = false
+                    }
+                    .foregroundColor(.white)
                 }
-                .navigationTitle("Create Game")
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .navigationBarLeading) {
-                        Button("Cancel") {
-                            clearForm()
-                            showCreateGame = false
-                        }
+                
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Create") {
+                        createGame()
                     }
-                    
-                    ToolbarItem(placement: .navigationBarTrailing) {
-                        Button("Create") {
-                            createGame()
-                        }
-                        .disabled(players.isEmpty || isLoading)
-                    }
+                    .foregroundColor(.white)
+                    .disabled(players.isEmpty || isLoading)
                 }
             }
+        }
             .alert("Error", isPresented: $showAlert) {
                 Button("OK") { }
             } message: {
                 Text(alertMessage)
             }
+
             .onAppear {
                 loadCurrentUser()
             }
@@ -329,17 +331,44 @@ struct CreateGameContentView: View {
         VStack(spacing: sectionSpacing) {
             // Game Settings
             VStack(alignment: .leading, spacing: isIPad ? 16 : 12) {
-                Text("Game Settings")
-                    .font(titleFont)
-                    .fontWeight(.semibold)
                 
-                TextField("Enter game name (optional)", text: $gameName)
-                    .textFieldStyle(RoundedBorderTextFieldStyle())
-                    .font(bodyFont)
+                ZStack(alignment: .leading) {
+                    if gameName.isEmpty {
+                        Text("Enter game name (optional)")
+                            .foregroundColor(.white.opacity(0.5))
+                            .font(bodyFont)
+                            .padding(.leading, 16)
+                    }
+                    TextField("", text: $gameName)
+                        .font(bodyFont)
+                        .foregroundColor(.white)
+                        .padding()
+                        .background(Color.black.opacity(0.5))
+                        .cornerRadius(8)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                        )
+                }
                 
-                TextField("Enter custom rules (optional)", text: $customRules)
-                    .textFieldStyle(RoundedBorderTextFieldStyle())
-                    .font(bodyFont)
+                ZStack(alignment: .leading) {
+                    if customRules.isEmpty {
+                        Text("Enter custom rules (optional)")
+                            .foregroundColor(.white.opacity(0.5))
+                            .font(bodyFont)
+                            .padding(.leading, 16)
+                    }
+                    TextField("", text: $customRules)
+                        .font(bodyFont)
+                        .foregroundColor(.white)
+                        .padding()
+                        .background(Color.black.opacity(0.5))
+                        .cornerRadius(8)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                        )
+                }
 
                 // Commented out for dynamic rounds - rounds will be added during gameplay
                 // Stepper("Number of Rounds: \(rounds)", value: $rounds, in: 1...10)
@@ -347,18 +376,14 @@ struct CreateGameContentView: View {
                 
                 Text("Rounds will be added dynamically during gameplay")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(.white.opacity(0.7))
             }
             .padding(isIPad ? 24 : 16)
-            .background(Color(.systemGray6))
+            .background(Color.black.opacity(0.3))
             .cornerRadius(isIPad ? 16 : 10)
             
             // Host Join Option
             VStack(alignment: .leading, spacing: isIPad ? 16 : 12) {
-                Text("Host Options")
-                    .font(titleFont)
-                    .fontWeight(.semibold)
-                
                 Toggle(isOn: $hostJoinAsPlayer) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Join as Player")
@@ -366,17 +391,13 @@ struct CreateGameContentView: View {
                             .fontWeight(.medium)
                         Text("Add yourself to the scoreboard to play")
                             .font(isIPad ? .body : .caption)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(.white.opacity(0.7))
                     }
                 }
                 .toggleStyle(SwitchToggleStyle(tint: .blue))
                 
                 if hostJoinAsPlayer {
                     VStack(alignment: .leading, spacing: isIPad ? 12 : 8) {
-                        Text("Your Display Name")
-                            .font(isIPad ? .title3 : .subheadline)
-                            .foregroundColor(.secondary)
-                        
                         if let user = currentUser {
                             let displayName = currentUserProfile?.username ?? user.userId
                             RegisteredUserView(
@@ -386,15 +407,30 @@ struct CreateGameContentView: View {
                                 user: user
                             )
                         } else {
-                            TextField("Enter your display name", text: $hostPlayerName)
-                                .textFieldStyle(RoundedBorderTextFieldStyle())
-                                .font(bodyFont)
+                            ZStack(alignment: .leading) {
+                                if hostPlayerName.isEmpty {
+                                    Text("Enter your display name")
+                                        .foregroundColor(.white.opacity(0.5))
+                                        .font(bodyFont)
+                                        .padding(.leading, 16)
+                                }
+                                TextField("", text: $hostPlayerName)
+                                    .font(bodyFont)
+                                    .foregroundColor(.white)
+                                    .padding()
+                                    .background(Color.black.opacity(0.5))
+                                    .cornerRadius(8)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                                    )
+                            }
                         }
                     }
                 }
             }
             .padding(isIPad ? 24 : 16)
-            .background(Color(.systemGray6))
+            .background(Color.black.opacity(0.3))
             .cornerRadius(isIPad ? 16 : 10)
             
             // Player Management
@@ -432,7 +468,7 @@ struct RegisteredUserView: View {
             Spacer()
             Text(displayName)
                 .font(isIPad ? .body : .caption)
-                .foregroundColor(.secondary)
+                .foregroundColor(.white)
                 .onAppear {
                     print("🔍 DEBUG: Displaying username: \(displayName)")
                     print("🔍 DEBUG: currentUserProfile: \(currentUserProfile?.username ?? "nil")")

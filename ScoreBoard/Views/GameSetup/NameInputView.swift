@@ -25,10 +25,11 @@ struct NameInputView: View {
                     Text("Enter Your Name")
                         .font(.title)
                         .fontWeight(.bold)
+                        .foregroundColor(.white)
                     
                     Text("How should other players see you in this game?")
                         .font(.subheadline)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(.white.opacity(0.7))
                         .multilineTextAlignment(.center)
                 }
                 .padding(.top, 40)
@@ -37,12 +38,28 @@ struct NameInputView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Your Name")
                         .font(.headline)
-                        .foregroundColor(.primary)
+                        .foregroundColor(.white)
                     
-                    TextField("Enter your name", text: $playerName)
-                        .textFieldStyle(.roundedBorder)
-                        .font(.title2)
-                        .autocapitalization(.words)
+                    ZStack(alignment: .leading) {
+                        if playerName.isEmpty {
+                            Text("Enter your name")
+                                .foregroundColor(.white.opacity(0.5))
+                                .font(.title2)
+                                .padding(.leading, 16)
+                        }
+                        TextField("", text: $playerName)
+                            .accentColor(.white)
+                            .font(.title2)
+                            .foregroundColor(.white)
+                            .padding()
+                            .background(Color.black.opacity(0.5))
+                            .cornerRadius(8)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                            )
+                            .autocapitalization(.words)
+                    }
                         .onSubmit {
                             confirmName()
                         }
@@ -57,8 +74,10 @@ struct NameInputView: View {
                         .font(.headline)
                         .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(.blue)
+                .foregroundColor(.white)
+                .padding()
+                .background(Color.green)
+                .cornerRadius(12)
                 .disabled(playerName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 .padding(.horizontal)
                 
@@ -66,11 +85,16 @@ struct NameInputView: View {
             }
             .navigationTitle("Enter Name")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbarBackground(Color.clear, for: .navigationBar)
             .navigationBarItems(
                 leading: Button("Cancel") {
                     dismiss()
                 }
+                .foregroundColor(.white)
             )
+            .gradientBackground()
         }
     }
     

@@ -23,8 +23,6 @@ struct PlayerManagementView: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Players (\(players.count))").font(.headline)
-            
             // Player List
             if !players.isEmpty {
                 VStack(spacing: 8) {
@@ -59,34 +57,41 @@ struct PlayerManagementView: View {
                         }
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
-                        .background(Color(.systemBackground))
+                        .background(Color.black.opacity(0.5))
                         .cornerRadius(8)
                         .overlay(
                             RoundedRectangle(cornerRadius: 8)
-                                .stroke(Color(.systemGray4), lineWidth: 1)
+                                .stroke(Color.white.opacity(0.3), lineWidth: 1)
                         )
                     }
                 }
-            } else {
-                Text("No players added yet")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .padding()
             }
             
             // Add Player Section
             VStack(alignment: .leading, spacing: 12) {
                 Text("Add Players").font(.headline)
+                    .foregroundColor(.white)
                 
                 // Add Anonymous Player
                 HStack {
                     TextField("Enter player name", text: $newPlayerName)
-                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                        .foregroundColor(.white)
+                        .padding()
+                        .background(Color.black.opacity(0.5))
+                        .cornerRadius(8)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                        )
                     
                     Button("Add") {
                         addPlayer()
                     }
-                    .buttonStyle(.borderedProminent)
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(Color.green)
+                    .cornerRadius(8)
                     .disabled(newPlayerName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
                 
@@ -94,11 +99,18 @@ struct PlayerManagementView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Search Registered Users")
                         .font(.subheadline)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(.white.opacity(0.7))
                     
                     HStack {
                         TextField("Search by username or email", text: $searchText)
-                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                            .foregroundColor(.white)
+                            .padding()
+                            .background(Color.black.opacity(0.5))
+                            .cornerRadius(8)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                            )
                             .onChange(of: searchText) { _, newValue in
                                 searchUsers(newValue)
                             }
@@ -113,7 +125,7 @@ struct PlayerManagementView: View {
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Search Results")
                                 .font(.caption)
-                                .foregroundColor(.secondary)
+                                .foregroundColor(.white.opacity(0.7))
                             
                             ForEach(searchResults, id: \.id) { user in
                                 HStack {
@@ -123,22 +135,26 @@ struct PlayerManagementView: View {
                                             .fontWeight(.medium)
                                         Text(user.email)
                                             .font(.caption)
-                                            .foregroundColor(.secondary)
+                                            .foregroundColor(.white.opacity(0.7))
                                     }
                                     Spacer()
                                     Button("Add") {
                                         addRegisteredPlayer(user)
                                     }
-                                    .buttonStyle(.bordered)
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 4)
+                                    .background(Color.green)
+                                    .cornerRadius(6)
                                     .controlSize(.small)
                                 }
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 4)
-                                .background(Color(.systemBackground))
+                                .background(Color.black.opacity(0.5))
                                 .cornerRadius(6)
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 6)
-                                        .stroke(Color(.systemGray4), lineWidth: 1)
+                                        .stroke(Color.white.opacity(0.3), lineWidth: 1)
                                 )
                             }
                         }
@@ -147,7 +163,7 @@ struct PlayerManagementView: View {
             }
         }
         .padding()
-        .background(Color(.systemGray6))
+        .background(Color.black.opacity(0.3))
         .cornerRadius(10)
     }
 }

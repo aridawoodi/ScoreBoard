@@ -38,6 +38,17 @@ struct ContentView: View {
     var body: some View {
         if authStatus == .signedOut {
             ZStack {
+                // Background gradient covering entire screen
+                LinearGradient(
+                    gradient: Gradient(colors: [
+                        Color("GradientBackground"), // Dark green from asset
+                        Color.black // Very dark gray / almost black
+                    ]),
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .ignoresSafeArea(.all, edges: .all)
+                
                 // Main Authenticator
                 Authenticator { state in
                     VStack {
@@ -70,7 +81,7 @@ struct ContentView: View {
                         
                         Text("Or")
                             .font(.subheadline)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(.white.opacity(0.7))
                         
                         Button(action: {
                             Task {
@@ -84,21 +95,32 @@ struct ContentView: View {
                                 Text("Continue as Guest")
                                     .font(.system(size: 16, weight: .medium))
                             }
-                            .foregroundColor(.blue)
+                            .foregroundColor(.white)
                             .padding(.horizontal, 24)
                             .padding(.vertical, 12)
                             .background(
                                 RoundedRectangle(cornerRadius: 8)
-                                    .stroke(Color.blue, lineWidth: 1)
+                                    .stroke(Color.white.opacity(0.3), lineWidth: 1)
                             )
                         }
                         .padding(.bottom, 40)
                     }
-                    .background(Color(.systemBackground))
+                    .background(Color.clear)
                 }
             }
         } else {
             ZStack {
+                // Background gradient covering entire screen
+                LinearGradient(
+                    gradient: Gradient(colors: [
+                        Color("GradientBackground"), // Dark green from asset
+                        Color.black // Very dark gray / almost black
+                    ]),
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .ignoresSafeArea(.all, edges: .all)
+                
                 // Main content
                 Group {
                     switch selectedTab {
@@ -109,22 +131,26 @@ struct ContentView: View {
                             showGameSelection: $showGameSelection,
                             selectedTab: $selectedTab
                         )
+                        .transition(.opacity)
                     case 1:
                         AnalyticsTabView(
                             navigationState: navigationState,
                             selectedTab: $selectedTab
                         )
+                        .transition(.opacity)
                     case 2:
                         YourBoardTabView(
                             navigationState: navigationState,
                             selectedTab: $selectedTab
                         )
+                        .transition(.opacity)
                     case 3:
                         CreateScoreboardTabView(
                             navigationState: navigationState,
                             showCreateGame: $showCreateGame,
                             selectedTab: $selectedTab
                         )
+                        .transition(.opacity)
                     case 4:
                         ProfileTabView(
                             showUserProfile: $showUserProfile,
@@ -136,15 +162,18 @@ struct ContentView: View {
                             }
                             // isSideNavigationOpen: $isSideNavigationOpen // Commented out for future use
                         )
+                        .transition(.opacity)
                     default:
                         YourBoardTabView(
                             navigationState: navigationState,
                             selectedTab: $selectedTab
                         )
+                        .transition(.opacity)
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .ignoresSafeArea(.keyboard)
+                .animation(.easeInOut(duration: 0.2), value: selectedTab)
                 
                 // Floating Tab Bar - Restored original behavior
                 VStack {

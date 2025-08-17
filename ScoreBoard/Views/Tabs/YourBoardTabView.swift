@@ -121,11 +121,12 @@ struct YourBoardTabView: View {
                         
                         Text("Your Board")
                             .font(.largeTitle.bold())
+                            .foregroundColor(.white)
                             .padding(.top, 16)
                         
                         Text("This is your main board. Use the tabs below to create or join games.")
                             .font(.body)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(.white.opacity(0.8))
                             .multilineTextAlignment(.center)
                             .padding(.horizontal)
                         
@@ -207,7 +208,17 @@ struct YourBoardTabView: View {
                 Spacer()
             }
             .id("YourBoardTab-\(navigationState.selectedGame?.id ?? "nil")-\(navigationState.userGames.count)-\(viewRefreshCounter)")
-            .navigationBarTitleDisplayMode(.large)
+            .background(
+                LinearGradient(
+                    gradient: Gradient(colors: [
+                        Color("GradientBackground"), // Dark green from asset
+                        Color.black // Very dark gray / almost black
+                    ]),
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .ignoresSafeArea(.all, edges: .all)
+            )
             .onAppear {
                 print("🔍 DEBUG: ===== YOUR BOARD TAB ON APPEAR =====")
                 print("🔍 DEBUG: selectedGame: \(navigationState.selectedGame?.id ?? "nil")")

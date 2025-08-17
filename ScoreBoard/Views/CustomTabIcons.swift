@@ -9,7 +9,7 @@ struct AppLogoIcon: View {
         ZStack {
             // Outer circle background with thin border
             Circle()
-                .stroke(isSelected ? Color.accentColor : Color.secondary, lineWidth: 1.5)
+                .stroke(isSelected ? Color.accentColor : Color.white.opacity(0.3), lineWidth: 1.5)
                 .frame(width: size, height: size)
             
             // Logo image that fills the circle

@@ -56,7 +56,7 @@ struct SharedPlayerHeaderView: View {
                     HStack {
                         Text(playerName)
                             .font(.title2.bold())
-                            .foregroundColor(.primary)
+                            .foregroundColor(.white)
                         
                         if isSampleData {
                             Spacer()
@@ -74,7 +74,7 @@ struct SharedPlayerHeaderView: View {
                     
                     Text("Level \(level)")
                         .font(.subheadline)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(.white.opacity(0.7))
                     
                     // Progress bar to next level
                     ProgressView(value: levelProgress)
@@ -83,7 +83,7 @@ struct SharedPlayerHeaderView: View {
                     
                     Text("\(Int(levelProgress * 100))% to Level \(level + 1)")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(.white.opacity(0.7))
                 }
                 
                 Spacer()
@@ -95,15 +95,15 @@ struct SharedPlayerHeaderView: View {
                     .foregroundColor(.orange)
                 Text("\(currentStreak) day streak")
                     .font(.headline)
-                    .foregroundColor(.primary)
+                    .foregroundColor(.white)
                 Spacer()
             }
             .padding()
-            .background(Color(.systemBackground))
+            .background(Color.black.opacity(0.3))
             .cornerRadius(12)
         }
         .padding()
-        .background(Color(.systemBackground))
+        .background(Color.black.opacity(0.3))
         .cornerRadius(16)
         .scaleEffect(isPressed ? 0.97 : (animatePulse ? 1.025 : 1.0))
         .shadow(color: animatePulse ? Color.blue.opacity(0.10) : Color.clear, radius: 8, x: 0, y: 4)
@@ -144,7 +144,7 @@ struct SharedQuickStatsView: View {
             HStack {
                 Text("Quick Stats")
                     .font(.headline)
-                    .foregroundColor(.primary)
+                    .foregroundColor(.white)
                 
                 if isSampleData {
                     Spacer()
@@ -174,7 +174,7 @@ struct SharedQuickStatsView: View {
             }
         }
         .padding()
-        .background(Color(.systemBackground))
+        .background(Color.black.opacity(0.3))
         .cornerRadius(16)
         .scaleEffect(isPressed ? 0.97 : (animatePulse ? 1.025 : 1.0))
         .shadow(color: animatePulse ? Color.blue.opacity(0.10) : Color.clear, radius: 8, x: 0, y: 4)
@@ -214,7 +214,7 @@ struct StatCard: View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundColor(.white.opacity(0.7))
             
             Text(value)
                 .font(.title2.bold())
@@ -254,7 +254,7 @@ struct SharedWinLossChartView: View {
             HStack {
                 Text("Win/Loss Record")
                     .font(.headline)
-                    .foregroundColor(.primary)
+                    .foregroundColor(.white)
                 
                 if isSampleData {
                     Spacer()
@@ -277,7 +277,7 @@ struct SharedWinLossChartView: View {
                         .foregroundColor(.green)
                     Text("Wins")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(.white.opacity(0.7))
                 }
                 
                 VStack(spacing: 8) {
@@ -286,7 +286,7 @@ struct SharedWinLossChartView: View {
                         .foregroundColor(.red)
                     Text("Losses")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(.white.opacity(0.7))
                 }
                 
                 Spacer()
@@ -294,18 +294,18 @@ struct SharedWinLossChartView: View {
                 VStack(spacing: 8) {
                     Text("\(wins + losses)")
                         .font(.title.bold())
-                        .foregroundColor(.primary)
+                        .foregroundColor(.white)
                     Text("Total")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(.white.opacity(0.7))
                 }
             }
             .padding()
-            .background(Color(.systemBackground))
+            .background(Color.black.opacity(0.3))
             .cornerRadius(12)
         }
         .padding()
-        .background(Color(.systemBackground))
+        .background(Color.black.opacity(0.3))
         .cornerRadius(16)
         .scaleEffect(isPressed ? 0.97 : 1.0)
         .onTapGesture {
@@ -337,7 +337,7 @@ struct SharedPerformanceTrendsView: View {
             HStack {
                 Text("Performance Trends")
                     .font(.headline)
-                    .foregroundColor(.primary)
+                    .foregroundColor(.white)
                 
                 if isSampleData {
                     Spacer()
@@ -358,7 +358,7 @@ struct SharedPerformanceTrendsView: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Average Score")
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(.white.opacity(0.7))
                         Text(String(format: "%.1f", averageScore))
                             .font(.title2.bold())
                             .foregroundColor(.blue)
@@ -369,7 +369,7 @@ struct SharedPerformanceTrendsView: View {
                     VStack(alignment: .trailing, spacing: 4) {
                         Text("Best Score")
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(.white.opacity(0.7))
                         Text("\(bestScore)")
                             .font(.title2.bold())
                             .foregroundColor(.green)
@@ -387,11 +387,11 @@ struct SharedPerformanceTrendsView: View {
                 }
             }
             .padding()
-            .background(Color(.systemBackground))
+            .background(Color.black.opacity(0.3))
             .cornerRadius(12)
         }
         .padding()
-        .background(Color(.systemBackground))
+        .background(Color.black.opacity(0.3))
         .cornerRadius(16)
         .scaleEffect(isPressed ? 0.97 : 1.0)
         .onTapGesture {
@@ -421,7 +421,7 @@ struct SharedRecentGamesView: View {
             HStack {
                 Text("Recent Games")
                     .font(.headline)
-                    .foregroundColor(.primary)
+                    .foregroundColor(.white)
                 
                 if isSampleData {
                     Spacer()
@@ -447,7 +447,7 @@ struct SharedRecentGamesView: View {
                                 .fontWeight(.medium)
                             Text(game.date)
                                 .font(.caption)
-                                .foregroundColor(.secondary)
+                                .foregroundColor(.white.opacity(0.7))
                         }
                         
                         Spacer()
@@ -469,11 +469,11 @@ struct SharedRecentGamesView: View {
                 }
             }
             .padding()
-            .background(Color(.systemBackground))
+            .background(Color.black.opacity(0.3))
             .cornerRadius(12)
         }
         .padding()
-        .background(Color(.systemBackground))
+        .background(Color.black.opacity(0.3))
         .cornerRadius(16)
         .scaleEffect(isPressed ? 0.97 : 1.0)
         .onTapGesture {
@@ -503,7 +503,7 @@ struct SharedAchievementsView: View {
             HStack {
                 Text("Achievements")
                     .font(.headline)
-                    .foregroundColor(.primary)
+                    .foregroundColor(.white)
                 
                 if isSampleData {
                     Spacer()
@@ -534,7 +534,7 @@ struct SharedAchievementsView: View {
             }
         }
         .padding()
-        .background(Color(.systemBackground))
+        .background(Color.black.opacity(0.3))
         .cornerRadius(16)
         .scaleEffect(isPressed ? 0.97 : 1.0)
         .onTapGesture {
@@ -569,12 +569,12 @@ struct AchievementCard: View {
             Text(title)
                 .font(.caption)
                 .fontWeight(.medium)
-                .foregroundColor(isUnlocked ? .primary : .secondary)
+                .foregroundColor(isUnlocked ? .white : .white.opacity(0.5))
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
         .padding()
-        .background(isUnlocked ? color.opacity(0.1) : Color(.systemGray6))
+        .background(isUnlocked ? color.opacity(0.1) : Color.black.opacity(0.5))
         .cornerRadius(12)
         .opacity(isUnlocked ? 1.0 : 0.6)
     }
@@ -609,14 +609,50 @@ struct GameStatusSegmentedPicker: View {
     let completedCount: Int
     
     var body: some View {
-        SegmentedPicker(
-            title: "Game Status",
-            selection: $selection,
-            options: [
-                ("Active (\(activeCount))", GameStatus.active),
-                ("Completed (\(completedCount))", GameStatus.completed)
-            ]
-        )
+        HStack(spacing: 0) {
+            // Active option
+            Button(action: {
+                selection = .active
+            }) {
+                Text("Active (\(activeCount))")
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .foregroundColor(selection == .active ? .white : .white.opacity(0.7))
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(
+                        selection == .active ? 
+                            Color.green : 
+                            Color.clear
+                    )
+                    .cornerRadius(8)
+            }
+            .buttonStyle(PlainButtonStyle())
+            
+            Spacer()
+            
+            // Completed option
+            Button(action: {
+                selection = .completed
+            }) {
+                Text("Completed (\(completedCount))")
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .foregroundColor(selection == .completed ? .white : .white.opacity(0.7))
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(
+                        selection == .completed ? 
+                            Color.green : 
+                            Color.clear
+                    )
+                    .cornerRadius(8)
+            }
+            .buttonStyle(PlainButtonStyle())
+        }
+        .padding(4)
+        .background(Color.black.opacity(0.3))
+        .cornerRadius(12)
     }
 }
 
@@ -625,11 +661,34 @@ struct AnalyticsTimeframeSegmentedPicker: View {
     @Binding var selection: AnalyticsTimeframe
     
     var body: some View {
-        SegmentedPicker(
-            title: "Timeframe",
-            selection: $selection,
-            options: AnalyticsTimeframe.allCases.map { ($0.rawValue, $0) }
-        )
+        HStack(spacing: 0) {
+            ForEach(AnalyticsTimeframe.allCases, id: \.self) { timeframe in
+                Button(action: {
+                    selection = timeframe
+                }) {
+                    Text(timeframe.rawValue)
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .foregroundColor(selection == timeframe ? .white : .white.opacity(0.7))
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(
+                            selection == timeframe ? 
+                                Color.green : 
+                                Color.clear
+                        )
+                        .cornerRadius(8)
+                }
+                .buttonStyle(PlainButtonStyle())
+                
+                if timeframe != AnalyticsTimeframe.allCases.last {
+                    Spacer()
+                }
+            }
+        }
+        .padding(4)
+        .background(Color.black.opacity(0.3))
+        .cornerRadius(12)
     }
 }
 
@@ -638,13 +697,33 @@ struct LeaderboardTimeframeSegmentedPicker: View {
     @Binding var selection: PlayerLeaderboardView.Timeframe
     
     var body: some View {
-        SegmentedPicker(
-            title: "Timeframe",
-            selection: $selection,
-            options: [
-                ("Weekly", PlayerLeaderboardView.Timeframe.weekly),
-                ("All Time", PlayerLeaderboardView.Timeframe.allTime)
-            ]
-        )
+        HStack(spacing: 0) {
+            ForEach(PlayerLeaderboardView.Timeframe.allCases, id: \.self) { timeframe in
+                Button(action: {
+                    selection = timeframe
+                }) {
+                    Text(timeframe.rawValue)
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .foregroundColor(selection == timeframe ? .white : .white.opacity(0.7))
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(
+                            selection == timeframe ? 
+                                Color.green : 
+                                Color.clear
+                        )
+                        .cornerRadius(8)
+                }
+                .buttonStyle(PlainButtonStyle())
+                
+                if timeframe != PlayerLeaderboardView.Timeframe.allCases.last {
+                    Spacer()
+                }
+            }
+        }
+        .padding(4)
+        .background(Color.black.opacity(0.3))
+        .cornerRadius(12)
     }
 }

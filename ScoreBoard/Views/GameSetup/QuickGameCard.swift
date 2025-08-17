@@ -27,11 +27,11 @@ struct QuickGameCard: View {
                     Text("Quick Board")
                         .font(.headline)
                         .fontWeight(.bold)
-                        .foregroundColor(.primary)
+                        .foregroundColor(.white)
                     
                     Text("\(playerCount) Players • Instant Setup")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(.white.opacity(0.7))
                 }
                 
                 Spacer()
@@ -71,7 +71,7 @@ struct QuickGameCard: View {
                         .font(.caption)
                     Text("\(playerCount) Anonymous Players")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(.white.opacity(0.7))
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -79,12 +79,12 @@ struct QuickGameCard: View {
         .padding(20)
         .background(
             RoundedRectangle(cornerRadius: 16)
-                .fill(Color(.systemBackground))
-                .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 4)
+                .fill(Color.black.opacity(0.3))
+                .shadow(color: Color.black.opacity(0.3), radius: 8, x: 0, y: 4)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 16)
-                .stroke(Color.blue.opacity(0.2), lineWidth: 1)
+                .stroke(Color.white.opacity(0.3), lineWidth: 1)
         )
         .alert("Quick Game Error", isPresented: $showError) {
             Button("OK") { }

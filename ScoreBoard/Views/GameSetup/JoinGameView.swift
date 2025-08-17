@@ -41,10 +41,11 @@ struct JoinGameView: View {
                     Text("Join a Game")
                         .font(.title)
                         .fontWeight(.bold)
+                        .foregroundColor(.white)
                     
                     Text("Enter the 6-character game code shared by the host")
                         .font(.subheadline)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(.white.opacity(0.7))
                         .multilineTextAlignment(.center)
                 }
                 .padding(.top, 40)
@@ -53,12 +54,28 @@ struct JoinGameView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Game Code")
                         .font(.headline)
-                        .foregroundColor(.primary)
+                        .foregroundColor(.white)
                     
-                    TextField("Enter 6-character code", text: $gameCode)
-                        .textFieldStyle(.roundedBorder)
-                        .font(.title2)
-                        .textInputAutocapitalization(.characters)
+                    ZStack(alignment: .leading) {
+                        if gameCode.isEmpty {
+                            Text("Enter 6-character code")
+                                .foregroundColor(.white.opacity(0.5))
+                                .font(.title2)
+                                .padding(.leading, 16)
+                        }
+                        TextField("", text: $gameCode)
+                            .accentColor(.white)
+                            .font(.title2)
+                            .foregroundColor(.white)
+                            .padding()
+                            .background(Color.black.opacity(0.5))
+                            .cornerRadius(8)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                            )
+                            .textInputAutocapitalization(.characters)
+                    }
                         .onChange(of: gameCode) { newValue in
                             gameCode = newValue.uppercased()
                         }
@@ -86,20 +103,24 @@ struct JoinGameView: View {
                             .frame(maxWidth: .infinity)
                     }
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(.blue)
+                .foregroundColor(.white)
+                .padding()
+                .background(Color.green)
+                .cornerRadius(12)
                 .disabled(isLoading || gameCode.count != 6)
                 .padding(.horizontal)
                 
                 Spacer()
             }
-            .navigationTitle("Join Game")
-            .navigationBarTitleDisplayMode(.inline)
-            .navigationBarItems(
-                leading: Button("Cancel") {
-                    dismiss()
+            .gradientBackground()
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                    .foregroundColor(.white)
                 }
-            )
+            }
             .alert("Join Game", isPresented: $showAlert) {
                 Button("OK") { }
             } message: {

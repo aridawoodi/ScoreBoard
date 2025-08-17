@@ -26,10 +26,11 @@ struct JoinOptionsView: View {
                     Text("Join Game")
                         .font(.title)
                         .fontWeight(.bold)
+                        .foregroundColor(.white)
                     
                     Text("How would you like to join this game?")
                         .font(.subheadline)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(.white.opacity(0.7))
                         .multilineTextAlignment(.center)
                 }
                 .padding(.top, 40)
@@ -51,7 +52,7 @@ struct JoinOptionsView: View {
                                 }
                                 Text("Play and score in the game")
                                     .font(.caption)
-                                    .foregroundColor(.secondary)
+                                    .foregroundColor(.white.opacity(0.7))
                             }
                             Spacer()
                             if joinMode == .player {
@@ -61,7 +62,7 @@ struct JoinOptionsView: View {
                             }
                         }
                         .padding()
-                        .background(joinMode == .player ? Color.green.opacity(0.1) : Color(.systemGray6))
+                        .background(joinMode == .player ? Color.green.opacity(0.1) : Color.black.opacity(0.3))
                         .cornerRadius(12)
                         .overlay(
                             RoundedRectangle(cornerRadius: 12)
@@ -85,7 +86,7 @@ struct JoinOptionsView: View {
                                 }
                                 Text("Watch the game without playing")
                                     .font(.caption)
-                                    .foregroundColor(.secondary)
+                                    .foregroundColor(.white.opacity(0.7))
                             }
                             Spacer()
                             if joinMode == .spectator {
@@ -95,7 +96,7 @@ struct JoinOptionsView: View {
                             }
                         }
                         .padding()
-                        .background(joinMode == .spectator ? Color.blue.opacity(0.1) : Color(.systemGray6))
+                        .background(joinMode == .spectator ? Color.blue.opacity(0.1) : Color.black.opacity(0.3))
                         .cornerRadius(12)
                         .overlay(
                             RoundedRectangle(cornerRadius: 12)
@@ -111,14 +112,14 @@ struct JoinOptionsView: View {
                     VStack(spacing: 8) {
                         Text("You'll join as:")
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(.white.opacity(0.7))
                         Text(playerName)
                             .font(.headline)
                             .fontWeight(.semibold)
-                            .foregroundColor(.primary)
+                            .foregroundColor(.white)
                     }
                     .padding()
-                    .background(Color(.systemGray6))
+                    .background(Color.black.opacity(0.3))
                     .cornerRadius(8)
                 }
                 
@@ -131,11 +132,11 @@ struct JoinOptionsView: View {
                                 .font(.caption)
                             Text("Note: You can only join once per game")
                                 .font(.caption)
-                                .foregroundColor(.secondary)
+                                .foregroundColor(.white.opacity(0.7))
                         }
                         Text("If you're already in this game, you can update your display name")
                             .font(.caption2)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(.white.opacity(0.7))
                             .multilineTextAlignment(.center)
                     }
                     .padding(.horizontal)
@@ -152,19 +153,26 @@ struct JoinOptionsView: View {
                     }
                     .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(joinMode == .player ? .green : .blue)
+                .foregroundColor(.white)
+                .padding()
+                .background(joinMode == .player ? Color.green : Color.blue)
+                .cornerRadius(12)
                 .padding(.horizontal)
                 
                 Spacer()
             }
             .navigationTitle("Join Options")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbarBackground(Color.clear, for: .navigationBar)
             .navigationBarItems(
                 leading: Button("Cancel") {
                     dismiss()
                 }
+                .foregroundColor(.white)
             )
+            .gradientBackground()
         }
     }
 } 

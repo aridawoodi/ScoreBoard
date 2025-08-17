@@ -19,8 +19,6 @@ struct ScoreCell: View {
     let displayText: String?
     let isFocused: Bool
     
-    @Environment(\.colorScheme) var colorScheme
-    
     var body: some View {
         Button(action: {
             if canEdit {
@@ -30,13 +28,13 @@ struct ScoreCell: View {
             HStack {
                 Text(displayText ?? (currentScore == 0 ? "" : "\(currentScore)"))
                     .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(.primary)
+                    .foregroundColor(.white)
                 
                 // Add edit indicator for empty cells
                 if currentScore == 0 && canEdit {
                     Image(systemName: "pencil.circle")
                         .font(.system(size: 12))
-                        .foregroundColor(.secondary)
+                        .foregroundColor(.white.opacity(0.6))
                         .opacity(0.6)
                 }
             }
@@ -61,35 +59,29 @@ struct ScoreCell: View {
         .animation(.spring(response: 0.2, dampingFraction: 0.8), value: isFocused)
     }
     
-    // Dynamic background color based on editability and color scheme
+    // Consistent dark theme background color
     private var cellBackgroundColor: Color {
         if isFocused {
             return backgroundColor.opacity(0.8)
         } else if canEdit {
-            return colorScheme == .dark ? 
-                backgroundColor.opacity(0.4) : 
-                backgroundColor.opacity(0.6)
+            return backgroundColor.opacity(0.4)
         } else {
-            return colorScheme == .dark ? 
-                Color(.systemGray6) : 
-                Color(.systemGray5)
+            return Color.black.opacity(0.3)
         }
     }
     
-    // Dynamic border color
+    // Consistent dark theme border color
     private var cellBorderColor: Color {
         if isFocused {
             return Color.accentColor
         } else if canEdit {
-            return colorScheme == .dark ? 
-                Color.gray.opacity(0.4) : 
-                Color.gray.opacity(0.3)
+            return Color.white.opacity(0.3)
         } else {
-            return Color.gray.opacity(0.2)
+            return Color.white.opacity(0.2)
         }
     }
     
-    // Dynamic border width
+    // Consistent border width
     private var cellBorderWidth: CGFloat {
         if isFocused {
             return 2.0
@@ -100,14 +92,12 @@ struct ScoreCell: View {
         }
     }
     
-    // Dynamic shadow properties
+    // Consistent shadow properties for dark theme
     private var shadowColor: Color {
         if isFocused {
-            return Color.black.opacity(0.15)
+            return Color.black.opacity(0.3)
         } else if canEdit {
-            return colorScheme == .dark ? 
-                Color.white.opacity(0.05) : 
-                Color.black.opacity(0.05)
+            return Color.white.opacity(0.05)
         } else {
             return Color.clear
         }
@@ -393,12 +383,17 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
         print("🔍 DEBUG: ===== GAME UPDATE CALLBACK END =====")
     }
     
+    @Environment(\.colorScheme) var colorScheme
+    
     var body: some View {
         ZStack {
+            // Background gradient - consistent dark theme
+            GradientBackgroundView()
+            
             if isGameDeleted {
                 // Ask parent to clear selection by sending an empty updated game with nil-like id? Not possible here.
                 // As a fallback, dismiss this view by hiding content; parent tab will show empty state when no selection.
-                Color(.systemGroupedBackground).ignoresSafeArea()
+                Color.black.opacity(0.8).ignoresSafeArea()
             } else {
             mainContentView
             }
@@ -525,7 +520,7 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                 .opacity(0)
                 .frame(width: 0, height: 0)
                 .allowsHitTesting(false)
-            .background(Color(.systemGroupedBackground).ignoresSafeArea())
+            .background(Color.clear)
             .navigationBarTitleDisplayMode(.large)
             .navigationBarHidden(true)
             .onAppear {
@@ -658,6 +653,7 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
             if let gameName = game.gameName, !gameName.isEmpty {
                 Text(gameName)
                     .font(.system(size: 36, weight: .bold))
+                    .foregroundColor(.white)
                     .lineLimit(1)
                     .truncationMode(.tail)
                     .frame(maxWidth: .infinity)
@@ -666,7 +662,7 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                 // Fallback if no game name is provided
                 Text("Game")
                     .font(.system(size: 36, weight: .bold))
-                    .foregroundColor(.secondary)
+                    .foregroundColor(.white.opacity(0.8))
                     .frame(maxWidth: .infinity)
                     .multilineTextAlignment(.center)
             }
@@ -676,10 +672,10 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                 Spacer()
                 Text("Game: \(String(game.id.prefix(8)))")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(.white.opacity(0.7))
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
-                    .background(Color(.systemGray6))
+                    .background(Color.black.opacity(0.3))
                     .cornerRadius(8)
                     .onLongPressGesture {
                         // Copy the short ID (the one shown)
@@ -749,7 +745,7 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                     }) {
                         Image(systemName: isDeleteMode ? "trash.circle.fill" : "trash.circle")
                             .font(.system(size: 24, weight: .medium))
-                            .foregroundColor(isDeleteMode ? .red : .gray)
+                            .foregroundColor(isDeleteMode ? .red : .white.opacity(0.7))
                     }
                 }
                 
@@ -773,6 +769,7 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
     private var loadingView: some View {
         VStack {
             ProgressView("Loading scores...")
+                .foregroundColor(.white)
                 .padding()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -816,13 +813,13 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                         scoreRows
                         addRoundButton
                     }
-                    .background(Color(.systemBackground))
+                    .background(Color.black.opacity(0.2))
                     .overlay(
-                        Rectangle()
-                            .stroke(Color.gray.opacity(0.5), lineWidth: 1.5)
+                        RoundedRectangle(cornerRadius: 4)
+                            .stroke(Color.green, lineWidth: 2)
                     )
                     .cornerRadius(4)
-                    .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
+                    .shadow(color: Color.black.opacity(0.3), radius: 4, x: 0, y: 2)
                 }
                 .frame(maxHeight: UIScreen.main.bounds.height * 0.6) // Limit height to 60% of screen
                 .onChange(of: editingRound) { _, newRound in
@@ -915,10 +912,10 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                     )
             }
             .frame(width: effectiveDeleteMode ? 40 : 30)
-            .background(Color(.systemBackground))
+            .background(Color.black.opacity(0.2))
             .overlay(
                 RoundedRectangle(cornerRadius: 6)
-                    .stroke(Color.gray.opacity(0.4), lineWidth: 1)
+                    .stroke(Color.white.opacity(0.2), lineWidth: 1)
             )
             
             ForEach(Array(players.enumerated()), id: \.offset) { index, player in
@@ -926,7 +923,7 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                     HStack {
                         Text(player.name)
                             .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(.primary)
+                            .foregroundColor(.white)
                             .lineLimit(1)
                             .truncationMode(.tail)
                             .frame(maxWidth: .infinity)
@@ -951,22 +948,22 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                     
                     Text("\(player.total)")
                         .font(.system(size: 18, weight: .bold))
-                        .foregroundColor(.primary)
+                        .foregroundColor(.white)
                         .frame(maxWidth: .infinity, minHeight: 32)
                         .background(
                             RoundedRectangle(cornerRadius: 6)
-                                .fill(Color(.systemBackground))
+                                .fill(Color.black.opacity(0.3))
                         )
                         .overlay(
                             RoundedRectangle(cornerRadius: 6)
-                                .stroke(Color.gray.opacity(0.3), lineWidth: 0.5)
+                                .stroke(Color.white.opacity(0.2), lineWidth: 0.5)
                         )
                 }
                 .frame(maxWidth: .infinity)
-                .background(Color(.systemBackground))
+                .background(Color.black.opacity(0.2))
                 .overlay(
                     RoundedRectangle(cornerRadius: 6)
-                        .stroke(Color.gray.opacity(0.4), lineWidth: 1)
+                        .stroke(Color.white.opacity(0.2), lineWidth: 1)
                 )
             }
         }
@@ -999,20 +996,20 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                         HStack {
                             Image(systemName: "plus.circle.fill")
                                 .font(.system(size: 18, weight: .semibold))
-                                .foregroundColor(.blue)
+                                .foregroundColor(.white)
                             Text("Add Round")
                                 .font(.system(size: 14, weight: .medium))
-                                .foregroundColor(.blue)
+                                .foregroundColor(.white)
                         }
                         .frame(maxWidth: .infinity)
                         .frame(height: 44)
                         .background(
                             RoundedRectangle(cornerRadius: 6)
-                                .fill(Color.blue.opacity(0.05))
+                                .fill(Color.white.opacity(0.1))
                         )
                         .overlay(
                             RoundedRectangle(cornerRadius: 6)
-                                .stroke(Color.blue.opacity(0.3), lineWidth: 1)
+                                .stroke(Color.white.opacity(0.3), lineWidth: 1)
                         )
                     }
                     .buttonStyle(PlainButtonStyle())

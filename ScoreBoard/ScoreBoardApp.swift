@@ -22,7 +22,7 @@ struct ScoreBoardApp: App {
         WindowGroup {
             ZStack {
                 ContentView()
-                    .preferredColorScheme(.none) // Allow system to choose light/dark mode
+                    .preferredColorScheme(.none) // Allow custom gradient background to show
                     .onAppear {
                         // App startup logic can be added here if needed
                     }

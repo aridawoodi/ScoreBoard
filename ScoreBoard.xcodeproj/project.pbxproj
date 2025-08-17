@@ -32,6 +32,8 @@
 		5E2CB3012E4316A1006EC186 /* FloatingTabBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E2CB2FF2E4316A1006EC186 /* FloatingTabBar.swift */; };
 		5E2CB3032E4319A5006EC186 /* NavigationState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E2CB3022E4319A5006EC186 /* NavigationState.swift */; };
 		5E2F66E22E4EAD870016B28D /* QuickGameCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E2F66E12E4EAD860016B28D /* QuickGameCard.swift */; };
+		5E2F66E42E4FF7D10016B28D /* testview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E2F66E32E4FF7BF0016B28D /* testview.swift */; };
+		5E2F66E82E50D9760016B28D /* GradientBackgroundView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E2F66E72E50D9760016B28D /* GradientBackgroundView.swift */; };
 		5E5A911D2CD8849600EFE5C2 /* ScoreBoardApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E5A911C2CD8849600EFE5C2 /* ScoreBoardApp.swift */; };
 		5E5A911F2CD8849600EFE5C2 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E5A911E2CD8849600EFE5C2 /* ContentView.swift */; };
 		5E5A91232CD8849700EFE5C2 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 5E5A91222CD8849700EFE5C2 /* Assets.xcassets */; };
@@ -108,6 +110,8 @@
 		5E2CB2FF2E4316A1006EC186 /* FloatingTabBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingTabBar.swift; sourceTree = "<group>"; };
 		5E2CB3022E4319A5006EC186 /* NavigationState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigationState.swift; sourceTree = "<group>"; };
 		5E2F66E12E4EAD860016B28D /* QuickGameCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickGameCard.swift; sourceTree = "<group>"; };
+		5E2F66E32E4FF7BF0016B28D /* testview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = testview.swift; sourceTree = "<group>"; };
+		5E2F66E72E50D9760016B28D /* GradientBackgroundView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradientBackgroundView.swift; sourceTree = "<group>"; };
 		5E5A91192CD8849600EFE5C2 /* ScoreBoard.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ScoreBoard.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		5E5A911C2CD8849600EFE5C2 /* ScoreBoardApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoreBoardApp.swift; sourceTree = "<group>"; };
 		5E5A911E2CD8849600EFE5C2 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -195,6 +199,7 @@
 				5E2CB2F42E43167D006EC186 /* CreateScoreboardTabView.swift */,
 				5E2CB2F52E43167D006EC186 /* JoinScoreboardTabView.swift */,
 				5E2CB2F62E43167D006EC186 /* YourBoardTabView.swift */,
+				5E2F66E32E4FF7BF0016B28D /* testview.swift */,
 			);
 			path = Tabs;
 			sourceTree = "<group>";
@@ -347,6 +352,7 @@
 		5E737DA42CDB40D800F407D3 /* Utils */ = {
 			isa = PBXGroup;
 			children = (
+				5E2F66E72E50D9760016B28D /* GradientBackgroundView.swift */,
 				5E2CB3022E4319A5006EC186 /* NavigationState.swift */,
 				5E737DA52CDB40F900F407D3 /* Constants.swift */,
 				5E737DA72CDB411D00F407D3 /* Helpers.swift */,
@@ -524,11 +530,13 @@
 				5E737DA82CDB411D00F407D3 /* Helpers.swift in Sources */,
 				5E28C2D22E2B64C200F3AD25 /* CreateUserProfileView.swift in Sources */,
 				5E28C2D02E2B616D00F3AD25 /* UserProfileView.swift in Sources */,
+				5E2F66E82E50D9760016B28D /* GradientBackgroundView.swift in Sources */,
 				5E737DA32CDB40BB00F407D3 /* ScoreService.swift in Sources */,
 				5E737D842CDB3B4C00F407D3 /* ScoreboardViewModel.swift in Sources */,
 				5EFEF3FC2E4028E800D39D8B /* UsernameCacheService.swift in Sources */,
 				5E737D962CDB3F2100F407D3 /* ScoreRowView.swift in Sources */,
 				5E0BE53C2E331AD5008BB8D7 /* Scoreboardview.swift in Sources */,
+				5E2F66E42E4FF7D10016B28D /* testview.swift in Sources */,
 				5E737DA12CDB408A00F407D3 /* AmplifyService.swift in Sources */,
 				5E2CB3012E4316A1006EC186 /* FloatingTabBar.swift in Sources */,
 				5E737DA62CDB40F900F407D3 /* Constants.swift in Sources */,

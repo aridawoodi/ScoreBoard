@@ -56,7 +56,7 @@ struct FloatingTabBar: View {
                             // Standard system icons for other tabs
                             Image(systemName: tab.icon)
                                 .font(.system(size: iconSize, weight: .semibold))
-                                .foregroundColor(selectedTab == idx ? .accentColor : .secondary)
+                                .foregroundColor(selectedTab == idx ? .white : .white.opacity(0.7))
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, verticalPadding)
                         }
@@ -65,7 +65,7 @@ struct FloatingTabBar: View {
                         ZStack {
                             if selectedTab == idx {
                                 Capsule()
-                                    .fill(Color.accentColor.opacity(0.12))
+                                    .fill(Color.white.opacity(0.2))
                                     .matchedGeometryEffect(id: "tabbg", in: namespace)
                             }
                         }
@@ -104,11 +104,11 @@ struct FloatingTabBar: View {
             .padding(.vertical, 6)
             .background(
                 Capsule()
-                    .fill(.ultraThinMaterial)
-                    .shadow(color: Color.black.opacity(0.10), radius: 16, x: 0, y: 8)
+                    .fill(Color.black.opacity(0.3))
+                    .shadow(color: Color.black.opacity(0.3), radius: 16, x: 0, y: 8)
             )
             .padding(.horizontal, edgePadding)
-            .shadow(color: Color.accentColor.opacity(0.08), radius: 8, x: 0, y: 4)
+            .shadow(color: Color.black.opacity(0.2), radius: 8, x: 0, y: 4)
         }
         .frame(height: isIPad ? 80 : 60)
         .onAppear {

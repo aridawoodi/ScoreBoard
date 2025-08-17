@@ -20,9 +20,8 @@ struct CreateScoreboardTabView: View {
     @State private var createButtonApproxRect: CGRect = .zero
     
     var body: some View {
-        NavigationStack {
-            VStack {
-                CreateGameView(showCreateGame: $showCreateGame) { game in
+        VStack {
+            CreateGameView(showCreateGame: $showCreateGame) { game in
                     print("🔍 DEBUG: ===== CREATE GAME CALLBACK IN CREATE SCOREBOARD TAB =====")
                     print("🔍 DEBUG: Game created with ID: \(game.id)")
                     print("🔍 DEBUG: Setting selectedGame to: \(game.id)")
@@ -31,12 +30,10 @@ struct CreateScoreboardTabView: View {
                     selectedTab = 2
                     print("🔍 DEBUG: ===== CREATE GAME CALLBACK END =====")
                 }
-                .navigationTitle("Create Scoreboard")
-                .navigationBarTitleDisplayMode(.inline)
+                .gradientBackground()
                 .onAppear {
                     // Precompute an approximate rect for the top-right "Create" toolbar button
                     createButtonApproxRect = approximateTopRightNavButtonRect()
-                }
             }
             .onAppear {
                 // Show create game tooltip for new users

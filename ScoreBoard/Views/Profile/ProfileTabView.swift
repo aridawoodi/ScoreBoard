@@ -43,7 +43,7 @@ struct ProfileTabView: View {
                     } else {
                         // No profile - show placeholder
                         Circle()
-                            .fill(Color(.systemGray4))
+                            .fill(Color.black.opacity(0.5))
                             .frame(width: 80, height: 80)
                             .overlay(
                                 Image(systemName: "person.fill")
@@ -58,7 +58,7 @@ struct ProfileTabView: View {
                             Text(profile.username)
                                 .font(.title2)
                                 .fontWeight(.bold)
-                                .foregroundColor(.primary)
+                                .foregroundColor(.white)
                             
                             if profile.id.hasPrefix("guest_") {
                                 Text("Guest Mode")
@@ -71,7 +71,7 @@ struct ProfileTabView: View {
                             } else {
                                 Text(profile.email)
                                     .font(.subheadline)
-                                    .foregroundColor(.secondary)
+                                    .foregroundColor(.white.opacity(0.7))
                             }
                         }
                     } else {
@@ -79,11 +79,11 @@ struct ProfileTabView: View {
                             Text("Profile Not Set Up")
                                 .font(.title2)
                                 .fontWeight(.bold)
-                                .foregroundColor(.primary)
+                                .foregroundColor(.white)
                             
                             Text("Create your profile to get started")
                                 .font(.subheadline)
-                                .foregroundColor(.secondary)
+                                .foregroundColor(.white.opacity(0.7))
                         }
                     }
                 }
@@ -185,7 +185,7 @@ struct ProfileTabView: View {
                         }
                     }
                 }
-                .background(Color(.systemBackground))
+                .background(Color.black.opacity(0.3))
                 .cornerRadius(12)
                 .padding(.horizontal)
                 
@@ -209,9 +209,7 @@ struct ProfileTabView: View {
             //     .zIndex(1)
             // }
             // }
-            .navigationTitle("Account Settings")
-            .navigationBarTitleDisplayMode(.large)
-            .background(Color(.systemGroupedBackground))
+            .gradientBackground()
             // .toolbar {
             //     ToolbarItem(placement: .navigationBarTrailing) {
             //         Button(action: {
@@ -259,10 +257,10 @@ struct ProfileTabView: View {
                                 .foregroundColor(.green)
                             Text("Onboarding reset successfully!")
                                 .font(.body)
-                                .foregroundColor(.primary)
+                                .foregroundColor(.white)
                         }
                         .padding()
-                        .background(Color(.systemBackground))
+                        .background(Color.black.opacity(0.8))
                         .cornerRadius(10)
                         .shadow(radius: 5)
                         .padding(.horizontal, 20)
@@ -313,7 +311,7 @@ struct SideNavigationMenu: View {
                                     )
                             } else {
                                 Circle()
-                                    .fill(Color(.systemGray4))
+                                    .fill(Color.black.opacity(0.5))
                                     .frame(width: 50, height: 50)
                                     .overlay(
                                         Image(systemName: "person.fill")
@@ -567,7 +565,7 @@ struct SideNavigationMenu: View {
                 .frame(width: geometry.size.width * 0.75)
                 .background(
                     LinearGradient(
-                        colors: [Color(.systemGray6), Color(.systemGray5)],
+                        colors: [Color.black.opacity(0.8), Color.black.opacity(0.6)],
                         startPoint: .top,
                         endPoint: .bottom
                     )
@@ -690,17 +688,21 @@ struct SettingsRow: View {
                 
                 Text(title)
                     .font(.body)
-                    .foregroundColor(.primary)
+                    .foregroundColor(.white)
                 
                 Spacer()
                 
                 Image(systemName: "chevron.right")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(.white.opacity(0.7))
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
+            .background(Color.white.opacity(0.05))
+            .cornerRadius(8)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PlainButtonStyle())
+        .scaleEffect(1.0)
+        .animation(.easeInOut(duration: 0.1), value: true)
     }
 } 

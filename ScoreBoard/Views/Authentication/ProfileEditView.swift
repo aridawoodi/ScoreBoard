@@ -31,10 +31,11 @@ struct ProfileEditView: View {
                     Text("Edit Your Profile")
                         .font(.title)
                         .fontWeight(.bold)
+                        .foregroundColor(.white)
                     
                     Text("Update your profile information to personalize your experience")
                         .font(.subheadline)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(.white.opacity(0.7))
                         .multilineTextAlignment(.center)
                 }
                 .padding(.top, 20)
@@ -44,8 +45,16 @@ struct ProfileEditView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Username")
                             .font(.headline)
+                            .foregroundColor(.white)
                         TextField("Enter your username", text: $username)
-                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                            .foregroundColor(.white)
+                            .padding()
+                            .background(Color.black.opacity(0.5))
+                            .cornerRadius(8)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                            )
                             .autocapitalization(.none)
                             .disableAutocorrection(true)
                     }
@@ -53,17 +62,24 @@ struct ProfileEditView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Email")
                             .font(.headline)
+                            .foregroundColor(.white)
                         TextField("Email", text: $email)
-                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                            .foregroundColor(isGuestUser ? .white : .white.opacity(0.5))
+                            .padding()
+                            .background(Color.black.opacity(0.5))
+                            .cornerRadius(8)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                            )
                             .keyboardType(.emailAddress)
                             .autocapitalization(.none)
                             .disableAutocorrection(true)
                             .disabled(!isGuestUser) // Only editable for guest users
-                            .foregroundColor(isGuestUser ? .primary : .gray)
                     }
                 }
                 .padding()
-                .background(Color(.systemGray6))
+                .background(Color.black.opacity(0.3))
                 .cornerRadius(12)
                 
                 // Profile Info Section
@@ -71,35 +87,40 @@ struct ProfileEditView: View {
                     VStack(alignment: .leading, spacing: 12) {
                         Text("Profile Information")
                             .font(.headline)
+                            .foregroundColor(.white)
                         
                         VStack(spacing: 8) {
                             HStack {
                                 Image(systemName: "person.circle.fill")
                                     .foregroundColor(.blue)
                                 Text("User ID")
+                                    .foregroundColor(.white)
                                 Spacer()
                                 Text(user.id.prefix(8))
                                     .fontWeight(.semibold)
                                     .font(.caption)
+                                    .foregroundColor(.white.opacity(0.8))
                             }
                             
                             HStack {
                                 Image(systemName: "calendar")
                                     .foregroundColor(.green)
                                 Text("Member Since")
+                                    .foregroundColor(.white)
                                 Spacer()
                                 Text(formatDate(user.createdAt) ?? "Unknown")
                                     .fontWeight(.semibold)
                                     .font(.caption)
+                                    .foregroundColor(.white.opacity(0.8))
                             }
                         }
                         .padding()
-                        .background(Color(.systemBackground))
+                        .background(Color.black.opacity(0.5))
                         .cornerRadius(8)
-                    }
-                    .padding()
-                    .background(Color(.systemGray6))
-                    .cornerRadius(12)
+                                    }
+                .padding()
+                .background(Color.black.opacity(0.3))
+                .cornerRadius(12)
                 }
                 
                 // Update Button
@@ -119,42 +140,67 @@ struct ProfileEditView: View {
                     }
                 }
                 .disabled(isLoading || username.isEmpty || email.isEmpty)
-                .buttonStyle(.borderedProminent)
+                .foregroundColor(.white)
+                .padding()
+                .background(Color.green)
+                .cornerRadius(12)
                 .controlSize(.large)
                 
-                if isProfileUpdated {
-                    VStack(spacing: 12) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: 60))
-                            .foregroundColor(.green)
-                        
-                        Text("Profile Updated Successfully!")
-                            .font(.title2)
-                            .fontWeight(.bold)
-                        
-                        Text("Your profile information has been updated")
-                            .font(.body)
-                            .foregroundColor(.secondary)
-                            .multilineTextAlignment(.center)
-                    }
-                    .padding()
-                }
+
                 
                 Spacer()
             }
             .padding()
-            .navigationTitle("Edit Profile")
-            .navigationBarTitleDisplayMode(.inline)
-            .navigationBarItems(
-                leading: Button("Cancel") {
-                    dismiss()
-                }
-            )
+
             .alert("Profile Update", isPresented: $showAlert) {
                 Button("OK") { }
             } message: {
                 Text(alertMessage)
             }
+            .overlay(
+                ZStack {
+                    // Cancel button at the top
+                    VStack {
+                        HStack {
+                            Button("Cancel") {
+                                dismiss()
+                            }
+                            .foregroundColor(.white)
+                            .padding()
+                            .background(Color.black.opacity(0.3))
+                            .cornerRadius(8)
+                            
+                            Spacer()
+                        }
+                        .padding()
+                        Spacer()
+                    }
+                    
+                    // Success message overlay that doesn't affect Cancel button
+                    if isProfileUpdated {
+                        VStack {
+                            Spacer()
+                            VStack(spacing: 12) {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .font(.largeTitle)
+                                    .foregroundColor(.green)
+                                Text("Profile Updated Successfully!")
+                                    .font(.headline)
+                                    .foregroundColor(.white)
+                                Text("Your profile information has been updated")
+                                    .font(.body)
+                                    .foregroundColor(.white.opacity(0.7))
+                                    .multilineTextAlignment(.center)
+                            }
+                            .padding()
+                            .background(Color.black.opacity(0.8))
+                            .cornerRadius(12)
+                            .padding(.horizontal, 20)
+                            .padding(.bottom, 100)
+                        }
+                    }
+                }
+            )
             .onAppear {
                 loadCurrentProfile()
                 // Check if current user is a guest
@@ -188,6 +234,7 @@ struct ProfileEditView: View {
                     }
                 }
             }
+            .gradientBackground()
         }
     }
     

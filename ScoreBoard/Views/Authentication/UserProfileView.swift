@@ -23,10 +23,11 @@ struct UserProfileView: View {
                 Text("Create Your Profile")
                     .font(.title)
                     .fontWeight(.bold)
+                    .foregroundColor(.white)
                 
                 Text("Set up your profile so other players can find and invite you to games")
                     .font(.body)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(.white.opacity(0.7))
                     .multilineTextAlignment(.center)
                     .padding(.horizontal)
                 
@@ -34,8 +35,16 @@ struct UserProfileView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Username")
                             .font(.headline)
+                            .foregroundColor(.white)
                         TextField("Enter your username", text: $username)
-                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                            .foregroundColor(.white)
+                            .padding()
+                            .background(Color.black.opacity(0.5))
+                            .cornerRadius(8)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                            )
                             .autocapitalization(.none)
                             .disableAutocorrection(true)
                     }
@@ -43,15 +52,23 @@ struct UserProfileView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Email")
                             .font(.headline)
+                            .foregroundColor(.white)
                         TextField("Enter your email", text: $email)
-                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                            .foregroundColor(.white)
+                            .padding()
+                            .background(Color.black.opacity(0.5))
+                            .cornerRadius(8)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                            )
                             .keyboardType(.emailAddress)
                             .autocapitalization(.none)
                             .disableAutocorrection(true)
                     }
                 }
                 .padding()
-                .background(Color(.systemGray6))
+                .background(Color.black.opacity(0.3))
                 .cornerRadius(12)
                 
                 Button(action: {
@@ -65,8 +82,10 @@ struct UserProfileView: View {
                     }
                 }
                 .disabled(isLoading || username.isEmpty || email.isEmpty)
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
+                .foregroundColor(.white)
+                .padding()
+                .background(Color.green)
+                .cornerRadius(12)
                 
                 if isProfileCreated {
                     VStack(spacing: 12) {
@@ -80,13 +99,16 @@ struct UserProfileView: View {
                         
                         Text("Other players can now find and invite you to games")
                             .font(.body)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(.white.opacity(0.7))
                             .multilineTextAlignment(.center)
                         
                         Button("Continue") {
                             dismiss()
                         }
-                        .buttonStyle(.borderedProminent)
+                        .foregroundColor(.white)
+                        .padding()
+                        .background(Color.green)
+                        .cornerRadius(12)
                         .padding(.top)
                     }
                     .padding()
@@ -97,16 +119,21 @@ struct UserProfileView: View {
             .padding()
             .navigationTitle("User Profile")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbarBackground(Color.clear, for: .navigationBar)
             .navigationBarItems(
                 leading: Button("Skip") {
                     dismiss()
                 }
+                .foregroundColor(.white)
             )
             .alert("Profile Creation", isPresented: $showAlert) {
                 Button("OK") { }
             } message: {
                 Text(alertMessage)
             }
+            .gradientBackground()
             .onAppear {
                 loadUserAttributes()
             }

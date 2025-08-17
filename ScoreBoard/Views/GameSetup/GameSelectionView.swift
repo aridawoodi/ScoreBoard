@@ -47,10 +47,11 @@ struct GameSelectionView: View {
                     Text("Select a Game")
                         .font(.title)
                         .fontWeight(.bold)
+                        .foregroundColor(.white)
                     
                     Text("Choose which game you'd like to view")
                         .font(.subheadline)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(.white.opacity(0.7))
                         .multilineTextAlignment(.center)
                 }
                 .padding(.top, 20)
@@ -95,11 +96,16 @@ struct GameSelectionView: View {
             }
             .navigationTitle("My Games")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbarBackground(Color.clear, for: .navigationBar)
             .navigationBarItems(
                 leading: Button("Cancel") {
                     dismiss()
                 }
+                .foregroundColor(.white)
             )
+            .gradientBackground()
             .onAppear {
                 loadUsernamesFromCache()
                 loadCurrentUser()
@@ -219,7 +225,7 @@ struct GameCardView: View {
                     
                     Text("\(game.rounds) Rounds")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(.white.opacity(0.7))
                 }
                 
                 Spacer()
@@ -235,13 +241,13 @@ struct GameCardView: View {
                 VStack(alignment: .trailing, spacing: 2) {
                     Text("Code")
                         .font(.caption2)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(.white.opacity(0.7))
                     Text(String(game.id.prefix(6)).uppercased())
                         .font(.caption.bold())
-                        .foregroundColor(.green)
+                        .foregroundColor(.white)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
-                        .background(Color.green.opacity(0.1))
+                        .background(Color.white.opacity(0.1))
                         .cornerRadius(4)
                 }
             }
@@ -250,7 +256,7 @@ struct GameCardView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Players:")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(.white.opacity(0.7))
                 
                 if usernameCache.isLoading {
                     HStack {
@@ -258,7 +264,7 @@ struct GameCardView: View {
                             .scaleEffect(0.8)
                         Text("Loading players...")
                             .font(.body)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(.white.opacity(0.7))
                     }
                 } else {
                     let playerList = game.playerIDs.map { playerID in
@@ -267,6 +273,7 @@ struct GameCardView: View {
                     
                     Text(playerList.joined(separator: ", "))
                         .font(.body)
+                        .foregroundColor(.white)
                         .lineLimit(2)
                 }
             }
@@ -276,10 +283,10 @@ struct GameCardView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Rules:")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(.white.opacity(0.7))
                     Text(customRules)
                         .font(.caption)
-                        .foregroundColor(.primary)
+                        .foregroundColor(.white)
                         .lineLimit(2)
                 }
             }
@@ -292,14 +299,14 @@ struct GameCardView: View {
                 Button(action: onTap) {
                     HStack {
                         Image(systemName: isSelected ? "checkmark.circle.fill" : "arrow.right.circle")
-                            .foregroundColor(isSelected ? .green : .blue)
+                            .foregroundColor(.white)
                         Text(isSelected ? "Selected" : "Select Game")
                             .fontWeight(.medium)
+                            .foregroundColor(.white)
                     }
                     .padding(.horizontal, 16)
                     .padding(.vertical, 8)
-                    .background(isSelected ? Color.green.opacity(0.1) : Color.blue.opacity(0.1))
-                    .foregroundColor(isSelected ? .green : .blue)
+                    .background(isSelected ? Color.green : Color.blue)
                     .cornerRadius(8)
                 }
                 
@@ -308,14 +315,14 @@ struct GameCardView: View {
                     Button(action: onDelete) {
                         HStack {
                             Image(systemName: "trash.fill")
-                                .foregroundColor(.red)
+                                .foregroundColor(.white)
                             Text("Delete")
                                 .fontWeight(.medium)
-                                .foregroundColor(.red)
+                                .foregroundColor(.white)
                         }
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
-                        .background(Color.red.opacity(0.1))
+                        .background(Color.red)
                         .cornerRadius(8)
                     }
                     .padding(.leading, 8)
@@ -323,11 +330,11 @@ struct GameCardView: View {
             }
         }
         .padding()
-        .background(Color(.systemBackground))
+        .background(Color.black.opacity(0.3))
         .cornerRadius(12)
         .overlay(
             RoundedRectangle(cornerRadius: 12)
-                .stroke(isSelected ? Color.green : Color(.systemGray4), lineWidth: isSelected ? 2 : 1)
+                .stroke(isSelected ? Color.green : Color.white.opacity(0.3), lineWidth: isSelected ? 2 : 1)
         )
         .scaleEffect(isSelected ? 1.02 : 1.0)
         .animation(.easeInOut(duration: 0.2), value: isSelected)
