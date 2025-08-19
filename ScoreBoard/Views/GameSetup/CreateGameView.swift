@@ -394,7 +394,7 @@ struct CreateGameContentView: View {
                             .foregroundColor(.white.opacity(0.7))
                     }
                 }
-                .toggleStyle(SwitchToggleStyle(tint: .blue))
+                .toggleStyle(SwitchToggleStyle(tint: Color("LightGreen")))
                 
                 if hostJoinAsPlayer {
                     VStack(alignment: .leading, spacing: isIPad ? 12 : 8) {

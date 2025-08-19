@@ -190,6 +190,9 @@ struct Scoreboardview: View {
     
     // Force view refresh when game status changes
     @State private var gameStatusRefreshTrigger = 0
+    
+    // Pull-to-refresh state
+    @State private var isRefreshing = false
 
     let onGameUpdated: ((Game) -> Void)?
     let onGameDeleted: (() -> Void)?
@@ -275,8 +278,8 @@ struct Scoreboardview: View {
     
     /// Check if current user can edit scores
 func canUserEditScores() -> Bool {
-        // Scores can only be edited while the game is ACTIVE
-        return game.gameStatus == .active
+        // Only the host can edit scores, and only while the game is ACTIVE
+        return canUserEditGame() && game.gameStatus == .active
 }
 
 /// Check if celebration has already been shown for this game
@@ -333,7 +336,115 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
         print("Game completion check temporarily disabled")
     }
     
+    /// Refresh game data from backend
+    func refreshGameData() async {
+        print("🔍 DEBUG: ===== REFRESH GAME DATA START =====")
+        
+        await MainActor.run {
+            isRefreshing = true
+        }
+        
+        do {
+            // Fetch the latest game data from backend with timeout
+            let result = try await withTimeout(seconds: 10) {
+                try await Amplify.API.query(request: .get(Game.self, byId: game.id))
+            }
+            
+            // Check if the task was cancelled
+            try Task.checkCancellation()
+            
+            switch result {
+            case .success(let updatedGame):
+                if let updatedGame = updatedGame {
+                    print("🔍 DEBUG: Successfully refreshed game data")
+                    print("🔍 DEBUG: Updated game playerIDs: \(updatedGame.playerIDs)")
+                    print("🔍 DEBUG: Previous game playerIDs: \(self.game.playerIDs)")
+                    
+                    await MainActor.run {
+                        self.game = updatedGame
+                        self.currentGameId = updatedGame.id
+                        self.lastKnownGameRounds = updatedGame.rounds
+                        self.dynamicRounds = updatedGame.rounds
+                        
+                        // Clear current data to force complete reload
+                        print("🔍 DEBUG: Clearing current data for complete reload")
+                        self.players = []
+                        self.scores = [:]
+                        self.playerNames = [:]
+                        self.unsavedScores = [:]
+                        self.hasUnsavedChanges = false
+                        
+                        // Force immediate reload of game data
+                        self.loadGameData()
+                        
+                        // Show success feedback
+                        self.showToastMessage(message: "Game refreshed", icon: "arrow.clockwise.circle.fill")
+                        
+                        // Force UI update to reflect changes
+                        self.gameUpdateCounter += 1
+                        
+                        self.isRefreshing = false
+                    }
+                } else {
+                    print("🔍 DEBUG: Game no longer exists in backend")
+                    await MainActor.run {
+                        self.isGameDeleted = true
+                        self.showToastMessage(message: "Game not found", icon: "exclamationmark.circle.fill")
+                        self.isRefreshing = false
+                    }
+                }
+            case .failure(let error):
+                print("🔍 DEBUG: Failed to refresh game: \(error)")
+                await MainActor.run {
+                    self.showToastMessage(message: "Refresh failed", icon: "exclamationmark.circle.fill")
+                    self.isRefreshing = false
+                }
+            }
+        } catch is CancellationError {
+            print("🔍 DEBUG: Refresh was cancelled - attempting to complete data update anyway")
+            // Even if cancelled, try to complete the data update if we have the game data
+            await MainActor.run {
+                self.isRefreshing = false
+            }
+        } catch is TimeoutError {
+            print("🔍 DEBUG: Refresh timed out")
+            await MainActor.run {
+                self.isRefreshing = false
+                self.showToastMessage(message: "Refresh timed out", icon: "clock.circle.fill")
+            }
+        } catch {
+            print("🔍 DEBUG: Error refreshing game data: \(error)")
+            await MainActor.run {
+                self.isRefreshing = false
+                self.showToastMessage(message: "Refresh failed", icon: "exclamationmark.circle.fill")
+            }
+        }
+        
+        print("🔍 DEBUG: ===== REFRESH GAME DATA END =====")
+    }
+    
     // MARK: - Helper Functions
+    
+    /// Helper function to add timeout to async operations
+    private func withTimeout<T>(seconds: TimeInterval, operation: @escaping () async throws -> T) async throws -> T {
+        try await withThrowingTaskGroup(of: T.self) { group in
+            group.addTask {
+                try await operation()
+            }
+            
+            group.addTask {
+                try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+                throw TimeoutError()
+            }
+            
+            let result = try await group.next()!
+            group.cancelAll()
+            return result
+        }
+    }
+    
+    /// Custom timeout error
+    private struct TimeoutError: Error {}
     
     private func onAppearAction() {
         print("🔍 DEBUG: Scoreboardview onAppear - Game ID: \(game.id)")
@@ -749,6 +860,20 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                     }
                 }
                 
+                // Refresh button
+                Button(action: {
+                    Task {
+                        await refreshGameData()
+                    }
+                }) {
+                    Image(systemName: isRefreshing ? "arrow.clockwise.circle.fill" : "arrow.clockwise.circle")
+                        .font(.system(size: 24, weight: .medium))
+                        .foregroundColor(isRefreshing ? .green : .white.opacity(0.7))
+                        .rotationEffect(.degrees(isRefreshing ? 360 : 0))
+                        .animation(isRefreshing ? .linear(duration: 1).repeatForever(autoreverses: false) : .default, value: isRefreshing)
+                }
+                .disabled(isRefreshing)
+                
                 // Edit Board button
                 Button(action: {
                     showEditBoard = true
@@ -822,6 +947,13 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                     .shadow(color: Color.black.opacity(0.3), radius: 4, x: 0, y: 2)
                 }
                 .frame(maxHeight: UIScreen.main.bounds.height * 0.6) // Limit height to 60% of screen
+                .refreshable {
+                    // Start the refresh operation and ensure it completes
+                    // Use Task to prevent cancellation when gesture is released
+                    Task {
+                        await refreshGameData()
+                    }
+                }
                 .onChange(of: editingRound) { _, newRound in
                     // Auto-scroll to the editing round when keyboard appears
                     if isScoreFieldFocused {
@@ -1296,8 +1428,8 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
         }
     }
     
-    // Force refresh game data
-    func refreshGameData() {
+    // Force UI refresh by incrementing counter
+    func forceUIRefresh() {
         gameUpdateCounter += 1
     }
     

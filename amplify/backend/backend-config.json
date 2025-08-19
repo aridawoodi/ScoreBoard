@@ -22,7 +22,9 @@
           ],
           "defaultAuthentication": {
             "apiKeyConfig": {
-              "apiKeyExpirationDays": 365
+              "apiKeyExpirationDate": "2026-08-09T05:32:46.499Z",
+              "apiKeyExpirationDays": 356,
+              "description": "ScoreboardAppKeyApiAccess"
             },
             "authenticationType": "API_KEY"
           }

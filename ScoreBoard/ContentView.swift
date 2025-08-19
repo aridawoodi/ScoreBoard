@@ -209,9 +209,34 @@ struct ContentView: View {
                     print("🔍 DEBUG: Current selectedTab value: \(selectedTab)")
                     print("🔍 DEBUG: Current navigationState.selectedGame: \(navigationState.selectedGame?.id ?? "nil")")
                     
+                    // For spectator joins, we need to ensure the game is in userGames
+                    // so it can be displayed in YourBoardTabView
+                    if !navigationState.userGames.contains(where: { $0.id == game.id }) {
+                        print("🔍 DEBUG: Adding joined game to userGames for spectator access")
+                        navigationState.userGames.append(game)
+                    }
+                    
+                    // Force navigation state to refresh
+                    navigationState.objectWillChange.send()
+                    
+                    // Add a small delay to ensure UI updates and force YourBoardTabView refresh
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        // Force another refresh to ensure view updates
+                        navigationState.objectWillChange.send()
+                    }
+                    
                     // Reload user games to update the latestGame
                     print("🔍 DEBUG: Calling loadUserGames() to refresh user games")
                     loadUserGames()
+                    
+                    // Ensure selectedGame persists after loadUserGames
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                        if navigationState.selectedGame?.id != game.id {
+                            print("🔍 DEBUG: Restoring selectedGame after loadUserGames")
+                            navigationState.selectedGame = game
+                            navigationState.objectWillChange.send()
+                        }
+                    }
                     print("🔍 DEBUG: ===== JOIN GAME CALLBACK END =====")
                 }
             }

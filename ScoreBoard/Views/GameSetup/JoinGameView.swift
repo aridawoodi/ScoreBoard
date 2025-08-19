@@ -19,6 +19,7 @@ struct JoinGameView: View {
     @State private var isLoading = false
     @State private var showAlert = false
     @State private var alertMessage = ""
+    @State private var isProcessingJoin = false
     @State private var foundGame: Game?
     @State private var showNameInput = false
     @State private var playerName = ""
@@ -122,48 +123,51 @@ struct JoinGameView: View {
                 }
             }
             .alert("Join Game", isPresented: $showAlert) {
-                Button("OK") { }
+                Button("OK") { 
+                    // Reset processing state when alert is dismissed
+                    isProcessingJoin = false
+                }
             } message: {
                 Text(alertMessage)
             }
-            .onChange(of: showAlert) { newValue in
-                if newValue && alertMessage.contains("already in this game") {
-                    // Add haptic feedback for duplicate join
-                    let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
-                    impactFeedback.impactOccurred()
-                }
-            }
             .sheet(isPresented: $showNameInput) {
-                NameInputView(playerName: $playerName) {
-                    // User confirmed their name, now show join options
-                    if let game = pendingGame {
-                        showJoinOptions = true
+                NameInputView(
+                    playerName: $playerName,
+                    onConfirm: {
+                        if let game = pendingGame {
+                            if showJoinOptions {
+                                // If join options should show, just set the flag
+                                showJoinOptions = true
+                            } else {
+                                // Otherwise, directly join
+                                joinGameWithName(game: game, playerName: playerName)
+                            }
+                        }
                     }
-                }
+                )
             }
             .sheet(isPresented: $showJoinOptions) {
-                JoinOptionsView(
-                    playerName: playerName,
-                    joinMode: $joinMode
-                ) {
-                    // User confirmed join mode
-                    if let game = pendingGame {
+                if let game = pendingGame {
+                    JoinOptionsView(
+                        playerName: playerName,
+                        game: game,
+                        joinMode: $joinMode
+                    ) {
                         if joinMode == .player {
                             if playerName.isEmpty {
-                                // This shouldn't happen, but fallback
                                 showNameInput = true
                             } else {
                                 joinGameWithName(game: game, playerName: playerName)
                             }
                         } else {
-                            // Spectator mode - just navigate to scoreboard
-                            print("🔍 DEBUG: Joining as spectator for game: \(game.id)")
                             foundGame = game
                             onGameJoined(game)
-                            // Dismiss the join game sheet
                             showJoinGame = false
                         }
                     }
+                } else {
+                    Text("Error: Game not found")
+                        .foregroundColor(.white)
                 }
             }
         }
@@ -176,6 +180,9 @@ struct JoinGameView: View {
             return
         }
         
+        // Prevent multiple simultaneous join attempts
+        guard !isProcessingJoin else { return }
+        isProcessingJoin = true
         isLoading = true
         
         Task {
@@ -191,6 +198,7 @@ struct JoinGameView: View {
                 
                 await MainActor.run {
                     isLoading = false
+                    isProcessingJoin = false
                     
                     switch result {
                     case .success(let games):
@@ -251,12 +259,14 @@ struct JoinGameView: View {
                             alertMessage = "Error joining game: \(error.localizedDescription)"
                         }
                         showAlert = true
+                        isProcessingJoin = false
                     }
                 }
                 
             } catch {
                 await MainActor.run {
                     isLoading = false
+                    isProcessingJoin = false
                     alertMessage = "Error: \(error.localizedDescription)"
                     showAlert = true
                 }
@@ -313,22 +323,40 @@ struct JoinGameView: View {
                     }
                 }
             } catch {
+                print("🔍 DEBUG: Error in joinGameWithName: \(error)")
                 await MainActor.run {
                     alertMessage = "Error: \(error.localizedDescription)"
                     showAlert = true
+                    isProcessingJoin = false
                 }
             }
         }
+        print("🔍 DEBUG: ===== JOIN GAME WITH NAME END =====")
     }
     
     func joinGameWithName(game: Game, playerName: String) {
+        print("🔍 DEBUG: ===== JOIN GAME WITH NAME START =====")
+        print("🔍 DEBUG: Game ID: \(game.id)")
+        print("🔍 DEBUG: Player Name: \(playerName)")
+        print("🔍 DEBUG: Current isProcessingJoin: \(isProcessingJoin)")
+        
+        // Prevent multiple simultaneous join attempts
+        guard !isProcessingJoin else { 
+            print("🔍 DEBUG: Already processing join, returning early")
+            return 
+        }
+        isProcessingJoin = true
+        print("🔍 DEBUG: Set isProcessingJoin to true")
+        
         Task {
             do {
                 // Get current user info using helper function
                 guard let currentUserInfo = await getCurrentUser() else {
+                    print("🔍 DEBUG: Failed to get current user info")
                     await MainActor.run {
                         alertMessage = "Unable to get current user information."
                         showAlert = true
+                        isProcessingJoin = false
                     }
                     return
                 }
@@ -336,21 +364,21 @@ struct JoinGameView: View {
                 let userId = currentUserInfo.userId
                 let isGuest = currentUserInfo.isGuest
                 
+                print("🔍 DEBUG: Current user ID: \(userId)")
+                print("🔍 DEBUG: Is guest: \(isGuest)")
+                print("🔍 DEBUG: Game playerIDs: \(game.playerIDs ?? [])")
+                
                 // Check if user is already in the game (by user ID)
                 let playerIDs = game.playerIDs
                 if playerIDs.contains(userId) {
                     print("🔍 DEBUG: User \(userId) is already in game with playerIDs: \(playerIDs)")
-                    // User already in game - show alert and navigate
+                    // User already in game - just navigate to scoreboard without showing alert
                     await MainActor.run {
-                        alertMessage = "You are already in this game! Taking you to the scoreboard..."
-                        showAlert = true
-                        // Navigate to scoreboard after a short delay
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                            foundGame = game
-                            onGameJoined(game)
-                            // Dismiss the join game sheet
-                            showJoinGame = false
-                        }
+                        foundGame = game
+                        onGameJoined(game)
+                        // Dismiss the join game sheet immediately
+                        showJoinGame = false
+                        isProcessingJoin = false
                     }
                     return
                 }
@@ -379,32 +407,27 @@ struct JoinGameView: View {
                         switch updateResult {
                         case .success(let updatedGame):
                             await MainActor.run {
-                                alertMessage = "Display name updated to '\(playerName)'! Taking you to the scoreboard..."
-                                showAlert = true
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                                    foundGame = updatedGame
-                                    onGameJoined(updatedGame)
-                                    // Dismiss the join game sheet
-                                    showJoinGame = false
-                                }
+                                foundGame = updatedGame
+                                onGameJoined(updatedGame)
+                                // Dismiss the join game sheet immediately
+                                showJoinGame = false
+                                isProcessingJoin = false
                             }
                         case .failure(let error):
                             await MainActor.run {
                                 alertMessage = "Failed to update display name: \(error.localizedDescription)"
                                 showAlert = true
+                                isProcessingJoin = false
                             }
                         }
                     } else {
                         // Same display name - just navigate to scoreboard
                         await MainActor.run {
-                            alertMessage = "You are already in this game! Taking you to the scoreboard..."
-                            showAlert = true
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                                foundGame = game
-                                onGameJoined(game)
-                                // Dismiss the join game sheet
-                                showJoinGame = false
-                            }
+                            foundGame = game
+                            onGameJoined(game)
+                            // Dismiss the join game sheet immediately
+                            showJoinGame = false
+                            isProcessingJoin = false
                         }
                     }
                     return
@@ -415,20 +438,27 @@ struct JoinGameView: View {
                 var updatedGame = game
                 updatedGame.playerIDs = (game.playerIDs ?? []) + [playerIdentifier]
                 
+                print("🔍 DEBUG: Updated game playerIDs: \(updatedGame.playerIDs ?? [])")
+                
                 // Update the game in the backend
+                print("🔍 DEBUG: Updating game in backend...")
                 let updateResult = try await Amplify.API.mutate(request: .update(updatedGame))
                 switch updateResult {
                 case .success(let updatedGame):
+                    print("🔍 DEBUG: Successfully updated game in backend")
                     await MainActor.run {
                         foundGame = updatedGame
                         onGameJoined(updatedGame)
                         // Dismiss the join game sheet
                         showJoinGame = false
+                        isProcessingJoin = false
                     }
                 case .failure(let error):
+                    print("🔍 DEBUG: Failed to update game in backend: \(error)")
                     await MainActor.run {
                         alertMessage = "Failed to join game: \(error.localizedDescription)"
                         showAlert = true
+                        isProcessingJoin = false
                     }
                 }
             } catch {

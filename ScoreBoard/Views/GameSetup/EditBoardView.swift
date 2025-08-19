@@ -25,6 +25,7 @@ struct EditBoardView: View {
     @State private var showAlert = false
     @State private var alertMessage = ""
     @State private var showDeleteAlert = false
+    @State private var currentUserID = ""
     private let originalPlayerIDs: Set<String>
     
     // Add preview flag
@@ -52,7 +53,7 @@ struct EditBoardView: View {
                     VStack(alignment: .leading, spacing: 12) {
                         
                         TextField("Enter game name", text: $gameName)
-                            .foregroundColor(.white)
+                            .foregroundColor(canUserEditGame() && game.gameStatus == .active ? .white : .gray)
                             .padding()
                             .background(Color.black.opacity(0.5))
                             .cornerRadius(8)
@@ -60,9 +61,10 @@ struct EditBoardView: View {
                                 RoundedRectangle(cornerRadius: 8)
                                     .stroke(Color.white.opacity(0.3), lineWidth: 1)
                             )
+                            .disabled(!canUserEditGame() || game.gameStatus != .active)
                         
                         TextField("Enter custom rules (optional)", text: $customRules)
-                            .foregroundColor(.white)
+                            .foregroundColor(canUserEditGame() && game.gameStatus == .active ? .white : .gray)
                             .padding()
                             .background(Color.black.opacity(0.5))
                             .cornerRadius(8)
@@ -70,13 +72,15 @@ struct EditBoardView: View {
                                 RoundedRectangle(cornerRadius: 8)
                                     .stroke(Color.white.opacity(0.3), lineWidth: 1)
                             )
+                            .disabled(!canUserEditGame() || game.gameStatus != .active)
 
                         HStack {
                             Text("Number of Rounds: \(rounds)")
-                                .foregroundColor(.white)
+                                .foregroundColor(canUserEditGame() && game.gameStatus == .active ? .white : .gray)
                             Spacer()
                             Stepper("", value: $rounds, in: 1...10)
                                 .labelsHidden()
+                                .disabled(!canUserEditGame() || game.gameStatus != .active)
                         }
                     }
                     .padding()
@@ -90,10 +94,10 @@ struct EditBoardView: View {
                         searchText: $searchText,
                         searchResults: $searchResults,
                         isSearching: $isSearching,
-                        addPlayer: addPlayer,
-                        searchUsers: searchUsers,
-                        addRegisteredPlayer: addRegisteredPlayer,
-                        removePlayer: removePlayer
+                        addPlayer: canUserEditGame() && game.gameStatus == .active ? addPlayer : {},
+                        searchUsers: canUserEditGame() && game.gameStatus == .active ? searchUsers : { _ in },
+                        addRegisteredPlayer: canUserEditGame() && game.gameStatus == .active ? addRegisteredPlayer : { _ in },
+                        removePlayer: canUserEditGame() && game.gameStatus == .active ? removePlayer : { _ in }
                     )
                     
                     VStack(spacing: 12) {
@@ -107,10 +111,10 @@ struct EditBoardView: View {
                                 Text("Update Board")
                             }
                         }
-                        .disabled(isLoading)
-                        .foregroundColor(.white)
+                        .disabled(isLoading || !canUserEditGame() || game.gameStatus != .active)
+                        .foregroundColor(canUserEditGame() && game.gameStatus == .active ? .white : .gray)
                         .padding()
-                        .background(Color.green)
+                        .background(canUserEditGame() && game.gameStatus == .active ? Color.green : Color.gray)
                         .cornerRadius(12)
                         
                         Button(action: {
@@ -118,10 +122,10 @@ struct EditBoardView: View {
                         }) {
                             Text("Delete Board")
                         }
-                        .disabled(isLoading)
-                        .foregroundColor(.white)
+                        .disabled(isLoading || !canUserEditGame() || game.gameStatus != .active)
+                        .foregroundColor(canUserEditGame() && game.gameStatus == .active ? .white : .gray)
                         .padding()
-                        .background(Color.red)
+                        .background(canUserEditGame() && game.gameStatus == .active ? Color.red : Color.gray)
                         .cornerRadius(12)
                     }
                 }
@@ -155,6 +159,9 @@ struct EditBoardView: View {
             .onAppear {
                 // Ensure we have fresh data when the edit view appears
                 print("🔍 DEBUG: EditBoardView appeared - refreshing data")
+                Task {
+                    await loadCurrentUser()
+                }
                 loadPlayersFromGame()
             }
         }
@@ -178,30 +185,108 @@ struct EditBoardView: View {
     }
     
     func deleteGame() {
+        print("🔍 DEBUG: ===== DELETE GAME START =====")
+        print("🔍 DEBUG: Deleting game: \(game.id)")
+        
         isLoading = true
+        
+        // Delete the game and all related scores
         Task {
             do {
-                // Use GameService to delete the game and all its scores
-                let currentUser = try await Amplify.Auth.getCurrentUser()
-                let success = await GameService.shared.deleteGame(game, currentUserId: currentUser.userId)
+                print("🔍 DEBUG: Deleting all scores for game \(game.id)")
                 
-                await MainActor.run {
-                    isLoading = false
-                    if success {
-                        // Game was successfully deleted, dismiss the view
-                        dismiss()
-                    } else {
-                        // Show error message
-                        alertMessage = "Failed to delete game. Only the game creator can delete the game."
+                // Fetch all scores for this game
+                let scoresQuery = Score.keys.gameID.eq(game.id)
+                let scoresResult = try await Amplify.API.query(request: .list(Score.self, where: scoresQuery))
+                
+                switch scoresResult {
+                case .success(let gameScores):
+                    print("🔍 DEBUG: Found \(gameScores.count) scores to delete for game \(game.id)")
+                    
+                    // Delete all scores for this game
+                    for score in gameScores {
+                        print("🔍 DEBUG: Deleting score for player \(score.playerID), round \(score.roundNumber)")
+                        let deleteResult = try await Amplify.API.mutate(request: .delete(score))
+                        switch deleteResult {
+                        case .success(let deletedScore):
+                            print("🔍 DEBUG: Successfully deleted score: \(deletedScore.id)")
+                        case .failure(let error):
+                            print("🔍 DEBUG: Failed to delete score: \(error)")
+                        }
+                    }
+                    
+                    // Now delete the game itself
+                    let gameDeleteResult = try await Amplify.API.mutate(request: .delete(game))
+                    switch gameDeleteResult {
+                    case .success(let deletedGame):
+                        print("🔍 DEBUG: Successfully deleted game: \(deletedGame.id)")
+                        await MainActor.run {
+                            isLoading = false
+                            // Notify parent that game was updated (deleted)
+                            self.onGameUpdated(deletedGame)
+                            // Dismiss the view
+                            dismiss()
+                        }
+                    case .failure(let error):
+                        print("🔍 DEBUG: Failed to delete game: \(error)")
+                        await MainActor.run {
+                            isLoading = false
+                            alertMessage = "Failed to delete game: \(error.localizedDescription)"
+                            showAlert = true
+                        }
+                    }
+                    
+                case .failure(let error):
+                    print("🔍 DEBUG: Failed to fetch scores for deletion: \(error)")
+                    await MainActor.run {
+                        isLoading = false
+                        alertMessage = "Failed to delete game scores: \(error.localizedDescription)"
                         showAlert = true
                     }
                 }
+                
             } catch {
+                print("🔍 DEBUG: Error deleting game: \(error)")
                 await MainActor.run {
                     isLoading = false
                     alertMessage = "Error deleting game: \(error.localizedDescription)"
                     showAlert = true
                 }
+            }
+        }
+        
+        print("🔍 DEBUG: ===== DELETE GAME END =====")
+    }
+    
+    /// Check if current user can edit the game
+    func canUserEditGame() -> Bool {
+        // Only the game creator (host) can edit the game
+        guard !currentUserID.isEmpty else { return false }
+        return game.hostUserID == currentUserID
+    }
+    
+    /// Check if current user can edit scores
+    func canUserEditScores() -> Bool {
+        // Scores can only be edited while the game is ACTIVE
+        return game.gameStatus == .active
+    }
+    
+    /// Load current user ID
+    func loadCurrentUser() async {
+        do {
+            let currentUser = try await Amplify.Auth.getCurrentUser()
+            await MainActor.run {
+                self.currentUserID = currentUser.userId
+            }
+            print("🔍 DEBUG: Loaded current user ID: \(currentUser.userId)")
+        } catch {
+            print("🔍 DEBUG: Unable to get current user information: \(error)")
+            // For guest users, try to get from UserDefaults
+            if let guestUserId = UserDefaults.standard.string(forKey: "current_guest_user_id") {
+                await MainActor.run {
+                    self.currentUserID = guestUserId
+                }
+                print("🔍 DEBUG: Loaded guest user ID: \(guestUserId)")
             }
         }
     }
@@ -236,8 +321,21 @@ struct EditBoardView: View {
                             } else {
                                 // Check if this userID exists in the User table
                                 let isRegistered = userIDs.contains(playerID)
+                                
+                                // If registered, find the user to get their username
+                                let displayName: String
+                                if isRegistered {
+                                    if let user = allUsers.first(where: { $0.id == playerID }) {
+                                        displayName = user.username
+                                    } else {
+                                        displayName = playerID // Fallback to ID if user not found
+                                    }
+                                } else {
+                                    displayName = playerID // Use ID for anonymous users
+                                }
+                                
                                 return Player(
-                                    name: playerID, // Use playerID as name for now
+                                    name: displayName,
                                     isRegistered: isRegistered,
                                     userId: playerID,
                                     email: nil
@@ -287,6 +385,12 @@ struct EditBoardView: View {
     }
     
     func updateGame() {
+        guard canUserEditGame() && game.gameStatus == .active else {
+            alertMessage = "You cannot edit this game."
+            showAlert = true
+            return
+        }
+        
         guard !players.isEmpty else {
             alertMessage = "Please keep at least one player."
             showAlert = true

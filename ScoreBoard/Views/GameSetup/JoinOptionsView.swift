@@ -10,6 +10,7 @@ import SwiftUI
 
 struct JoinOptionsView: View {
     let playerName: String
+    let game: Game
     @Binding var joinMode: JoinMode
     let onConfirm: () -> Void
     @Environment(\.dismiss) private var dismiss
@@ -45,31 +46,32 @@ struct JoinOptionsView: View {
                             VStack(alignment: .leading, spacing: 4) {
                                 HStack {
                                     Image(systemName: "person.fill")
-                                        .foregroundColor(.green)
+                                        .foregroundColor(game.gameStatus == .completed ? .gray : .green)
                                     Text("Join as Player")
                                         .font(.headline)
                                         .fontWeight(.semibold)
+                                        .foregroundColor(game.gameStatus == .completed ? .gray : .white)
                                 }
-                                Text("Play and score in the game")
+                                Text(game.gameStatus == .completed ? "Game is completed - cannot join as player" : "Play and score in the game")
                                     .font(.caption)
-                                    .foregroundColor(.white.opacity(0.7))
+                                    .foregroundColor(game.gameStatus == .completed ? .gray : .white.opacity(0.7))
                             }
                             Spacer()
                             if joinMode == .player {
                                 Image(systemName: "checkmark.circle.fill")
-                                    .foregroundColor(.green)
+                                    .foregroundColor(game.gameStatus == .completed ? .gray : .green)
                                     .font(.title2)
                             }
                         }
-                        .padding()
-                        .background(joinMode == .player ? Color.green.opacity(0.1) : Color.black.opacity(0.3))
-                        .cornerRadius(12)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(joinMode == .player ? Color.green : Color.clear, lineWidth: 2)
-                        )
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                        .background(Color.white.opacity(0.05))
+                        .cornerRadius(8)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(PlainButtonStyle())
+                    .scaleEffect(1.0)
+                    .animation(.easeInOut(duration: 0.1), value: true)
+                    .disabled(game.gameStatus == .completed)
                     
                     // Spectator Option
                     Button(action: {
@@ -83,6 +85,7 @@ struct JoinOptionsView: View {
                                     Text("Join as Spectator")
                                         .font(.headline)
                                         .fontWeight(.semibold)
+                                        .foregroundColor(.white)
                                 }
                                 Text("Watch the game without playing")
                                     .font(.caption)
@@ -95,15 +98,14 @@ struct JoinOptionsView: View {
                                     .font(.title2)
                             }
                         }
-                        .padding()
-                        .background(joinMode == .spectator ? Color.blue.opacity(0.1) : Color.black.opacity(0.3))
-                        .cornerRadius(12)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(joinMode == .spectator ? Color.blue : Color.clear, lineWidth: 2)
-                        )
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                        .background(Color.white.opacity(0.05))
+                        .cornerRadius(8)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(PlainButtonStyle())
+                    .scaleEffect(1.0)
+                    .animation(.easeInOut(duration: 0.1), value: true)
                 }
                 .padding(.horizontal)
                 
@@ -160,6 +162,12 @@ struct JoinOptionsView: View {
                 .padding(.horizontal)
                 
                 Spacer()
+            }
+            .onAppear {
+                // Auto-select spectator mode if game is completed
+                if game.gameStatus == .completed && joinMode == .player {
+                    joinMode = .spectator
+                }
             }
             .navigationTitle("Join Options")
             .navigationBarTitleDisplayMode(.inline)
