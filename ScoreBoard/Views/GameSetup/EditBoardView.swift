@@ -49,39 +49,66 @@ struct EditBoardView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 20) {
-                    // Game Settings
+                    // Shared variables for the entire view
+                    let canEdit = canUserEditGame()
+                    let isActive = game.gameStatus == .active
+                    let textFieldColor = canEdit && isActive ? Color.white : Color.gray
+                    let isTextFieldDisabled = !canEdit || !isActive
+                    
                     VStack(alignment: .leading, spacing: 12) {
                         
-                        TextField("Enter game name", text: $gameName)
-                            .foregroundColor(canUserEditGame() && game.gameStatus == .active ? .white : .gray)
-                            .padding()
-                            .background(Color.black.opacity(0.5))
-                            .cornerRadius(8)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .stroke(Color.white.opacity(0.3), lineWidth: 1)
-                            )
-                            .disabled(!canUserEditGame() || game.gameStatus != .active)
+                        ZStack(alignment: .leading) {
+                            if gameName.isEmpty {
+                                Text("Enter game name")
+                                    .foregroundColor(.white.opacity(0.5))
+                                    .padding(.leading, 16)
+                            }
+                            TextField("", text: $gameName)
+                                .foregroundColor(textFieldColor)
+                                .padding()
+                                .background(Color.black.opacity(0.5))
+                                .cornerRadius(8)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                                )
+                                .disabled(isTextFieldDisabled)
+                        }
                         
-                        TextField("Enter custom rules (optional)", text: $customRules)
-                            .foregroundColor(canUserEditGame() && game.gameStatus == .active ? .white : .gray)
-                            .padding()
-                            .background(Color.black.opacity(0.5))
-                            .cornerRadius(8)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .stroke(Color.white.opacity(0.3), lineWidth: 1)
-                            )
-                            .disabled(!canUserEditGame() || game.gameStatus != .active)
+                        ZStack(alignment: .leading) {
+                            if customRules.isEmpty {
+                                Text("Enter custom rules (optional)")
+                                    .foregroundColor(.white.opacity(0.5))
+                                    .padding(.leading, 16)
+                            }
+                            TextField("", text: $customRules)
+                                .foregroundColor(textFieldColor)
+                                .padding()
+                                .background(Color.black.opacity(0.5))
+                                .cornerRadius(8)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                                )
+                                .disabled(isTextFieldDisabled)
+                        }
 
                         HStack {
                             Text("Number of Rounds: \(rounds)")
-                                .foregroundColor(canUserEditGame() && game.gameStatus == .active ? .white : .gray)
+                                .foregroundColor(textFieldColor)
                             Spacer()
                             Stepper("", value: $rounds, in: 1...10)
                                 .labelsHidden()
-                                .disabled(!canUserEditGame() || game.gameStatus != .active)
+                                .accentColor(textFieldColor)
+                                .disabled(isTextFieldDisabled)
                         }
+                        .padding()
+                        .background(Color.black.opacity(0.5))
+                        .cornerRadius(8)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                        )
                     }
                     .padding()
                     .background(Color.black.opacity(0.3))
@@ -94,13 +121,16 @@ struct EditBoardView: View {
                         searchText: $searchText,
                         searchResults: $searchResults,
                         isSearching: $isSearching,
-                        addPlayer: canUserEditGame() && game.gameStatus == .active ? addPlayer : {},
-                        searchUsers: canUserEditGame() && game.gameStatus == .active ? searchUsers : { _ in },
-                        addRegisteredPlayer: canUserEditGame() && game.gameStatus == .active ? addRegisteredPlayer : { _ in },
-                        removePlayer: canUserEditGame() && game.gameStatus == .active ? removePlayer : { _ in }
+                        addPlayer: canEdit ? addPlayer : {},
+                        searchUsers: canEdit ? searchUsers : { _ in },
+                        addRegisteredPlayer: canEdit ? addRegisteredPlayer : { _ in },
+                        removePlayer: canEdit ? removePlayer : { _ in }
                     )
                     
                     VStack(spacing: 12) {
+                        let isDisabled = isLoading || !canEdit || !isActive
+                        let buttonColor = canEdit && isActive ? Color.white : Color.gray
+                        
                         Button(action: {
                             updateGame()
                         }) {
@@ -111,10 +141,10 @@ struct EditBoardView: View {
                                 Text("Update Board")
                             }
                         }
-                        .disabled(isLoading || !canUserEditGame() || game.gameStatus != .active)
-                        .foregroundColor(canUserEditGame() && game.gameStatus == .active ? .white : .gray)
+                        .disabled(isDisabled)
+                        .foregroundColor(buttonColor)
                         .padding()
-                        .background(canUserEditGame() && game.gameStatus == .active ? Color.green : Color.gray)
+                        .background(canEdit ? Color.green : Color.gray)
                         .cornerRadius(12)
                         
                         Button(action: {
@@ -122,10 +152,10 @@ struct EditBoardView: View {
                         }) {
                             Text("Delete Board")
                         }
-                        .disabled(isLoading || !canUserEditGame() || game.gameStatus != .active)
-                        .foregroundColor(canUserEditGame() && game.gameStatus == .active ? .white : .gray)
+                        .disabled(isDisabled)
+                        .foregroundColor(buttonColor)
                         .padding()
-                        .background(canUserEditGame() && game.gameStatus == .active ? Color.red : Color.gray)
+                        .background(canEdit ? Color.red : Color.gray)
                         .cornerRadius(12)
                     }
                 }

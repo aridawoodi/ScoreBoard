@@ -32,6 +32,7 @@ struct PlayerManagementView: View {
                                 Text(player.name)
                                     .font(.body)
                                     .fontWeight(.medium)
+                                    .foregroundColor(.white)
                                 HStack {
                                     if player.isRegistered {
                                         Image(systemName: "person.circle.fill")
@@ -74,15 +75,22 @@ struct PlayerManagementView: View {
                 
                 // Add Anonymous Player
                 HStack {
-                    TextField("Enter player name", text: $newPlayerName)
-                        .foregroundColor(.white)
-                        .padding()
-                        .background(Color.black.opacity(0.5))
-                        .cornerRadius(8)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8)
-                                .stroke(Color.white.opacity(0.3), lineWidth: 1)
-                        )
+                    ZStack(alignment: .leading) {
+                        if newPlayerName.isEmpty {
+                            Text("Enter player name")
+                                .foregroundColor(.white.opacity(0.5))
+                                .padding(.leading, 16)
+                        }
+                        TextField("", text: $newPlayerName)
+                            .foregroundColor(.white)
+                            .padding()
+                            .background(Color.black.opacity(0.5))
+                            .cornerRadius(8)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                            )
+                    }
                     
                     Button("Add") {
                         addPlayer()
@@ -102,18 +110,25 @@ struct PlayerManagementView: View {
                         .foregroundColor(.white.opacity(0.7))
                     
                     HStack {
-                        TextField("Search by username or email", text: $searchText)
-                            .foregroundColor(.white)
-                            .padding()
-                            .background(Color.black.opacity(0.5))
-                            .cornerRadius(8)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .stroke(Color.white.opacity(0.3), lineWidth: 1)
-                            )
-                            .onChange(of: searchText) { _, newValue in
-                                searchUsers(newValue)
+                        ZStack(alignment: .leading) {
+                            if searchText.isEmpty {
+                                Text("Search by username or email")
+                                    .foregroundColor(.white.opacity(0.5))
+                                    .padding(.leading, 16)
                             }
+                            TextField("", text: $searchText)
+                                .foregroundColor(.white)
+                                .padding()
+                                .background(Color.black.opacity(0.5))
+                                .cornerRadius(8)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                                )
+                                .onChange(of: searchText) { _, newValue in
+                                    searchUsers(newValue)
+                                }
+                        }
                         
                         if isSearching {
                             ProgressView()
@@ -221,5 +236,43 @@ struct PlayerManagementFunctions {
     
     static func removePlayer(_ player: Player, players: Binding<[Player]>) {
         players.wrappedValue.removeAll { $0.id == player.id }
+    }
+}
+
+// MARK: - Preview
+#Preview {
+    ZStack {
+        // Background gradient
+        GradientBackgroundView()
+        
+        ScrollView {
+            PlayerManagementView(
+                players: .constant([
+                    Player(name: "John Doe", isRegistered: true, userId: "user1"),
+                    Player(name: "Jane Smith", isRegistered: false, userId: nil),
+                    Player(name: "Bob Johnson", isRegistered: true, userId: "user3")
+                ]),
+                newPlayerName: .constant(""),
+                searchText: .constant(""),
+                searchResults: .constant([
+                    User(id: "user4", username: "alice", email: "alice@example.com", createdAt: Temporal.DateTime.now(), updatedAt: Temporal.DateTime.now()),
+                    User(id: "user5", username: "charlie", email: "charlie@example.com", createdAt: Temporal.DateTime.now(), updatedAt: Temporal.DateTime.now())
+                ]),
+                isSearching: .constant(false),
+                addPlayer: {
+                    print("Add player tapped")
+                },
+                searchUsers: { query in
+                    print("Searching for: \(query)")
+                },
+                addRegisteredPlayer: { user in
+                    print("Adding registered player: \(user.username)")
+                },
+                removePlayer: { player in
+                    print("Removing player: \(player.name)")
+                }
+            )
+            .padding()
+        }
     }
 }

@@ -161,6 +161,13 @@ struct Scoreboardview: View {
     @FocusState private var isScoreFieldFocused: Bool // Focus for inline numeric input
     @State private var scoreInputText: String = "" // Inline score input text
     
+    // Floating action button state
+    @State private var isFloatingButtonExpanded = false
+    
+    // Swipe navigation state
+    @State private var availableGames: [Game] = []
+    @State private var currentGameIndex: Int = 0
+    
     // Dynamic rounds management
     @State private var dynamicRounds: Int = 1 // Track current number of rounds
 
@@ -472,6 +479,28 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
         }
     }
     
+    private func loadAvailableGames() {
+        print("🔍 DEBUG: Loading available games for swipe navigation")
+        Task {
+            await DataManager.shared.refreshGames()
+            if let currentUserInfo = await getCurrentUser() {
+                let userId = currentUserInfo.userId
+                let userGames = DataManager.shared.getGamesForUser(userId)
+                
+                await MainActor.run {
+                    self.availableGames = userGames
+                    // Find current game index
+                    if let currentIndex = userGames.firstIndex(where: { $0.id == self.game.id }) {
+                        self.currentGameIndex = currentIndex
+                    } else {
+                        self.currentGameIndex = 0
+                    }
+                    print("🔍 DEBUG: Loaded \(userGames.count) games, current index: \(self.currentGameIndex)")
+                }
+            }
+        }
+    }
+    
     private func handleGameUpdate(_ updatedGame: Game) {
         print("🔍 DEBUG: ===== GAME UPDATE CALLBACK START =====")
         print("🔍 DEBUG: Original game rounds: \(game.rounds)")
@@ -533,6 +562,30 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
             //     .allowsHitTesting(false)
             //     .transition(.opacity)
             // }
+            
+            // Floating Action Button
+            FloatingActionButton(
+                isExpanded: $isFloatingButtonExpanded,
+                onBackToBoards: {
+                    // Navigate back to YourBoardTabView
+                    // This will clear the selected game and show the empty state
+                    if let onGameDeleted = onGameDeleted {
+                        onGameDeleted()
+                    }
+                },
+                onViewAllGames: {
+                    // Show all available games
+                    print("🔍 DEBUG: View All Games tapped - showing \(availableGames.count) games")
+                    // The swipe navigation is already active, just show a toast
+                    showToastMessage(message: "Swipe left/right to switch between \(availableGames.count) games", icon: "hand.draw")
+                }
+            )
+            .onChange(of: isFloatingButtonExpanded) { _, isExpanded in
+                if isExpanded {
+                    // Refresh available games when floating button is expanded
+                    loadAvailableGames()
+                }
+            }
         }
         .sheet(isPresented: $showEditBoard) {
             EditBoardView(game: game) { updatedGame in
@@ -606,6 +659,49 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
     }
     
     private var mainContentView: some View {
+        VStack(spacing: 0) {
+            // Page indicators
+            if availableGames.count > 1 {
+                HStack(spacing: 8) {
+                    ForEach(0..<availableGames.count, id: \.self) { index in
+                        Circle()
+                            .fill(index == currentGameIndex ? Color.white : Color.white.opacity(0.3))
+                            .frame(width: 8, height: 8)
+                            .scaleEffect(index == currentGameIndex ? 1.2 : 1.0)
+                            .animation(.easeInOut(duration: 0.2), value: currentGameIndex)
+                    }
+                }
+                .padding(.top, 8)
+                .padding(.bottom, 4)
+            }
+            
+            // Swipeable content
+            TabView(selection: $currentGameIndex) {
+                ForEach(Array(availableGames.enumerated()), id: \.element.id) { index, game in
+                    singleGameView(for: game)
+                        .tag(index)
+                }
+            }
+            .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
+            .onChange(of: currentGameIndex) { _, newIndex in
+                if newIndex < availableGames.count {
+                    let newGame = availableGames[newIndex]
+                    print("🔍 DEBUG: Swiped to game: \(newGame.id)")
+                    // Update the game binding
+                    self.game = newGame
+                    // Update navigation state if needed
+                    if let onGameUpdated = onGameUpdated {
+                        onGameUpdated(newGame)
+                    }
+                }
+            }
+        }
+        .onAppear {
+            loadAvailableGames()
+        }
+    }
+    
+    private func singleGameView(for game: Game) -> some View {
         ZStack {
             VStack(alignment: .leading, spacing: 0) {
                 headerView
@@ -623,7 +719,7 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
 
                 Spacer()
             }
-            .id(gameStatusRefreshTrigger) // Force view refresh when game status changes
+            .id("\(game.id)-\(gameStatusRefreshTrigger)") // Force view refresh when game status changes
             // Hidden inline input to trigger the standard iOS number pad
             TextField("", text: $scoreInputText)
                 .keyboardType(.numberPad)

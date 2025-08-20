@@ -70,6 +70,7 @@
 		5E737DA62CDB40F900F407D3 /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E737DA52CDB40F900F407D3 /* Constants.swift */; };
 		5E737DA82CDB411D00F407D3 /* Helpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E737DA72CDB411D00F407D3 /* Helpers.swift */; };
 		5E737DAA2CDB413F00F407D3 /* NotificationsManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E737DA92CDB413F00F407D3 /* NotificationsManager.swift */; };
+		5E74D9A12E54326E00FE2074 /* FloatingActionButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E74D9A02E54326E00FE2074 /* FloatingActionButton.swift */; };
 		5EF0B40B2E4AD019007D1718 /* PlayerAnalyticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EF0B4072E4AD019007D1718 /* PlayerAnalyticsView.swift */; };
 		5EF0B40C2E4AD019007D1718 /* SampleAnalyticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EF0B4082E4AD019007D1718 /* SampleAnalyticsView.swift */; };
 		5EF0B40D2E4AD019007D1718 /* AnalyticsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EF0B4062E4AD019007D1718 /* AnalyticsService.swift */; };
@@ -137,6 +138,7 @@
 		5E737DA52CDB40F900F407D3 /* Constants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Constants.swift; sourceTree = "<group>"; };
 		5E737DA72CDB411D00F407D3 /* Helpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Helpers.swift; sourceTree = "<group>"; };
 		5E737DA92CDB413F00F407D3 /* NotificationsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationsManager.swift; sourceTree = "<group>"; };
+		5E74D9A02E54326E00FE2074 /* FloatingActionButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingActionButton.swift; sourceTree = "<group>"; };
 		5EE97D582E271FCA00D3C1AA /* amplify_outputs.json */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.json; path = amplify_outputs.json; sourceTree = "<group>"; };
 		5EF0B4052E4AD019007D1718 /* AnalyticsHelpText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalyticsHelpText.swift; sourceTree = "<group>"; };
 		5EF0B4062E4AD019007D1718 /* AnalyticsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalyticsService.swift; sourceTree = "<group>"; };
@@ -356,6 +358,7 @@
 				5E2CB3022E4319A5006EC186 /* NavigationState.swift */,
 				5E737DA52CDB40F900F407D3 /* Constants.swift */,
 				5E737DA72CDB411D00F407D3 /* Helpers.swift */,
+				5E74D9A02E54326E00FE2074 /* FloatingActionButton.swift */,
 				5E737DA92CDB413F00F407D3 /* NotificationsManager.swift */,
 				5EFE18722E2A0BCE0056C708 /* UserService.swift */,
 				5E2CB2E92E42C8A3006EC186 /* DataManager.swift */,
@@ -510,6 +513,7 @@
 				5E62D03E2E44523B00B7BDB3 /* PlayerManagementView.swift in Sources */,
 				5E2CB2E82E41B4AE006EC186 /* SplashScreenView.swift in Sources */,
 				5E62D0452E459A8A00B7BDB3 /* OnboardingConstants.swift in Sources */,
+				5E74D9A12E54326E00FE2074 /* FloatingActionButton.swift in Sources */,
 				5E62D0462E459A8A00B7BDB3 /* OnboardingManager.swift in Sources */,
 				5E62D0472E459A8A00B7BDB3 /* OnboardingTooltip.swift in Sources */,
 				5EFE18742E2A0BDE0056C708 /* ProfileEditView.swift in Sources */,

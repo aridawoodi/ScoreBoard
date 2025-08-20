@@ -11,6 +11,7 @@ import SwiftUI
 struct FloatingTabBar: View {
     @Binding var selectedTab: Int
     var namespace: Namespace.ID
+    @ObservedObject var navigationState: NavigationState
 
     @State private var isPulsing = false
 
@@ -42,8 +43,14 @@ struct FloatingTabBar: View {
                     let tab = tabs[idx]
                     Button(action: {
                         print("🔍 DEBUG: Tab \(idx) tapped - \(tabs[idx].label)")
-                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                            selectedTab = idx
+                        
+                        // Special handling for "Your Board" tab (index 2)
+                        if idx == 2 {
+                            handleYourBoardTabTap()
+                        } else {
+                            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                                selectedTab = idx
+                            }
                         }
                     }) {
                         if idx == 2 {
@@ -116,5 +123,29 @@ struct FloatingTabBar: View {
                 isPulsing = true
             }
         }
+    }
+    
+    // MARK: - Your Board Tab Navigation Logic
+    private func handleYourBoardTabTap() {
+        print("🔍 DEBUG: ===== YOUR BOARD TAB TAP HANDLER =====")
+        print("🔍 DEBUG: Current selectedTab: \(selectedTab)")
+        print("🔍 DEBUG: Current selectedGame: \(navigationState.selectedGame?.id ?? "nil")")
+        print("🔍 DEBUG: Has games: \(navigationState.hasGames)")
+        print("🔍 DEBUG: Latest game: \(navigationState.latestGame?.id ?? "nil")")
+        
+        if selectedTab == 2 {
+            // Already on Your Board tab - do nothing to avoid conflicts
+            // Use the floating action button for navigation instead
+            print("🔍 DEBUG: Already on Your Board tab - use floating action button for navigation")
+            return
+        } else {
+            // Coming from another tab - switch to Your Board tab
+            print("🔍 DEBUG: Switching to Your Board tab from tab \(selectedTab)")
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                selectedTab = 2
+            }
+        }
+        
+        print("🔍 DEBUG: ===== YOUR BOARD TAB TAP HANDLER END =====")
     }
 } 

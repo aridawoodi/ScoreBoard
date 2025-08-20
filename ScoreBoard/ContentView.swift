@@ -178,7 +178,7 @@ struct ContentView: View {
                 // Floating Tab Bar - Restored original behavior
                 VStack {
                     Spacer()
-                    FloatingTabBar(selectedTab: $selectedTab, namespace: tabBarNamespace)
+                    FloatingTabBar(selectedTab: $selectedTab, namespace: tabBarNamespace, navigationState: navigationState)
                         .padding(.bottom, UIDevice.current.userInterfaceIdiom == .pad ? 12 : 8)
                 }
                 .ignoresSafeArea(.keyboard)
