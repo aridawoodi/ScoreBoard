@@ -14,6 +14,9 @@ type Game @model @auth(rules: [
   customRules: String
   finalScores: [String!]!
   gameStatus: GameStatus!
+  winCondition: WinCondition
+  maxScore: Int
+  maxRounds: Int
   createdAt: AWSDateTime!
   updatedAt: AWSDateTime!
   owner: String
@@ -23,6 +26,11 @@ enum GameStatus {
   ACTIVE
   COMPLETED
   CANCELLED
+}
+
+enum WinCondition {
+  HIGHEST_SCORE
+  LOWEST_SCORE
 }
 
 type Score @model @auth(rules: [

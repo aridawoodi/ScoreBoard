@@ -11,6 +11,9 @@ public struct Game: Model {
   public var customRules: String?
   public var finalScores: [String]
   public var gameStatus: GameStatus
+  public var winCondition: WinCondition?
+  public var maxScore: Int?
+  public var maxRounds: Int?
   public var createdAt: Temporal.DateTime
   public var updatedAt: Temporal.DateTime
   public var owner: String?
@@ -23,6 +26,9 @@ public struct Game: Model {
       customRules: String? = nil,
       finalScores: [String] = [],
       gameStatus: GameStatus,
+      winCondition: WinCondition? = nil,
+      maxScore: Int? = nil,
+      maxRounds: Int? = nil,
       createdAt: Temporal.DateTime,
       updatedAt: Temporal.DateTime,
       owner: String? = nil) {
@@ -34,6 +40,9 @@ public struct Game: Model {
       self.customRules = customRules
       self.finalScores = finalScores
       self.gameStatus = gameStatus
+      self.winCondition = winCondition
+      self.maxScore = maxScore
+      self.maxRounds = maxRounds
       self.createdAt = createdAt
       self.updatedAt = updatedAt
       self.owner = owner

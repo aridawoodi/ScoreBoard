@@ -18,20 +18,23 @@ struct ScoreCell: View {
     let backgroundColor: Color
     let displayText: String?
     let isFocused: Bool
+    let hasScoreBeenEntered: Bool
     
     var body: some View {
         Button(action: {
             if canEdit {
-                onScoreTap(currentScore)
+                // Pass 0 instead of -1 for empty cells to avoid showing -1 in input
+                let scoreToPass = currentScore == -1 ? 0 : currentScore
+                onScoreTap(scoreToPass)
             }
         }) {
             HStack {
-                Text(displayText ?? (currentScore == 0 ? "" : "\(currentScore)"))
+                Text(displayText ?? (hasScoreBeenEntered && currentScore != -1 ? "\(currentScore)" : ""))
                     .font(.system(size: 16, weight: .medium))
                     .foregroundColor(.white)
                 
-                // Add edit indicator for empty cells
-                if currentScore == 0 && canEdit {
+                // Add edit indicator for cells that haven't been scored yet
+                if (!hasScoreBeenEntered || currentScore == -1) && canEdit {
                     Image(systemName: "pencil.circle")
                         .font(.system(size: 12))
                         .foregroundColor(.white.opacity(0.6))
@@ -129,7 +132,7 @@ struct TestPlayer: Identifiable {
     let name: String
     let scores: [Int]
     let playerID: String
-    var total: Int { scores.reduce(0, +) }
+    var total: Int { scores.filter { $0 != -1 }.reduce(0, +) }
 }
 
 struct Scoreboardview: View {
@@ -146,6 +149,7 @@ struct Scoreboardview: View {
     @State private var hasUnsavedChanges = false // Track unsaved changes
     @State private var unsavedScores: [String: [Int]] = [:] // Store unsaved score changes
     @State private var lastSavedScores: [String: [Int]] = [:] // Store last saved state for undo
+    @State private var enteredScores: Set<String> = [] // Track which scores have been explicitly entered by user
     @State private var showScoreInput = false // Show score input sheet
     @State private var editingScore = 0 // Current score being edited
     @State private var editingPlayer: TestPlayer? // Player being edited
@@ -200,6 +204,12 @@ struct Scoreboardview: View {
     
     // Pull-to-refresh state
     @State private var isRefreshing = false
+    
+    // Highlight newly added round
+    @State private var newlyAddedRound: Int? = nil
+    
+    // Trigger scroll to specific round
+    @State private var scrollToRound: Int? = nil
 
     let onGameUpdated: ((Game) -> Void)?
     let onGameDeleted: (() -> Void)?
@@ -217,7 +227,7 @@ struct Scoreboardview: View {
     
     /// Check if the game is complete (all scores filled)
     func isGameComplete() -> Bool {
-        // All non-zero for current dynamic rounds
+        // All scores must be explicitly entered for current dynamic rounds
         guard !players.isEmpty, dynamicRounds > 0 else { 
             print("🔍 DEBUG: isGameComplete() - players empty or dynamicRounds <= 0")
             return false 
@@ -229,8 +239,9 @@ struct Scoreboardview: View {
                 return false 
             }
             for idx in 0..<dynamicRounds {
-                if player.scores[idx] == 0 { 
-                    print("🔍 DEBUG: isGameComplete() - Player \(player.name) has 0 score at round \(idx + 1)")
+                let roundNumber = idx + 1
+                if !hasScoreBeenEntered(for: player.playerID, round: roundNumber) { 
+                    print("🔍 DEBUG: isGameComplete() - Player \(player.name) has no score entered at round \(roundNumber)")
                     return false 
                 }
             }
@@ -614,7 +625,6 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                     HStack {
                         Button("Cancel") {
                             isScoreFieldFocused = false
-                            scoreInputText = ""
                             editingPlayer = nil
                         }
                         Spacer()
@@ -770,6 +780,14 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                 }
                 // Force view refresh when game status changes
                 gameStatusRefreshTrigger += 1
+            }
+            .onChange(of: isScoreFieldFocused) { _, isFocused in
+                // Auto-save when input loses focus
+                if !isFocused && editingPlayer != nil && !scoreInputText.isEmpty {
+                    let currentScore = Int(scoreInputText) ?? 0
+                    updateScore(playerID: editingPlayer!.playerID, round: editingRound, newScore: currentScore)
+                    awaitSaveChangesSilently()
+                }
             }
             
             // Celebration overlay
@@ -1058,6 +1076,18 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                         }
                     }
                 }
+                .onChange(of: scrollToRound) { _, roundToScroll in
+                    // Auto-scroll to the specified round when triggered
+                    if let round = roundToScroll {
+                        withAnimation(.easeInOut(duration: 0.5)) {
+                            proxy.scrollTo("round-\(round)", anchor: .center)
+                        }
+                        // Clear the trigger after scrolling
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            scrollToRound = nil
+                        }
+                    }
+                }
             }
             
             // Save and Undo buttons below the table
@@ -1248,12 +1278,43 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
     }
     
     private func scoreRow(for roundIndex: Int) -> some View {
-        HStack(spacing: 0) {
-            // Round number indicator
-            let isCurrentRound = editingRound == roundIndex + 1 && isScoreFieldFocused
-            let roundTextColor = isCurrentRound ? Color.accentColor : Color.secondary
-            let roundBorderColor = isCurrentRound ? Color.accentColor : Color.gray.opacity(0.3)
-            let roundBorderWidth = isCurrentRound ? 1.5 : 0.5
+        // Break down complex expressions into simpler variables
+        let isCurrentRound = editingRound == roundIndex + 1 && isScoreFieldFocused
+        let isNewlyAdded = newlyAddedRound == roundIndex + 1
+        
+        let roundTextColor: Color
+        if isCurrentRound {
+            roundTextColor = Color.accentColor
+        } else if isNewlyAdded {
+            roundTextColor = Color.green
+        } else {
+            roundTextColor = Color.secondary
+        }
+        
+        let roundBorderColor: Color
+        if isCurrentRound {
+            roundBorderColor = Color.accentColor
+        } else if isNewlyAdded {
+            roundBorderColor = Color.green
+        } else {
+            roundBorderColor = Color.gray.opacity(0.3)
+        }
+        
+        let roundBorderWidth: CGFloat
+        if isCurrentRound {
+            roundBorderWidth = 1.5
+        } else if isNewlyAdded {
+            roundBorderWidth = 2.0
+        } else {
+            roundBorderWidth = 0.5
+        }
+        
+        let backgroundFillColor: Color = isNewlyAdded ? Color.green.opacity(0.1) : Color.clear
+        let overlayStrokeColor: Color = isNewlyAdded ? Color.green.opacity(0.3) : Color.gray.opacity(0.2)
+        let overlayStrokeWidth: CGFloat = isNewlyAdded ? 1.0 : 0.5
+        let scaleEffect: CGFloat = isNewlyAdded ? 1.02 : 1.0
+        
+        return HStack(spacing: 0) {
             
             HStack(spacing: 2) {
                 Text("\(roundIndex + 1)")
@@ -1295,24 +1356,41 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                         // Make sure the hidden text field is ready to receive input
                         DispatchQueue.main.async {
                             guard canUserEditScores() else { return }
+                            
+                            // Auto-save current input if we're switching from another cell
+                            if let currentEditingPlayer = editingPlayer, 
+                               (currentEditingPlayer.playerID != player.playerID || editingRound != roundIndex + 1) {
+                                let currentScore = Int(scoreInputText) ?? 0
+                                updateScore(playerID: currentEditingPlayer.playerID, round: editingRound, newScore: currentScore)
+                                awaitSaveChangesSilently()
+                            }
+                            
                             editingPlayer = player
                             editingRound = roundIndex + 1
-                            scoreInputText = score == 0 ? "" : String(score)
+                            // Don't show -1 in the input field, show empty instead
+                            scoreInputText = score == -1 ? "" : String(score)
                             isScoreFieldFocused = true
                         }
                     },
                     currentScore: score,
                     backgroundColor: columnColor(colIndex),
                     displayText: isEditingThisCell ? scoreInputText : nil,
-                    isFocused: isEditingThisCell
+                    isFocused: isEditingThisCell,
+                    hasScoreBeenEntered: hasScoreBeenEntered(for: player.playerID, round: roundIndex + 1)
                 )
             }
         }
         .id("round-\(roundIndex + 1)") // Add ID for scrolling
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(backgroundFillColor)
+        )
+        .scaleEffect(scaleEffect)
         .overlay(
             RoundedRectangle(cornerRadius: 6)
-                .stroke(Color.gray.opacity(0.2), lineWidth: 0.5)
+                .stroke(overlayStrokeColor, lineWidth: overlayStrokeWidth)
         )
+        .animation(isNewlyAdded ? .easeInOut(duration: 0.5).repeatCount(3, autoreverses: true) : .default, value: isNewlyAdded)
     }
     
     private var totalRow: some View {
@@ -1358,6 +1436,24 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
         case 7: return .mint
         default: return .cyan
         }
+    }
+    
+    // Check if a score has been explicitly entered for a player and round
+    func hasScoreBeenEntered(for playerID: String, round: Int) -> Bool {
+        let scoreKey = "\(playerID)-\(round)"
+        
+        // Check if this score has been explicitly entered by the user
+        if enteredScores.contains(scoreKey) {
+            return true
+        }
+        
+        // Check if there's a saved score in the backend (this indicates a score was explicitly saved)
+        if let savedScores = lastSavedScores[playerID], round <= savedScores.count {
+            let scoreValue = savedScores[round - 1] // Convert to 0-based index
+            return scoreValue != -1 // Only consider it entered if it's not -1 (empty)
+        }
+        
+        return false
     }
     
     // Load game data efficiently
@@ -1421,7 +1517,7 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                         for playerID in game.playerIDs {
                             // Use the improved getPlayerName function that checks cache
                             let playerName = getPlayerName(for: playerID)
-                            playerData[playerID] = (name: playerName, scores: Array(repeating: 0, count: dynamicRounds))
+                            playerData[playerID] = (name: playerName, scores: Array(repeating: -1, count: dynamicRounds))
                         }
                         
                         // Fill in actual scores from database
@@ -1447,7 +1543,7 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                                 
                                 // Ensure the merged scores array has the correct size
                                 while mergedScores.count < dynamicRounds {
-                                    mergedScores.append(0)
+                                    mergedScores.append(-1)
                                 }
                                 if mergedScores.count > dynamicRounds {
                                     mergedScores = Array(mergedScores.prefix(dynamicRounds))
@@ -1470,7 +1566,7 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                             // Ensure scores array matches dynamic rounds
                             var scores = data.scores
                             while scores.count < dynamicRounds {
-                                scores.append(0) // Add zeros for missing rounds
+                                scores.append(-1) // Add -1 for missing rounds (empty cells)
                             }
                             // Truncate if there are more scores than rounds
                             if scores.count > dynamicRounds {
@@ -1493,6 +1589,13 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                         
                         // Initialize last saved scores (only from database, not unsaved)
                         self.lastSavedScores = playerData.mapValues { $0.scores }
+                        
+                        // Populate enteredScores set for existing scores from database
+                        self.enteredScores.removeAll()
+                        for score in gameScores {
+                            let scoreKey = "\(score.playerID)-\(score.roundNumber)"
+                            self.enteredScores.insert(scoreKey)
+                        }
                         
                         // Check for game completion and winner (unless suppressed)
                         if !suppressCompletionCelebration {
@@ -1749,9 +1852,9 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                 unsavedScores[playerID] = currentPlayer.scores
                 print("🔍 DEBUG: Initialized unsaved scores from current player: \(currentPlayer.scores)")
             } else {
-                // Fallback to zeros if player not found
-                unsavedScores[playerID] = Array(repeating: 0, count: dynamicRounds)
-                print("🔍 DEBUG: Initialized unsaved scores with zeros: \(Array(repeating: 0, count: dynamicRounds))")
+                // Fallback to -1 (empty) if player not found
+                unsavedScores[playerID] = Array(repeating: -1, count: dynamicRounds)
+                print("🔍 DEBUG: Initialized unsaved scores with -1: \(Array(repeating: -1, count: dynamicRounds))")
             }
         }
         
@@ -1760,7 +1863,7 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
             print("🔍 DEBUG: Original player scores: \(playerScores)")
             // Resize the array if needed
             while playerScores.count < dynamicRounds {
-                playerScores.append(0) // Add zeros for new rounds
+                playerScores.append(-1) // Add -1 for new rounds (empty cells)
             }
             // Truncate if there are more scores than rounds
             if playerScores.count > dynamicRounds {
@@ -1773,6 +1876,9 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
         // Update only the specific round
         if round > 0 && round <= dynamicRounds {
             unsavedScores[playerID]?[round - 1] = newScore
+            // Mark this score as explicitly entered by user (including 0)
+            let scoreKey = "\(playerID)-\(round)"
+            enteredScores.insert(scoreKey)
             print("🔍 DEBUG: Updated round \(round) to score \(newScore)")
             print("🔍 DEBUG: Final unsaved scores for playerID \(playerID): \(unsavedScores[playerID] ?? [])")
         }
@@ -1802,7 +1908,7 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                 
                 // Ensure the updatedScores array has the correct size for dynamic rounds
                 while updatedScores.count < dynamicRounds {
-                    updatedScores.append(0) // Add zeros for missing rounds
+                    updatedScores.append(-1) // Add -1 for missing rounds (empty cells)
                 }
                 if updatedScores.count > dynamicRounds {
                     updatedScores = Array(updatedScores.prefix(dynamicRounds))
@@ -1815,7 +1921,7 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                     if roundIndex < updatedScores.count {
                         // Only update if this round has been modified (different from last saved)
                         let lastSavedArray = lastSavedScores[player.playerID] ?? []
-                        let lastSavedScore = (roundIndex < lastSavedArray.count) ? lastSavedArray[roundIndex] : 0
+                        let lastSavedScore = (roundIndex < lastSavedArray.count) ? lastSavedArray[roundIndex] : -1
                         if unsavedScore != lastSavedScore {
                             updatedScores[roundIndex] = unsavedScore
                             print("🔍 DEBUG: Updated round \(roundIndex) to \(unsavedScore)")
@@ -1832,7 +1938,16 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
             } else {
                 print("🔍 DEBUG: No unsaved scores found for player \(index)")
                 // If no unsaved scores for this player, revert to last saved state
-                let lastSavedPlayerScores = lastSavedScores[player.playerID] ?? Array(repeating: 0, count: dynamicRounds)
+                var lastSavedPlayerScores = lastSavedScores[player.playerID] ?? Array(repeating: 0, count: dynamicRounds)
+                
+                // Ensure the lastSavedPlayerScores array has the correct size
+                while lastSavedPlayerScores.count < dynamicRounds {
+                    lastSavedPlayerScores.append(0)
+                }
+                if lastSavedPlayerScores.count > dynamicRounds {
+                    lastSavedPlayerScores = Array(lastSavedPlayerScores.prefix(dynamicRounds))
+                }
+                
                 players[index] = TestPlayer(
                     name: player.name,
                     scores: lastSavedPlayerScores,
@@ -1856,10 +1971,10 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
         var nextIndex: Int? = nil
         for offset in 1...total { // check all others
             let idx = (currentIndex + offset) % total
-            let val = (roundIndex < players[idx].scores.count) ? players[idx].scores[roundIndex] : 0
+            let val = (roundIndex < players[idx].scores.count) ? players[idx].scores[roundIndex] : -1
             let pending = unsavedScores[players[idx].playerID]?[roundIndex]
             let effective = pending ?? val
-            if effective == 0 {
+            if effective == -1 {
                 nextIndex = idx
                 break
             }
@@ -1867,14 +1982,14 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
         if let idx = nextIndex {
             let player = players[idx]
             editingPlayer = player
-            // Show empty input for zero
-            scoreInputText = ""
+            // Show current score (empty for -1) in input field
+            let currentScore = (roundIndex < player.scores.count) ? player.scores[roundIndex] : -1
+            scoreInputText = currentScore == -1 ? "" : String(currentScore)
             // Keep same round
             isScoreFieldFocused = true
         } else {
             // No more zeros; dismiss keyboard and clear editing state
             isScoreFieldFocused = false
-            scoreInputText = ""
             editingPlayer = nil
         }
     }
@@ -2032,7 +2147,7 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
             print("🔍 DEBUG: Player \(playerID) original scores: \(updatedScores)")
             // Ensure we have enough elements for the new round count
             while updatedScores.count < dynamicRounds {
-                updatedScores.append(0) // Add zeros for new rounds
+                updatedScores.append(-1) // Add -1 to indicate empty cells (not entered)
             }
             unsavedScores[playerID] = updatedScores
             print("🔍 DEBUG: Player \(playerID) updated scores: \(updatedScores)")
@@ -2044,7 +2159,7 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
             var updatedScores = players[i].scores
             print("🔍 DEBUG: Player \(i) (\(players[i].name)) original scores: \(updatedScores)")
             while updatedScores.count < dynamicRounds {
-                updatedScores.append(0) // Add zeros for new rounds
+                updatedScores.append(-1) // Add -1 to indicate empty cells (not entered)
             }
             players[i] = TestPlayer(
                 name: players[i].name,
@@ -2052,6 +2167,22 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                 playerID: players[i].playerID
             )
             print("🔍 DEBUG: Player \(i) (\(players[i].name)) updated scores: \(updatedScores)")
+        }
+        
+        // Also resize lastSavedScores arrays to prevent index out of bounds errors
+        for (playerID, scores) in lastSavedScores {
+            var updatedLastSavedScores = scores
+            while updatedLastSavedScores.count < dynamicRounds {
+                updatedLastSavedScores.append(-1) // Add -1 to indicate empty cells (not entered)
+            }
+            lastSavedScores[playerID] = updatedLastSavedScores
+            print("🔍 DEBUG: Resized lastSavedScores for \(playerID): \(updatedLastSavedScores)")
+        }
+        
+        // Clear enteredScores for the new round to ensure it shows as empty
+        for playerID in game.playerIDs {
+            let scoreKey = "\(playerID)-\(dynamicRounds)"
+            enteredScores.remove(scoreKey)
         }
         
         print("🔍 DEBUG: After updating players array:")
@@ -2067,8 +2198,20 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
         // Update the binding
         self.game = updatedGame
         
-        // Show success message
-        showToastMessage(message: "Round \(dynamicRounds) added", icon: "plus.circle.fill")
+        // Set the newly added round for highlighting
+        newlyAddedRound = dynamicRounds
+        
+        // Trigger auto-scroll to the new round after a brief delay to ensure UI is updated
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            scrollToRound = dynamicRounds
+        }
+        
+        // Clear the highlight after 2 seconds
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+            newlyAddedRound = nil
+        }
+        
+        // Don't show toast for routine round addition
         
         print("🔍 DEBUG: ===== ADD ROUND END =====")
         
@@ -2149,8 +2292,14 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
         // Update the binding
         self.game = updatedGame
         
+        // Clean up enteredScores for the removed round
+        for playerID in game.playerIDs {
+            let scoreKey = "\(playerID)-\(roundToRemove)"
+            enteredScores.remove(scoreKey)
+        }
+        
         // Show success message
-        showToastMessage(message: "Round \(roundToRemove) removed", icon: "minus.circle.fill")
+        // Don't show toast for routine round removal
         
         // Save the game update and delete scores for the removed round
         Task {
@@ -2350,11 +2499,17 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
         // Update the binding
         self.game = updatedGame
         
+        // Clean up enteredScores for the deleted round
+        for playerID in game.playerIDs {
+            let scoreKey = "\(playerID)-\(roundNumber)"
+            enteredScores.remove(scoreKey)
+        }
+        
         // Exit delete mode
         isDeleteMode = false
         
         // Show success message
-        showToastMessage(message: "Round \(roundNumber) deleted", icon: "minus.circle.fill")
+        // Don't show toast for routine round deletion
         
         // Save the game update and delete scores for the removed round
         Task {

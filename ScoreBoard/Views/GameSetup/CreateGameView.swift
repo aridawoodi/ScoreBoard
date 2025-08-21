@@ -28,6 +28,16 @@ struct CreateGameView: View {
     @State private var currentUser: AuthUser?
     @State private var currentUserProfile: User?
     
+    // Basic Settings
+    @State private var showBasicSettings = true
+    @State private var useLastGameSettings = false
+    
+    // Advanced Settings
+    @State private var showAdvancedSettings = false
+    @State private var winCondition: WinCondition = .highestScore
+    @State private var maxScore: Int = 100
+    @State private var maxRounds: Int = 10
+    
     private var isIPad: Bool {
         UIDevice.current.userInterfaceIdiom == .pad
     }
@@ -61,6 +71,12 @@ struct CreateGameView: View {
                     isSearching: $isSearching,
                     currentUser: $currentUser,
                     currentUserProfile: $currentUserProfile,
+                    showBasicSettings: $showBasicSettings,
+                    useLastGameSettings: $useLastGameSettings,
+                    showAdvancedSettings: $showAdvancedSettings,
+                    winCondition: $winCondition,
+                    maxScore: $maxScore,
+                    maxRounds: $maxRounds,
                     isIPad: isIPad,
                     titleFont: titleFont,
                     bodyFont: bodyFont,
@@ -68,7 +84,8 @@ struct CreateGameView: View {
                     addPlayer: addPlayer,
                     searchUsers: searchUsers,
                     addRegisteredPlayer: addRegisteredPlayer,
-                    removePlayer: removePlayer
+                    removePlayer: removePlayer,
+                    loadLastGameSettings: loadLastGameSettings
                 )
             }
             .gradientBackground()
@@ -83,6 +100,9 @@ struct CreateGameView: View {
                 
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Create") {
+                        print("🔍 DEBUG: Create button tapped")
+                        print("🔍 DEBUG: Players count: \(players.count)")
+                        print("🔍 DEBUG: Is loading: \(isLoading)")
                         createGame()
                     }
                     .foregroundColor(.white)
@@ -116,6 +136,16 @@ struct CreateGameView: View {
         isLoading = false
         showAlert = false
         alertMessage = ""
+        
+        // Reset Basic Settings
+        showBasicSettings = true
+        useLastGameSettings = false
+        
+        // Reset Advanced Settings
+        showAdvancedSettings = false
+        winCondition = .highestScore
+        maxScore = 100
+        maxRounds = 10
     }
     
     private func loadCurrentUser() {
@@ -203,11 +233,14 @@ struct CreateGameView: View {
     }
     
     func createGame() {
+        print("🔍 DEBUG: createGame() called")
         guard !players.isEmpty else {
+            print("🔍 DEBUG: No players found, showing alert")
             alertMessage = "Please add at least one player."
             showAlert = true
             return
         }
+        print("🔍 DEBUG: Setting isLoading to true")
         isLoading = true
         Task {
             do {
@@ -247,6 +280,11 @@ struct CreateGameView: View {
                     }
                 }
                 
+                print("🔍 DEBUG: About to create Game object")
+                print("🔍 DEBUG: winCondition: \(winCondition)")
+                print("🔍 DEBUG: maxScore: \(maxScore)")
+                print("🔍 DEBUG: maxRounds: \(maxRounds)")
+                
                 let game = Game(
                     gameName: gameName.isEmpty ? nil : gameName,
                     hostUserID: currentUserId,
@@ -255,9 +293,13 @@ struct CreateGameView: View {
                     customRules: customRules.isEmpty ? nil : customRules,
                     finalScores: [],
                     gameStatus: .active,
+                    winCondition: nil, // Temporarily set to nil to test
+                    maxScore: nil, // Temporarily set to nil to test
+                    maxRounds: nil, // Temporarily set to nil to test
                     createdAt: Temporal.DateTime.now(),
                     updatedAt: Temporal.DateTime.now()
                 )
+                print("🔍 DEBUG: Game object created successfully")
                 print("🔍 DEBUG: Creating game with data: hostUserID=\(game.hostUserID), playerIDs=\(game.playerIDs), rounds=\(game.rounds)")
                 
                 let result = try await Amplify.API.mutate(request: .create(game))
@@ -266,6 +308,10 @@ struct CreateGameView: View {
                     switch result {
                     case .success(let createdGame):
                         print("🔍 DEBUG: Game created successfully with ID: \(createdGame.id)")
+                        
+                        // Save current settings for next time
+                        saveCurrentGameSettings()
+                        
                         print("🔍 DEBUG: Calling onGameCreated callback")
                         onGameCreated(createdGame)
                         print("🔍 DEBUG: onGameCreated callback completed")
@@ -301,6 +347,50 @@ struct CreateGameView: View {
     private func removePlayer(_ player: Player) {
         PlayerManagementFunctions.removePlayer(player, players: $players)
     }
+    
+    // MARK: - Game Settings Management
+    
+    private func loadLastGameSettings() {
+        guard let lastSettings = GameSettingsStorage.shared.loadLastGameSettings() else {
+            print("🔍 DEBUG: No last game settings to load")
+            return
+        }
+        
+        print("🔍 DEBUG: Loading last game settings: \(lastSettings.gameName)")
+        
+        // Load all settings
+        gameName = lastSettings.gameName
+        rounds = lastSettings.rounds
+        winCondition = lastSettings.winCondition
+        maxScore = lastSettings.maxScore
+        maxRounds = lastSettings.maxRounds
+        customRules = lastSettings.customRules
+        hostJoinAsPlayer = lastSettings.hostJoinAsPlayer
+        hostPlayerName = lastSettings.hostPlayerName
+        
+        // Load player names
+        players = lastSettings.playerNames.map { name in
+            Player(name: name, isRegistered: false, userId: nil, email: nil)
+        }
+        
+        print("🔍 DEBUG: Loaded \(players.count) players from last settings")
+    }
+    
+    private func saveCurrentGameSettings() {
+        let settings = GameSettings(
+            gameName: gameName,
+            rounds: rounds,
+            winCondition: winCondition,
+            maxScore: maxScore,
+            maxRounds: maxRounds,
+            customRules: customRules,
+            playerNames: players.map { $0.name },
+            hostJoinAsPlayer: hostJoinAsPlayer,
+            hostPlayerName: hostPlayerName
+        )
+        
+        GameSettingsStorage.shared.saveLastGameSettings(settings)
+    }
 }
 
 // MARK: - CreateGameContentView
@@ -317,6 +407,12 @@ struct CreateGameContentView: View {
     @Binding var isSearching: Bool
     @Binding var currentUser: AuthUser?
     @Binding var currentUserProfile: User?
+    @Binding var showBasicSettings: Bool
+    @Binding var useLastGameSettings: Bool
+    @Binding var showAdvancedSettings: Bool
+    @Binding var winCondition: WinCondition
+    @Binding var maxScore: Int
+    @Binding var maxRounds: Int
     
     let isIPad: Bool
     let titleFont: Font
@@ -326,6 +422,7 @@ struct CreateGameContentView: View {
     let searchUsers: (String) -> Void
     let addRegisteredPlayer: (User) -> Void
     let removePlayer: (Player) -> Void
+    let loadLastGameSettings: () -> Void
     
     var body: some View {
         VStack(spacing: sectionSpacing) {
@@ -351,25 +448,6 @@ struct CreateGameContentView: View {
                         )
                 }
                 
-                ZStack(alignment: .leading) {
-                    if customRules.isEmpty {
-                        Text("Enter custom rules (optional)")
-                            .foregroundColor(.white.opacity(0.5))
-                            .font(bodyFont)
-                            .padding(.leading, 16)
-                    }
-                    TextField("", text: $customRules)
-                        .font(bodyFont)
-                        .foregroundColor(.white)
-                        .padding()
-                        .background(Color.black.opacity(0.5))
-                        .cornerRadius(8)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8)
-                                .stroke(Color.white.opacity(0.3), lineWidth: 1)
-                        )
-                }
-
                 // Commented out for dynamic rounds - rounds will be added during gameplay
                 // Stepper("Number of Rounds: \(rounds)", value: $rounds, in: 1...10)
                 //     .font(bodyFont)
@@ -377,6 +455,91 @@ struct CreateGameContentView: View {
                 Text("Rounds will be added dynamically during gameplay")
                     .font(.caption)
                     .foregroundColor(.white.opacity(0.7))
+            }
+            .padding(isIPad ? 24 : 16)
+            .background(Color.black.opacity(0.3))
+            .cornerRadius(isIPad ? 16 : 10)
+            
+            // Basic Settings
+            VStack(alignment: .leading, spacing: isIPad ? 16 : 12) {
+                Button(action: {
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        showBasicSettings.toggle()
+                    }
+                }) {
+                    HStack {
+                        Text("Basic Settings")
+                            .font(bodyFont)
+                            .fontWeight(.medium)
+                            .foregroundColor(.white)
+                        Spacer()
+                        Image(systemName: showBasicSettings ? "chevron.up" : "chevron.down")
+                            .foregroundColor(.white)
+                            .font(.system(size: isIPad ? 16 : 14))
+                    }
+                }
+                .buttonStyle(PlainButtonStyle())
+                
+                if showBasicSettings {
+                    VStack(alignment: .leading, spacing: isIPad ? 16 : 12) {
+                        // Quick Start with Last Game Settings
+                        let hasLastSettings = GameSettingsStorage.shared.hasLastGameSettings()
+                        if hasLastSettings {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Quick Start")
+                                    .font(bodyFont)
+                                    .fontWeight(.medium)
+                                    .foregroundColor(.white)
+                                
+                                Button(action: {
+                                    loadLastGameSettings()
+                                }) {
+                                    HStack {
+                                        Image(systemName: "clock.arrow.circlepath")
+                                            .foregroundColor(Color("LightGreen"))
+                                        Text("Use Last Game Settings")
+                                            .foregroundColor(.white)
+                                        Spacer()
+                                    }
+                                    .padding()
+                                    .background(Color.black.opacity(0.5))
+                                    .cornerRadius(8)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                                    )
+                                }
+                                .buttonStyle(PlainButtonStyle())
+                            }
+                        }
+                        
+                        // Number of Rounds
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Number of Rounds")
+                                .font(bodyFont)
+                                .fontWeight(.medium)
+                                .foregroundColor(.white)
+                            
+                            HStack {
+                                Text("\(rounds)")
+                                    .foregroundColor(.white)
+                                    .font(bodyFont)
+                                Spacer()
+                                Stepper("", value: $rounds, in: 1...50)
+                                    .labelsHidden()
+                                    .accentColor(Color("LightGreen"))
+                            }
+                            .padding()
+                            .background(Color.black.opacity(0.5))
+                            .cornerRadius(8)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                            )
+                        }
+                    }
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+                }
             }
             .padding(isIPad ? 24 : 16)
             .background(Color.black.opacity(0.3))
@@ -445,6 +608,127 @@ struct CreateGameContentView: View {
                 addRegisteredPlayer: addRegisteredPlayer,
                 removePlayer: removePlayer
             )
+            
+            // Advanced Settings
+            VStack(alignment: .leading, spacing: isIPad ? 16 : 12) {
+                Button(action: {
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        showAdvancedSettings.toggle()
+                    }
+                }) {
+                    HStack {
+                        Text("Advanced Settings")
+                            .font(bodyFont)
+                            .fontWeight(.medium)
+                            .foregroundColor(.white)
+                        Spacer()
+                        Image(systemName: showAdvancedSettings ? "chevron.up" : "chevron.down")
+                            .foregroundColor(.white)
+                            .font(.system(size: isIPad ? 16 : 14))
+                    }
+                }
+                .buttonStyle(PlainButtonStyle())
+                
+                if showAdvancedSettings {
+                    VStack(alignment: .leading, spacing: isIPad ? 16 : 12) {
+                        // Custom Rules
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Custom Rules (Optional)")
+                                .font(bodyFont)
+                                .fontWeight(.medium)
+                                .foregroundColor(.white)
+                            
+                            ZStack(alignment: .leading) {
+                                if customRules.isEmpty {
+                                    Text("Enter custom rules (optional)")
+                                        .foregroundColor(.white.opacity(0.5))
+                                        .font(bodyFont)
+                                        .padding(.leading, 16)
+                                }
+                                TextField("", text: $customRules)
+                                    .font(bodyFont)
+                                    .foregroundColor(.white)
+                                    .padding()
+                                    .background(Color.black.opacity(0.5))
+                                    .cornerRadius(8)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                                    )
+                            }
+                        }
+                        
+                        // Win Condition
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Win Condition")
+                                .font(bodyFont)
+                                .fontWeight(.medium)
+                                .foregroundColor(.white)
+                            
+                            Picker("Win Condition", selection: $winCondition) {
+                                Text("Highest Score Wins").tag(WinCondition.highestScore)
+                                Text("Lowest Score Wins").tag(WinCondition.lowestScore)
+                            }
+                            .pickerStyle(SegmentedPickerStyle())
+                            .accentColor(Color("LightGreen"))
+                        }
+                        
+                        // Max Score
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Max Score (Optional)")
+                                .font(bodyFont)
+                                .fontWeight(.medium)
+                                .foregroundColor(.white)
+                            
+                            HStack {
+                                Text("\(maxScore)")
+                                    .foregroundColor(.white)
+                                    .font(bodyFont)
+                                Spacer()
+                                Stepper("", value: $maxScore, in: 10...1000, step: 10)
+                                    .labelsHidden()
+                                    .accentColor(Color("LightGreen"))
+                            }
+                            .padding()
+                            .background(Color.black.opacity(0.5))
+                            .cornerRadius(8)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                            )
+                        }
+                        
+                        // Max Rounds
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Max Rounds (Optional)")
+                                .font(bodyFont)
+                                .fontWeight(.medium)
+                                .foregroundColor(.white)
+                            
+                            HStack {
+                                Text("\(maxRounds)")
+                                    .foregroundColor(.white)
+                                    .font(bodyFont)
+                                Spacer()
+                                Stepper("", value: $maxRounds, in: 1...50)
+                                    .labelsHidden()
+                                    .accentColor(Color("LightGreen"))
+                            }
+                            .padding()
+                            .background(Color.black.opacity(0.5))
+                            .cornerRadius(8)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                            )
+                        }
+                    }
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+                }
+            }
+            .padding(isIPad ? 24 : 16)
+            .background(Color.black.opacity(0.3))
+            .cornerRadius(isIPad ? 16 : 10)
         }
         .padding()
     }

@@ -13,6 +13,9 @@ mutation CreateGame(
     customRules
     finalScores
     gameStatus
+    winCondition
+    maxScore
+    maxRounds
     createdAt
     updatedAt
     owner
@@ -33,6 +36,9 @@ mutation UpdateGame(
     customRules
     finalScores
     gameStatus
+    winCondition
+    maxScore
+    maxRounds
     createdAt
     updatedAt
     owner
@@ -53,6 +59,9 @@ mutation DeleteGame(
     customRules
     finalScores
     gameStatus
+    winCondition
+    maxScore
+    maxRounds
     createdAt
     updatedAt
     owner

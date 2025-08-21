@@ -13,6 +13,9 @@ subscription OnCreateGame(
     customRules
     finalScores
     gameStatus
+    winCondition
+    maxScore
+    maxRounds
     createdAt
     updatedAt
     owner
@@ -33,6 +36,9 @@ subscription OnUpdateGame(
     customRules
     finalScores
     gameStatus
+    winCondition
+    maxScore
+    maxRounds
     createdAt
     updatedAt
     owner
@@ -53,6 +59,9 @@ subscription OnDeleteGame(
     customRules
     finalScores
     gameStatus
+    winCondition
+    maxScore
+    maxRounds
     createdAt
     updatedAt
     owner

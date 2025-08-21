@@ -13,6 +13,9 @@ extension Game {
     case customRules
     case finalScores
     case gameStatus
+    case winCondition
+    case maxScore
+    case maxRounds
     case createdAt
     case updatedAt
     case owner
@@ -45,6 +48,9 @@ extension Game {
       .field(game.customRules, is: .optional, ofType: .string),
       .field(game.finalScores, is: .required, ofType: .embeddedCollection(of: String.self)),
       .field(game.gameStatus, is: .required, ofType: .enum(type: GameStatus.self)),
+      .field(game.winCondition, is: .optional, ofType: .enum(type: WinCondition.self)),
+      .field(game.maxScore, is: .optional, ofType: .int),
+      .field(game.maxRounds, is: .optional, ofType: .int),
       .field(game.createdAt, is: .required, ofType: .dateTime),
       .field(game.updatedAt, is: .required, ofType: .dateTime),
       .field(game.owner, is: .optional, ofType: .string)

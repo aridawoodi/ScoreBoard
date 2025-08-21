@@ -10,6 +10,9 @@ query GetGame($id: ID!) {
     customRules
     finalScores
     gameStatus
+    winCondition
+    maxScore
+    maxRounds
     createdAt
     updatedAt
     owner
@@ -32,6 +35,9 @@ query ListGames(
       customRules
       finalScores
       gameStatus
+      winCondition
+      maxScore
+      maxRounds
       createdAt
       updatedAt
       owner

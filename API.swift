@@ -425,8 +425,8 @@ import AWSAppSync
 public struct CreateGameInput: GraphQLMapConvertible {
   public var graphQLMap: GraphQLMap
 
-  public init(id: GraphQLID? = nil, gameName: String? = nil, hostUserId: String, playerIDs: [String], rounds: Int, customRules: String? = nil, finalScores: [String], gameStatus: GameStatus, createdAt: String? = nil, updatedAt: String? = nil, owner: String? = nil) {
-    graphQLMap = ["id": id, "gameName": gameName, "hostUserID": hostUserId, "playerIDs": playerIDs, "rounds": rounds, "customRules": customRules, "finalScores": finalScores, "gameStatus": gameStatus, "createdAt": createdAt, "updatedAt": updatedAt, "owner": owner]
+  public init(id: GraphQLID? = nil, gameName: String? = nil, hostUserId: String, playerIDs: [String], rounds: Int, customRules: String? = nil, finalScores: [String], gameStatus: GameStatus, winCondition: WinCondition? = nil, maxScore: Int? = nil, maxRounds: Int? = nil, createdAt: String? = nil, updatedAt: String? = nil, owner: String? = nil) {
+    graphQLMap = ["id": id, "gameName": gameName, "hostUserID": hostUserId, "playerIDs": playerIDs, "rounds": rounds, "customRules": customRules, "finalScores": finalScores, "gameStatus": gameStatus, "winCondition": winCondition, "maxScore": maxScore, "maxRounds": maxRounds, "createdAt": createdAt, "updatedAt": updatedAt, "owner": owner]
   }
 
   public var id: GraphQLID? {
@@ -501,6 +501,33 @@ public struct CreateGameInput: GraphQLMapConvertible {
     }
   }
 
+  public var winCondition: WinCondition? {
+    get {
+      return graphQLMap["winCondition"] as! WinCondition?
+    }
+    set {
+      graphQLMap.updateValue(newValue, forKey: "winCondition")
+    }
+  }
+
+  public var maxScore: Int? {
+    get {
+      return graphQLMap["maxScore"] as! Int?
+    }
+    set {
+      graphQLMap.updateValue(newValue, forKey: "maxScore")
+    }
+  }
+
+  public var maxRounds: Int? {
+    get {
+      return graphQLMap["maxRounds"] as! Int?
+    }
+    set {
+      graphQLMap.updateValue(newValue, forKey: "maxRounds")
+    }
+  }
+
   public var createdAt: String? {
     get {
       return graphQLMap["createdAt"] as! String?
@@ -566,11 +593,44 @@ public enum GameStatus: RawRepresentable, Equatable, JSONDecodable, JSONEncodabl
   }
 }
 
+public enum WinCondition: RawRepresentable, Equatable, JSONDecodable, JSONEncodable {
+  public typealias RawValue = String
+  case highestScore
+  case lowestScore
+  /// Auto generated constant for unknown enum values
+  case unknown(RawValue)
+
+  public init?(rawValue: RawValue) {
+    switch rawValue {
+      case "HIGHEST_SCORE": self = .highestScore
+      case "LOWEST_SCORE": self = .lowestScore
+      default: self = .unknown(rawValue)
+    }
+  }
+
+  public var rawValue: RawValue {
+    switch self {
+      case .highestScore: return "HIGHEST_SCORE"
+      case .lowestScore: return "LOWEST_SCORE"
+      case .unknown(let value): return value
+    }
+  }
+
+  public static func == (lhs: WinCondition, rhs: WinCondition) -> Bool {
+    switch (lhs, rhs) {
+      case (.highestScore, .highestScore): return true
+      case (.lowestScore, .lowestScore): return true
+      case (.unknown(let lhsValue), .unknown(let rhsValue)): return lhsValue == rhsValue
+      default: return false
+    }
+  }
+}
+
 public struct ModelGameConditionInput: GraphQLMapConvertible {
   public var graphQLMap: GraphQLMap
 
-  public init(gameName: ModelStringInput? = nil, hostUserId: ModelStringInput? = nil, playerIDs: ModelStringInput? = nil, rounds: ModelIntInput? = nil, customRules: ModelStringInput? = nil, finalScores: ModelStringInput? = nil, gameStatus: ModelGameStatusInput? = nil, createdAt: ModelStringInput? = nil, updatedAt: ModelStringInput? = nil, owner: ModelStringInput? = nil, and: [ModelGameConditionInput?]? = nil, or: [ModelGameConditionInput?]? = nil, not: ModelGameConditionInput? = nil) {
-    graphQLMap = ["gameName": gameName, "hostUserID": hostUserId, "playerIDs": playerIDs, "rounds": rounds, "customRules": customRules, "finalScores": finalScores, "gameStatus": gameStatus, "createdAt": createdAt, "updatedAt": updatedAt, "owner": owner, "and": and, "or": or, "not": not]
+  public init(gameName: ModelStringInput? = nil, hostUserId: ModelStringInput? = nil, playerIDs: ModelStringInput? = nil, rounds: ModelIntInput? = nil, customRules: ModelStringInput? = nil, finalScores: ModelStringInput? = nil, gameStatus: ModelGameStatusInput? = nil, winCondition: ModelWinConditionInput? = nil, maxScore: ModelIntInput? = nil, maxRounds: ModelIntInput? = nil, createdAt: ModelStringInput? = nil, updatedAt: ModelStringInput? = nil, owner: ModelStringInput? = nil, and: [ModelGameConditionInput?]? = nil, or: [ModelGameConditionInput?]? = nil, not: ModelGameConditionInput? = nil) {
+    graphQLMap = ["gameName": gameName, "hostUserID": hostUserId, "playerIDs": playerIDs, "rounds": rounds, "customRules": customRules, "finalScores": finalScores, "gameStatus": gameStatus, "winCondition": winCondition, "maxScore": maxScore, "maxRounds": maxRounds, "createdAt": createdAt, "updatedAt": updatedAt, "owner": owner, "and": and, "or": or, "not": not]
   }
 
   public var gameName: ModelStringInput? {
@@ -633,6 +693,33 @@ public struct ModelGameConditionInput: GraphQLMapConvertible {
     }
     set {
       graphQLMap.updateValue(newValue, forKey: "gameStatus")
+    }
+  }
+
+  public var winCondition: ModelWinConditionInput? {
+    get {
+      return graphQLMap["winCondition"] as! ModelWinConditionInput?
+    }
+    set {
+      graphQLMap.updateValue(newValue, forKey: "winCondition")
+    }
+  }
+
+  public var maxScore: ModelIntInput? {
+    get {
+      return graphQLMap["maxScore"] as! ModelIntInput?
+    }
+    set {
+      graphQLMap.updateValue(newValue, forKey: "maxScore")
+    }
+  }
+
+  public var maxRounds: ModelIntInput? {
+    get {
+      return graphQLMap["maxRounds"] as! ModelIntInput?
+    }
+    set {
+      graphQLMap.updateValue(newValue, forKey: "maxRounds")
     }
   }
 
@@ -1067,11 +1154,37 @@ public struct ModelGameStatusInput: GraphQLMapConvertible {
   }
 }
 
+public struct ModelWinConditionInput: GraphQLMapConvertible {
+  public var graphQLMap: GraphQLMap
+
+  public init(eq: WinCondition? = nil, ne: WinCondition? = nil) {
+    graphQLMap = ["eq": eq, "ne": ne]
+  }
+
+  public var eq: WinCondition? {
+    get {
+      return graphQLMap["eq"] as! WinCondition?
+    }
+    set {
+      graphQLMap.updateValue(newValue, forKey: "eq")
+    }
+  }
+
+  public var ne: WinCondition? {
+    get {
+      return graphQLMap["ne"] as! WinCondition?
+    }
+    set {
+      graphQLMap.updateValue(newValue, forKey: "ne")
+    }
+  }
+}
+
 public struct UpdateGameInput: GraphQLMapConvertible {
   public var graphQLMap: GraphQLMap
 
-  public init(id: GraphQLID, gameName: String? = nil, hostUserId: String? = nil, playerIDs: [String]? = nil, rounds: Int? = nil, customRules: String? = nil, finalScores: [String]? = nil, gameStatus: GameStatus? = nil, createdAt: String? = nil, updatedAt: String? = nil, owner: String? = nil) {
-    graphQLMap = ["id": id, "gameName": gameName, "hostUserID": hostUserId, "playerIDs": playerIDs, "rounds": rounds, "customRules": customRules, "finalScores": finalScores, "gameStatus": gameStatus, "createdAt": createdAt, "updatedAt": updatedAt, "owner": owner]
+  public init(id: GraphQLID, gameName: String? = nil, hostUserId: String? = nil, playerIDs: [String]? = nil, rounds: Int? = nil, customRules: String? = nil, finalScores: [String]? = nil, gameStatus: GameStatus? = nil, winCondition: WinCondition? = nil, maxScore: Int? = nil, maxRounds: Int? = nil, createdAt: String? = nil, updatedAt: String? = nil, owner: String? = nil) {
+    graphQLMap = ["id": id, "gameName": gameName, "hostUserID": hostUserId, "playerIDs": playerIDs, "rounds": rounds, "customRules": customRules, "finalScores": finalScores, "gameStatus": gameStatus, "winCondition": winCondition, "maxScore": maxScore, "maxRounds": maxRounds, "createdAt": createdAt, "updatedAt": updatedAt, "owner": owner]
   }
 
   public var id: GraphQLID {
@@ -1143,6 +1256,33 @@ public struct UpdateGameInput: GraphQLMapConvertible {
     }
     set {
       graphQLMap.updateValue(newValue, forKey: "gameStatus")
+    }
+  }
+
+  public var winCondition: WinCondition? {
+    get {
+      return graphQLMap["winCondition"] as! WinCondition?
+    }
+    set {
+      graphQLMap.updateValue(newValue, forKey: "winCondition")
+    }
+  }
+
+  public var maxScore: Int? {
+    get {
+      return graphQLMap["maxScore"] as! Int?
+    }
+    set {
+      graphQLMap.updateValue(newValue, forKey: "maxScore")
+    }
+  }
+
+  public var maxRounds: Int? {
+    get {
+      return graphQLMap["maxRounds"] as! Int?
+    }
+    set {
+      graphQLMap.updateValue(newValue, forKey: "maxRounds")
     }
   }
 
@@ -1690,8 +1830,8 @@ public struct DeleteUserInput: GraphQLMapConvertible {
 public struct ModelGameFilterInput: GraphQLMapConvertible {
   public var graphQLMap: GraphQLMap
 
-  public init(id: ModelIDInput? = nil, gameName: ModelStringInput? = nil, hostUserId: ModelStringInput? = nil, playerIDs: ModelStringInput? = nil, rounds: ModelIntInput? = nil, customRules: ModelStringInput? = nil, finalScores: ModelStringInput? = nil, gameStatus: ModelGameStatusInput? = nil, createdAt: ModelStringInput? = nil, updatedAt: ModelStringInput? = nil, owner: ModelStringInput? = nil, and: [ModelGameFilterInput?]? = nil, or: [ModelGameFilterInput?]? = nil, not: ModelGameFilterInput? = nil) {
-    graphQLMap = ["id": id, "gameName": gameName, "hostUserID": hostUserId, "playerIDs": playerIDs, "rounds": rounds, "customRules": customRules, "finalScores": finalScores, "gameStatus": gameStatus, "createdAt": createdAt, "updatedAt": updatedAt, "owner": owner, "and": and, "or": or, "not": not]
+  public init(id: ModelIDInput? = nil, gameName: ModelStringInput? = nil, hostUserId: ModelStringInput? = nil, playerIDs: ModelStringInput? = nil, rounds: ModelIntInput? = nil, customRules: ModelStringInput? = nil, finalScores: ModelStringInput? = nil, gameStatus: ModelGameStatusInput? = nil, winCondition: ModelWinConditionInput? = nil, maxScore: ModelIntInput? = nil, maxRounds: ModelIntInput? = nil, createdAt: ModelStringInput? = nil, updatedAt: ModelStringInput? = nil, owner: ModelStringInput? = nil, and: [ModelGameFilterInput?]? = nil, or: [ModelGameFilterInput?]? = nil, not: ModelGameFilterInput? = nil) {
+    graphQLMap = ["id": id, "gameName": gameName, "hostUserID": hostUserId, "playerIDs": playerIDs, "rounds": rounds, "customRules": customRules, "finalScores": finalScores, "gameStatus": gameStatus, "winCondition": winCondition, "maxScore": maxScore, "maxRounds": maxRounds, "createdAt": createdAt, "updatedAt": updatedAt, "owner": owner, "and": and, "or": or, "not": not]
   }
 
   public var id: ModelIDInput? {
@@ -1763,6 +1903,33 @@ public struct ModelGameFilterInput: GraphQLMapConvertible {
     }
     set {
       graphQLMap.updateValue(newValue, forKey: "gameStatus")
+    }
+  }
+
+  public var winCondition: ModelWinConditionInput? {
+    get {
+      return graphQLMap["winCondition"] as! ModelWinConditionInput?
+    }
+    set {
+      graphQLMap.updateValue(newValue, forKey: "winCondition")
+    }
+  }
+
+  public var maxScore: ModelIntInput? {
+    get {
+      return graphQLMap["maxScore"] as! ModelIntInput?
+    }
+    set {
+      graphQLMap.updateValue(newValue, forKey: "maxScore")
+    }
+  }
+
+  public var maxRounds: ModelIntInput? {
+    get {
+      return graphQLMap["maxRounds"] as! ModelIntInput?
+    }
+    set {
+      graphQLMap.updateValue(newValue, forKey: "maxRounds")
     }
   }
 
@@ -2145,8 +2312,8 @@ public struct ModelUserFilterInput: GraphQLMapConvertible {
 public struct ModelSubscriptionGameFilterInput: GraphQLMapConvertible {
   public var graphQLMap: GraphQLMap
 
-  public init(id: ModelSubscriptionIDInput? = nil, gameName: ModelSubscriptionStringInput? = nil, hostUserId: ModelSubscriptionStringInput? = nil, playerIDs: ModelSubscriptionStringInput? = nil, rounds: ModelSubscriptionIntInput? = nil, customRules: ModelSubscriptionStringInput? = nil, finalScores: ModelSubscriptionStringInput? = nil, gameStatus: ModelSubscriptionStringInput? = nil, createdAt: ModelSubscriptionStringInput? = nil, updatedAt: ModelSubscriptionStringInput? = nil, and: [ModelSubscriptionGameFilterInput?]? = nil, or: [ModelSubscriptionGameFilterInput?]? = nil, owner: ModelStringInput? = nil) {
-    graphQLMap = ["id": id, "gameName": gameName, "hostUserID": hostUserId, "playerIDs": playerIDs, "rounds": rounds, "customRules": customRules, "finalScores": finalScores, "gameStatus": gameStatus, "createdAt": createdAt, "updatedAt": updatedAt, "and": and, "or": or, "owner": owner]
+  public init(id: ModelSubscriptionIDInput? = nil, gameName: ModelSubscriptionStringInput? = nil, hostUserId: ModelSubscriptionStringInput? = nil, playerIDs: ModelSubscriptionStringInput? = nil, rounds: ModelSubscriptionIntInput? = nil, customRules: ModelSubscriptionStringInput? = nil, finalScores: ModelSubscriptionStringInput? = nil, gameStatus: ModelSubscriptionStringInput? = nil, winCondition: ModelSubscriptionStringInput? = nil, maxScore: ModelSubscriptionIntInput? = nil, maxRounds: ModelSubscriptionIntInput? = nil, createdAt: ModelSubscriptionStringInput? = nil, updatedAt: ModelSubscriptionStringInput? = nil, and: [ModelSubscriptionGameFilterInput?]? = nil, or: [ModelSubscriptionGameFilterInput?]? = nil, owner: ModelStringInput? = nil) {
+    graphQLMap = ["id": id, "gameName": gameName, "hostUserID": hostUserId, "playerIDs": playerIDs, "rounds": rounds, "customRules": customRules, "finalScores": finalScores, "gameStatus": gameStatus, "winCondition": winCondition, "maxScore": maxScore, "maxRounds": maxRounds, "createdAt": createdAt, "updatedAt": updatedAt, "and": and, "or": or, "owner": owner]
   }
 
   public var id: ModelSubscriptionIDInput? {
@@ -2218,6 +2385,33 @@ public struct ModelSubscriptionGameFilterInput: GraphQLMapConvertible {
     }
     set {
       graphQLMap.updateValue(newValue, forKey: "gameStatus")
+    }
+  }
+
+  public var winCondition: ModelSubscriptionStringInput? {
+    get {
+      return graphQLMap["winCondition"] as! ModelSubscriptionStringInput?
+    }
+    set {
+      graphQLMap.updateValue(newValue, forKey: "winCondition")
+    }
+  }
+
+  public var maxScore: ModelSubscriptionIntInput? {
+    get {
+      return graphQLMap["maxScore"] as! ModelSubscriptionIntInput?
+    }
+    set {
+      graphQLMap.updateValue(newValue, forKey: "maxScore")
+    }
+  }
+
+  public var maxRounds: ModelSubscriptionIntInput? {
+    get {
+      return graphQLMap["maxRounds"] as! ModelSubscriptionIntInput?
+    }
+    set {
+      graphQLMap.updateValue(newValue, forKey: "maxRounds")
     }
   }
 
@@ -2768,7 +2962,7 @@ public struct ModelSubscriptionUserFilterInput: GraphQLMapConvertible {
 
 public final class CreateGameMutation: GraphQLMutation {
   public static let operationString =
-    "mutation CreateGame($input: CreateGameInput!, $condition: ModelGameConditionInput) {\n  createGame(input: $input, condition: $condition) {\n    __typename\n    id\n    gameName\n    hostUserID\n    playerIDs\n    rounds\n    customRules\n    finalScores\n    gameStatus\n    createdAt\n    updatedAt\n    owner\n  }\n}"
+    "mutation CreateGame($input: CreateGameInput!, $condition: ModelGameConditionInput) {\n  createGame(input: $input, condition: $condition) {\n    __typename\n    id\n    gameName\n    hostUserID\n    playerIDs\n    rounds\n    customRules\n    finalScores\n    gameStatus\n    winCondition\n    maxScore\n    maxRounds\n    createdAt\n    updatedAt\n    owner\n  }\n}"
 
   public var input: CreateGameInput
   public var condition: ModelGameConditionInput?
@@ -2821,6 +3015,9 @@ public final class CreateGameMutation: GraphQLMutation {
         GraphQLField("customRules", type: .scalar(String.self)),
         GraphQLField("finalScores", type: .nonNull(.list(.nonNull(.scalar(String.self))))),
         GraphQLField("gameStatus", type: .nonNull(.scalar(GameStatus.self))),
+        GraphQLField("winCondition", type: .scalar(WinCondition.self)),
+        GraphQLField("maxScore", type: .scalar(Int.self)),
+        GraphQLField("maxRounds", type: .scalar(Int.self)),
         GraphQLField("createdAt", type: .nonNull(.scalar(String.self))),
         GraphQLField("updatedAt", type: .nonNull(.scalar(String.self))),
         GraphQLField("owner", type: .scalar(String.self)),
@@ -2832,8 +3029,8 @@ public final class CreateGameMutation: GraphQLMutation {
         self.snapshot = snapshot
       }
 
-      public init(id: GraphQLID, gameName: String? = nil, hostUserId: String, playerIDs: [String], rounds: Int, customRules: String? = nil, finalScores: [String], gameStatus: GameStatus, createdAt: String, updatedAt: String, owner: String? = nil) {
-        self.init(snapshot: ["__typename": "Game", "id": id, "gameName": gameName, "hostUserID": hostUserId, "playerIDs": playerIDs, "rounds": rounds, "customRules": customRules, "finalScores": finalScores, "gameStatus": gameStatus, "createdAt": createdAt, "updatedAt": updatedAt, "owner": owner])
+      public init(id: GraphQLID, gameName: String? = nil, hostUserId: String, playerIDs: [String], rounds: Int, customRules: String? = nil, finalScores: [String], gameStatus: GameStatus, winCondition: WinCondition? = nil, maxScore: Int? = nil, maxRounds: Int? = nil, createdAt: String, updatedAt: String, owner: String? = nil) {
+        self.init(snapshot: ["__typename": "Game", "id": id, "gameName": gameName, "hostUserID": hostUserId, "playerIDs": playerIDs, "rounds": rounds, "customRules": customRules, "finalScores": finalScores, "gameStatus": gameStatus, "winCondition": winCondition, "maxScore": maxScore, "maxRounds": maxRounds, "createdAt": createdAt, "updatedAt": updatedAt, "owner": owner])
       }
 
       public var __typename: String {
@@ -2917,6 +3114,33 @@ public final class CreateGameMutation: GraphQLMutation {
         }
       }
 
+      public var winCondition: WinCondition? {
+        get {
+          return snapshot["winCondition"] as? WinCondition
+        }
+        set {
+          snapshot.updateValue(newValue, forKey: "winCondition")
+        }
+      }
+
+      public var maxScore: Int? {
+        get {
+          return snapshot["maxScore"] as? Int
+        }
+        set {
+          snapshot.updateValue(newValue, forKey: "maxScore")
+        }
+      }
+
+      public var maxRounds: Int? {
+        get {
+          return snapshot["maxRounds"] as? Int
+        }
+        set {
+          snapshot.updateValue(newValue, forKey: "maxRounds")
+        }
+      }
+
       public var createdAt: String {
         get {
           return snapshot["createdAt"]! as! String
@@ -2949,7 +3173,7 @@ public final class CreateGameMutation: GraphQLMutation {
 
 public final class UpdateGameMutation: GraphQLMutation {
   public static let operationString =
-    "mutation UpdateGame($input: UpdateGameInput!, $condition: ModelGameConditionInput) {\n  updateGame(input: $input, condition: $condition) {\n    __typename\n    id\n    gameName\n    hostUserID\n    playerIDs\n    rounds\n    customRules\n    finalScores\n    gameStatus\n    createdAt\n    updatedAt\n    owner\n  }\n}"
+    "mutation UpdateGame($input: UpdateGameInput!, $condition: ModelGameConditionInput) {\n  updateGame(input: $input, condition: $condition) {\n    __typename\n    id\n    gameName\n    hostUserID\n    playerIDs\n    rounds\n    customRules\n    finalScores\n    gameStatus\n    winCondition\n    maxScore\n    maxRounds\n    createdAt\n    updatedAt\n    owner\n  }\n}"
 
   public var input: UpdateGameInput
   public var condition: ModelGameConditionInput?
@@ -3002,6 +3226,9 @@ public final class UpdateGameMutation: GraphQLMutation {
         GraphQLField("customRules", type: .scalar(String.self)),
         GraphQLField("finalScores", type: .nonNull(.list(.nonNull(.scalar(String.self))))),
         GraphQLField("gameStatus", type: .nonNull(.scalar(GameStatus.self))),
+        GraphQLField("winCondition", type: .scalar(WinCondition.self)),
+        GraphQLField("maxScore", type: .scalar(Int.self)),
+        GraphQLField("maxRounds", type: .scalar(Int.self)),
         GraphQLField("createdAt", type: .nonNull(.scalar(String.self))),
         GraphQLField("updatedAt", type: .nonNull(.scalar(String.self))),
         GraphQLField("owner", type: .scalar(String.self)),
@@ -3013,8 +3240,8 @@ public final class UpdateGameMutation: GraphQLMutation {
         self.snapshot = snapshot
       }
 
-      public init(id: GraphQLID, gameName: String? = nil, hostUserId: String, playerIDs: [String], rounds: Int, customRules: String? = nil, finalScores: [String], gameStatus: GameStatus, createdAt: String, updatedAt: String, owner: String? = nil) {
-        self.init(snapshot: ["__typename": "Game", "id": id, "gameName": gameName, "hostUserID": hostUserId, "playerIDs": playerIDs, "rounds": rounds, "customRules": customRules, "finalScores": finalScores, "gameStatus": gameStatus, "createdAt": createdAt, "updatedAt": updatedAt, "owner": owner])
+      public init(id: GraphQLID, gameName: String? = nil, hostUserId: String, playerIDs: [String], rounds: Int, customRules: String? = nil, finalScores: [String], gameStatus: GameStatus, winCondition: WinCondition? = nil, maxScore: Int? = nil, maxRounds: Int? = nil, createdAt: String, updatedAt: String, owner: String? = nil) {
+        self.init(snapshot: ["__typename": "Game", "id": id, "gameName": gameName, "hostUserID": hostUserId, "playerIDs": playerIDs, "rounds": rounds, "customRules": customRules, "finalScores": finalScores, "gameStatus": gameStatus, "winCondition": winCondition, "maxScore": maxScore, "maxRounds": maxRounds, "createdAt": createdAt, "updatedAt": updatedAt, "owner": owner])
       }
 
       public var __typename: String {
@@ -3098,6 +3325,33 @@ public final class UpdateGameMutation: GraphQLMutation {
         }
       }
 
+      public var winCondition: WinCondition? {
+        get {
+          return snapshot["winCondition"] as? WinCondition
+        }
+        set {
+          snapshot.updateValue(newValue, forKey: "winCondition")
+        }
+      }
+
+      public var maxScore: Int? {
+        get {
+          return snapshot["maxScore"] as? Int
+        }
+        set {
+          snapshot.updateValue(newValue, forKey: "maxScore")
+        }
+      }
+
+      public var maxRounds: Int? {
+        get {
+          return snapshot["maxRounds"] as? Int
+        }
+        set {
+          snapshot.updateValue(newValue, forKey: "maxRounds")
+        }
+      }
+
       public var createdAt: String {
         get {
           return snapshot["createdAt"]! as! String
@@ -3130,7 +3384,7 @@ public final class UpdateGameMutation: GraphQLMutation {
 
 public final class DeleteGameMutation: GraphQLMutation {
   public static let operationString =
-    "mutation DeleteGame($input: DeleteGameInput!, $condition: ModelGameConditionInput) {\n  deleteGame(input: $input, condition: $condition) {\n    __typename\n    id\n    gameName\n    hostUserID\n    playerIDs\n    rounds\n    customRules\n    finalScores\n    gameStatus\n    createdAt\n    updatedAt\n    owner\n  }\n}"
+    "mutation DeleteGame($input: DeleteGameInput!, $condition: ModelGameConditionInput) {\n  deleteGame(input: $input, condition: $condition) {\n    __typename\n    id\n    gameName\n    hostUserID\n    playerIDs\n    rounds\n    customRules\n    finalScores\n    gameStatus\n    winCondition\n    maxScore\n    maxRounds\n    createdAt\n    updatedAt\n    owner\n  }\n}"
 
   public var input: DeleteGameInput
   public var condition: ModelGameConditionInput?
@@ -3183,6 +3437,9 @@ public final class DeleteGameMutation: GraphQLMutation {
         GraphQLField("customRules", type: .scalar(String.self)),
         GraphQLField("finalScores", type: .nonNull(.list(.nonNull(.scalar(String.self))))),
         GraphQLField("gameStatus", type: .nonNull(.scalar(GameStatus.self))),
+        GraphQLField("winCondition", type: .scalar(WinCondition.self)),
+        GraphQLField("maxScore", type: .scalar(Int.self)),
+        GraphQLField("maxRounds", type: .scalar(Int.self)),
         GraphQLField("createdAt", type: .nonNull(.scalar(String.self))),
         GraphQLField("updatedAt", type: .nonNull(.scalar(String.self))),
         GraphQLField("owner", type: .scalar(String.self)),
@@ -3194,8 +3451,8 @@ public final class DeleteGameMutation: GraphQLMutation {
         self.snapshot = snapshot
       }
 
-      public init(id: GraphQLID, gameName: String? = nil, hostUserId: String, playerIDs: [String], rounds: Int, customRules: String? = nil, finalScores: [String], gameStatus: GameStatus, createdAt: String, updatedAt: String, owner: String? = nil) {
-        self.init(snapshot: ["__typename": "Game", "id": id, "gameName": gameName, "hostUserID": hostUserId, "playerIDs": playerIDs, "rounds": rounds, "customRules": customRules, "finalScores": finalScores, "gameStatus": gameStatus, "createdAt": createdAt, "updatedAt": updatedAt, "owner": owner])
+      public init(id: GraphQLID, gameName: String? = nil, hostUserId: String, playerIDs: [String], rounds: Int, customRules: String? = nil, finalScores: [String], gameStatus: GameStatus, winCondition: WinCondition? = nil, maxScore: Int? = nil, maxRounds: Int? = nil, createdAt: String, updatedAt: String, owner: String? = nil) {
+        self.init(snapshot: ["__typename": "Game", "id": id, "gameName": gameName, "hostUserID": hostUserId, "playerIDs": playerIDs, "rounds": rounds, "customRules": customRules, "finalScores": finalScores, "gameStatus": gameStatus, "winCondition": winCondition, "maxScore": maxScore, "maxRounds": maxRounds, "createdAt": createdAt, "updatedAt": updatedAt, "owner": owner])
       }
 
       public var __typename: String {
@@ -3276,6 +3533,33 @@ public final class DeleteGameMutation: GraphQLMutation {
         }
         set {
           snapshot.updateValue(newValue, forKey: "gameStatus")
+        }
+      }
+
+      public var winCondition: WinCondition? {
+        get {
+          return snapshot["winCondition"] as? WinCondition
+        }
+        set {
+          snapshot.updateValue(newValue, forKey: "winCondition")
+        }
+      }
+
+      public var maxScore: Int? {
+        get {
+          return snapshot["maxScore"] as? Int
+        }
+        set {
+          snapshot.updateValue(newValue, forKey: "maxScore")
+        }
+      }
+
+      public var maxRounds: Int? {
+        get {
+          return snapshot["maxRounds"] as? Int
+        }
+        set {
+          snapshot.updateValue(newValue, forKey: "maxRounds")
         }
       }
 
@@ -4157,7 +4441,7 @@ public final class DeleteUserMutation: GraphQLMutation {
 
 public final class GetGameQuery: GraphQLQuery {
   public static let operationString =
-    "query GetGame($id: ID!) {\n  getGame(id: $id) {\n    __typename\n    id\n    gameName\n    hostUserID\n    playerIDs\n    rounds\n    customRules\n    finalScores\n    gameStatus\n    createdAt\n    updatedAt\n    owner\n  }\n}"
+    "query GetGame($id: ID!) {\n  getGame(id: $id) {\n    __typename\n    id\n    gameName\n    hostUserID\n    playerIDs\n    rounds\n    customRules\n    finalScores\n    gameStatus\n    winCondition\n    maxScore\n    maxRounds\n    createdAt\n    updatedAt\n    owner\n  }\n}"
 
   public var id: GraphQLID
 
@@ -4208,6 +4492,9 @@ public final class GetGameQuery: GraphQLQuery {
         GraphQLField("customRules", type: .scalar(String.self)),
         GraphQLField("finalScores", type: .nonNull(.list(.nonNull(.scalar(String.self))))),
         GraphQLField("gameStatus", type: .nonNull(.scalar(GameStatus.self))),
+        GraphQLField("winCondition", type: .scalar(WinCondition.self)),
+        GraphQLField("maxScore", type: .scalar(Int.self)),
+        GraphQLField("maxRounds", type: .scalar(Int.self)),
         GraphQLField("createdAt", type: .nonNull(.scalar(String.self))),
         GraphQLField("updatedAt", type: .nonNull(.scalar(String.self))),
         GraphQLField("owner", type: .scalar(String.self)),
@@ -4219,8 +4506,8 @@ public final class GetGameQuery: GraphQLQuery {
         self.snapshot = snapshot
       }
 
-      public init(id: GraphQLID, gameName: String? = nil, hostUserId: String, playerIDs: [String], rounds: Int, customRules: String? = nil, finalScores: [String], gameStatus: GameStatus, createdAt: String, updatedAt: String, owner: String? = nil) {
-        self.init(snapshot: ["__typename": "Game", "id": id, "gameName": gameName, "hostUserID": hostUserId, "playerIDs": playerIDs, "rounds": rounds, "customRules": customRules, "finalScores": finalScores, "gameStatus": gameStatus, "createdAt": createdAt, "updatedAt": updatedAt, "owner": owner])
+      public init(id: GraphQLID, gameName: String? = nil, hostUserId: String, playerIDs: [String], rounds: Int, customRules: String? = nil, finalScores: [String], gameStatus: GameStatus, winCondition: WinCondition? = nil, maxScore: Int? = nil, maxRounds: Int? = nil, createdAt: String, updatedAt: String, owner: String? = nil) {
+        self.init(snapshot: ["__typename": "Game", "id": id, "gameName": gameName, "hostUserID": hostUserId, "playerIDs": playerIDs, "rounds": rounds, "customRules": customRules, "finalScores": finalScores, "gameStatus": gameStatus, "winCondition": winCondition, "maxScore": maxScore, "maxRounds": maxRounds, "createdAt": createdAt, "updatedAt": updatedAt, "owner": owner])
       }
 
       public var __typename: String {
@@ -4304,6 +4591,33 @@ public final class GetGameQuery: GraphQLQuery {
         }
       }
 
+      public var winCondition: WinCondition? {
+        get {
+          return snapshot["winCondition"] as? WinCondition
+        }
+        set {
+          snapshot.updateValue(newValue, forKey: "winCondition")
+        }
+      }
+
+      public var maxScore: Int? {
+        get {
+          return snapshot["maxScore"] as? Int
+        }
+        set {
+          snapshot.updateValue(newValue, forKey: "maxScore")
+        }
+      }
+
+      public var maxRounds: Int? {
+        get {
+          return snapshot["maxRounds"] as? Int
+        }
+        set {
+          snapshot.updateValue(newValue, forKey: "maxRounds")
+        }
+      }
+
       public var createdAt: String {
         get {
           return snapshot["createdAt"]! as! String
@@ -4336,7 +4650,7 @@ public final class GetGameQuery: GraphQLQuery {
 
 public final class ListGamesQuery: GraphQLQuery {
   public static let operationString =
-    "query ListGames($filter: ModelGameFilterInput, $limit: Int, $nextToken: String) {\n  listGames(filter: $filter, limit: $limit, nextToken: $nextToken) {\n    __typename\n    items {\n      __typename\n      id\n      gameName\n      hostUserID\n      playerIDs\n      rounds\n      customRules\n      finalScores\n      gameStatus\n      createdAt\n      updatedAt\n      owner\n    }\n    nextToken\n  }\n}"
+    "query ListGames($filter: ModelGameFilterInput, $limit: Int, $nextToken: String) {\n  listGames(filter: $filter, limit: $limit, nextToken: $nextToken) {\n    __typename\n    items {\n      __typename\n      id\n      gameName\n      hostUserID\n      playerIDs\n      rounds\n      customRules\n      finalScores\n      gameStatus\n      winCondition\n      maxScore\n      maxRounds\n      createdAt\n      updatedAt\n      owner\n    }\n    nextToken\n  }\n}"
 
   public var filter: ModelGameFilterInput?
   public var limit: Int?
@@ -4437,6 +4751,9 @@ public final class ListGamesQuery: GraphQLQuery {
           GraphQLField("customRules", type: .scalar(String.self)),
           GraphQLField("finalScores", type: .nonNull(.list(.nonNull(.scalar(String.self))))),
           GraphQLField("gameStatus", type: .nonNull(.scalar(GameStatus.self))),
+          GraphQLField("winCondition", type: .scalar(WinCondition.self)),
+          GraphQLField("maxScore", type: .scalar(Int.self)),
+          GraphQLField("maxRounds", type: .scalar(Int.self)),
           GraphQLField("createdAt", type: .nonNull(.scalar(String.self))),
           GraphQLField("updatedAt", type: .nonNull(.scalar(String.self))),
           GraphQLField("owner", type: .scalar(String.self)),
@@ -4448,8 +4765,8 @@ public final class ListGamesQuery: GraphQLQuery {
           self.snapshot = snapshot
         }
 
-        public init(id: GraphQLID, gameName: String? = nil, hostUserId: String, playerIDs: [String], rounds: Int, customRules: String? = nil, finalScores: [String], gameStatus: GameStatus, createdAt: String, updatedAt: String, owner: String? = nil) {
-          self.init(snapshot: ["__typename": "Game", "id": id, "gameName": gameName, "hostUserID": hostUserId, "playerIDs": playerIDs, "rounds": rounds, "customRules": customRules, "finalScores": finalScores, "gameStatus": gameStatus, "createdAt": createdAt, "updatedAt": updatedAt, "owner": owner])
+        public init(id: GraphQLID, gameName: String? = nil, hostUserId: String, playerIDs: [String], rounds: Int, customRules: String? = nil, finalScores: [String], gameStatus: GameStatus, winCondition: WinCondition? = nil, maxScore: Int? = nil, maxRounds: Int? = nil, createdAt: String, updatedAt: String, owner: String? = nil) {
+          self.init(snapshot: ["__typename": "Game", "id": id, "gameName": gameName, "hostUserID": hostUserId, "playerIDs": playerIDs, "rounds": rounds, "customRules": customRules, "finalScores": finalScores, "gameStatus": gameStatus, "winCondition": winCondition, "maxScore": maxScore, "maxRounds": maxRounds, "createdAt": createdAt, "updatedAt": updatedAt, "owner": owner])
         }
 
         public var __typename: String {
@@ -4530,6 +4847,33 @@ public final class ListGamesQuery: GraphQLQuery {
           }
           set {
             snapshot.updateValue(newValue, forKey: "gameStatus")
+          }
+        }
+
+        public var winCondition: WinCondition? {
+          get {
+            return snapshot["winCondition"] as? WinCondition
+          }
+          set {
+            snapshot.updateValue(newValue, forKey: "winCondition")
+          }
+        }
+
+        public var maxScore: Int? {
+          get {
+            return snapshot["maxScore"] as? Int
+          }
+          set {
+            snapshot.updateValue(newValue, forKey: "maxScore")
+          }
+        }
+
+        public var maxRounds: Int? {
+          get {
+            return snapshot["maxRounds"] as? Int
+          }
+          set {
+            snapshot.updateValue(newValue, forKey: "maxRounds")
           }
         }
 
@@ -5224,7 +5568,7 @@ public final class ListUsersQuery: GraphQLQuery {
 
 public final class OnCreateGameSubscription: GraphQLSubscription {
   public static let operationString =
-    "subscription OnCreateGame($filter: ModelSubscriptionGameFilterInput, $owner: String) {\n  onCreateGame(filter: $filter, owner: $owner) {\n    __typename\n    id\n    gameName\n    hostUserID\n    playerIDs\n    rounds\n    customRules\n    finalScores\n    gameStatus\n    createdAt\n    updatedAt\n    owner\n  }\n}"
+    "subscription OnCreateGame($filter: ModelSubscriptionGameFilterInput, $owner: String) {\n  onCreateGame(filter: $filter, owner: $owner) {\n    __typename\n    id\n    gameName\n    hostUserID\n    playerIDs\n    rounds\n    customRules\n    finalScores\n    gameStatus\n    winCondition\n    maxScore\n    maxRounds\n    createdAt\n    updatedAt\n    owner\n  }\n}"
 
   public var filter: ModelSubscriptionGameFilterInput?
   public var owner: String?
@@ -5277,6 +5621,9 @@ public final class OnCreateGameSubscription: GraphQLSubscription {
         GraphQLField("customRules", type: .scalar(String.self)),
         GraphQLField("finalScores", type: .nonNull(.list(.nonNull(.scalar(String.self))))),
         GraphQLField("gameStatus", type: .nonNull(.scalar(GameStatus.self))),
+        GraphQLField("winCondition", type: .scalar(WinCondition.self)),
+        GraphQLField("maxScore", type: .scalar(Int.self)),
+        GraphQLField("maxRounds", type: .scalar(Int.self)),
         GraphQLField("createdAt", type: .nonNull(.scalar(String.self))),
         GraphQLField("updatedAt", type: .nonNull(.scalar(String.self))),
         GraphQLField("owner", type: .scalar(String.self)),
@@ -5288,8 +5635,8 @@ public final class OnCreateGameSubscription: GraphQLSubscription {
         self.snapshot = snapshot
       }
 
-      public init(id: GraphQLID, gameName: String? = nil, hostUserId: String, playerIDs: [String], rounds: Int, customRules: String? = nil, finalScores: [String], gameStatus: GameStatus, createdAt: String, updatedAt: String, owner: String? = nil) {
-        self.init(snapshot: ["__typename": "Game", "id": id, "gameName": gameName, "hostUserID": hostUserId, "playerIDs": playerIDs, "rounds": rounds, "customRules": customRules, "finalScores": finalScores, "gameStatus": gameStatus, "createdAt": createdAt, "updatedAt": updatedAt, "owner": owner])
+      public init(id: GraphQLID, gameName: String? = nil, hostUserId: String, playerIDs: [String], rounds: Int, customRules: String? = nil, finalScores: [String], gameStatus: GameStatus, winCondition: WinCondition? = nil, maxScore: Int? = nil, maxRounds: Int? = nil, createdAt: String, updatedAt: String, owner: String? = nil) {
+        self.init(snapshot: ["__typename": "Game", "id": id, "gameName": gameName, "hostUserID": hostUserId, "playerIDs": playerIDs, "rounds": rounds, "customRules": customRules, "finalScores": finalScores, "gameStatus": gameStatus, "winCondition": winCondition, "maxScore": maxScore, "maxRounds": maxRounds, "createdAt": createdAt, "updatedAt": updatedAt, "owner": owner])
       }
 
       public var __typename: String {
@@ -5373,6 +5720,33 @@ public final class OnCreateGameSubscription: GraphQLSubscription {
         }
       }
 
+      public var winCondition: WinCondition? {
+        get {
+          return snapshot["winCondition"] as? WinCondition
+        }
+        set {
+          snapshot.updateValue(newValue, forKey: "winCondition")
+        }
+      }
+
+      public var maxScore: Int? {
+        get {
+          return snapshot["maxScore"] as? Int
+        }
+        set {
+          snapshot.updateValue(newValue, forKey: "maxScore")
+        }
+      }
+
+      public var maxRounds: Int? {
+        get {
+          return snapshot["maxRounds"] as? Int
+        }
+        set {
+          snapshot.updateValue(newValue, forKey: "maxRounds")
+        }
+      }
+
       public var createdAt: String {
         get {
           return snapshot["createdAt"]! as! String
@@ -5405,7 +5779,7 @@ public final class OnCreateGameSubscription: GraphQLSubscription {
 
 public final class OnUpdateGameSubscription: GraphQLSubscription {
   public static let operationString =
-    "subscription OnUpdateGame($filter: ModelSubscriptionGameFilterInput, $owner: String) {\n  onUpdateGame(filter: $filter, owner: $owner) {\n    __typename\n    id\n    gameName\n    hostUserID\n    playerIDs\n    rounds\n    customRules\n    finalScores\n    gameStatus\n    createdAt\n    updatedAt\n    owner\n  }\n}"
+    "subscription OnUpdateGame($filter: ModelSubscriptionGameFilterInput, $owner: String) {\n  onUpdateGame(filter: $filter, owner: $owner) {\n    __typename\n    id\n    gameName\n    hostUserID\n    playerIDs\n    rounds\n    customRules\n    finalScores\n    gameStatus\n    winCondition\n    maxScore\n    maxRounds\n    createdAt\n    updatedAt\n    owner\n  }\n}"
 
   public var filter: ModelSubscriptionGameFilterInput?
   public var owner: String?
@@ -5458,6 +5832,9 @@ public final class OnUpdateGameSubscription: GraphQLSubscription {
         GraphQLField("customRules", type: .scalar(String.self)),
         GraphQLField("finalScores", type: .nonNull(.list(.nonNull(.scalar(String.self))))),
         GraphQLField("gameStatus", type: .nonNull(.scalar(GameStatus.self))),
+        GraphQLField("winCondition", type: .scalar(WinCondition.self)),
+        GraphQLField("maxScore", type: .scalar(Int.self)),
+        GraphQLField("maxRounds", type: .scalar(Int.self)),
         GraphQLField("createdAt", type: .nonNull(.scalar(String.self))),
         GraphQLField("updatedAt", type: .nonNull(.scalar(String.self))),
         GraphQLField("owner", type: .scalar(String.self)),
@@ -5469,8 +5846,8 @@ public final class OnUpdateGameSubscription: GraphQLSubscription {
         self.snapshot = snapshot
       }
 
-      public init(id: GraphQLID, gameName: String? = nil, hostUserId: String, playerIDs: [String], rounds: Int, customRules: String? = nil, finalScores: [String], gameStatus: GameStatus, createdAt: String, updatedAt: String, owner: String? = nil) {
-        self.init(snapshot: ["__typename": "Game", "id": id, "gameName": gameName, "hostUserID": hostUserId, "playerIDs": playerIDs, "rounds": rounds, "customRules": customRules, "finalScores": finalScores, "gameStatus": gameStatus, "createdAt": createdAt, "updatedAt": updatedAt, "owner": owner])
+      public init(id: GraphQLID, gameName: String? = nil, hostUserId: String, playerIDs: [String], rounds: Int, customRules: String? = nil, finalScores: [String], gameStatus: GameStatus, winCondition: WinCondition? = nil, maxScore: Int? = nil, maxRounds: Int? = nil, createdAt: String, updatedAt: String, owner: String? = nil) {
+        self.init(snapshot: ["__typename": "Game", "id": id, "gameName": gameName, "hostUserID": hostUserId, "playerIDs": playerIDs, "rounds": rounds, "customRules": customRules, "finalScores": finalScores, "gameStatus": gameStatus, "winCondition": winCondition, "maxScore": maxScore, "maxRounds": maxRounds, "createdAt": createdAt, "updatedAt": updatedAt, "owner": owner])
       }
 
       public var __typename: String {
@@ -5554,6 +5931,33 @@ public final class OnUpdateGameSubscription: GraphQLSubscription {
         }
       }
 
+      public var winCondition: WinCondition? {
+        get {
+          return snapshot["winCondition"] as? WinCondition
+        }
+        set {
+          snapshot.updateValue(newValue, forKey: "winCondition")
+        }
+      }
+
+      public var maxScore: Int? {
+        get {
+          return snapshot["maxScore"] as? Int
+        }
+        set {
+          snapshot.updateValue(newValue, forKey: "maxScore")
+        }
+      }
+
+      public var maxRounds: Int? {
+        get {
+          return snapshot["maxRounds"] as? Int
+        }
+        set {
+          snapshot.updateValue(newValue, forKey: "maxRounds")
+        }
+      }
+
       public var createdAt: String {
         get {
           return snapshot["createdAt"]! as! String
@@ -5586,7 +5990,7 @@ public final class OnUpdateGameSubscription: GraphQLSubscription {
 
 public final class OnDeleteGameSubscription: GraphQLSubscription {
   public static let operationString =
-    "subscription OnDeleteGame($filter: ModelSubscriptionGameFilterInput, $owner: String) {\n  onDeleteGame(filter: $filter, owner: $owner) {\n    __typename\n    id\n    gameName\n    hostUserID\n    playerIDs\n    rounds\n    customRules\n    finalScores\n    gameStatus\n    createdAt\n    updatedAt\n    owner\n  }\n}"
+    "subscription OnDeleteGame($filter: ModelSubscriptionGameFilterInput, $owner: String) {\n  onDeleteGame(filter: $filter, owner: $owner) {\n    __typename\n    id\n    gameName\n    hostUserID\n    playerIDs\n    rounds\n    customRules\n    finalScores\n    gameStatus\n    winCondition\n    maxScore\n    maxRounds\n    createdAt\n    updatedAt\n    owner\n  }\n}"
 
   public var filter: ModelSubscriptionGameFilterInput?
   public var owner: String?
@@ -5639,6 +6043,9 @@ public final class OnDeleteGameSubscription: GraphQLSubscription {
         GraphQLField("customRules", type: .scalar(String.self)),
         GraphQLField("finalScores", type: .nonNull(.list(.nonNull(.scalar(String.self))))),
         GraphQLField("gameStatus", type: .nonNull(.scalar(GameStatus.self))),
+        GraphQLField("winCondition", type: .scalar(WinCondition.self)),
+        GraphQLField("maxScore", type: .scalar(Int.self)),
+        GraphQLField("maxRounds", type: .scalar(Int.self)),
         GraphQLField("createdAt", type: .nonNull(.scalar(String.self))),
         GraphQLField("updatedAt", type: .nonNull(.scalar(String.self))),
         GraphQLField("owner", type: .scalar(String.self)),
@@ -5650,8 +6057,8 @@ public final class OnDeleteGameSubscription: GraphQLSubscription {
         self.snapshot = snapshot
       }
 
-      public init(id: GraphQLID, gameName: String? = nil, hostUserId: String, playerIDs: [String], rounds: Int, customRules: String? = nil, finalScores: [String], gameStatus: GameStatus, createdAt: String, updatedAt: String, owner: String? = nil) {
-        self.init(snapshot: ["__typename": "Game", "id": id, "gameName": gameName, "hostUserID": hostUserId, "playerIDs": playerIDs, "rounds": rounds, "customRules": customRules, "finalScores": finalScores, "gameStatus": gameStatus, "createdAt": createdAt, "updatedAt": updatedAt, "owner": owner])
+      public init(id: GraphQLID, gameName: String? = nil, hostUserId: String, playerIDs: [String], rounds: Int, customRules: String? = nil, finalScores: [String], gameStatus: GameStatus, winCondition: WinCondition? = nil, maxScore: Int? = nil, maxRounds: Int? = nil, createdAt: String, updatedAt: String, owner: String? = nil) {
+        self.init(snapshot: ["__typename": "Game", "id": id, "gameName": gameName, "hostUserID": hostUserId, "playerIDs": playerIDs, "rounds": rounds, "customRules": customRules, "finalScores": finalScores, "gameStatus": gameStatus, "winCondition": winCondition, "maxScore": maxScore, "maxRounds": maxRounds, "createdAt": createdAt, "updatedAt": updatedAt, "owner": owner])
       }
 
       public var __typename: String {
@@ -5732,6 +6139,33 @@ public final class OnDeleteGameSubscription: GraphQLSubscription {
         }
         set {
           snapshot.updateValue(newValue, forKey: "gameStatus")
+        }
+      }
+
+      public var winCondition: WinCondition? {
+        get {
+          return snapshot["winCondition"] as? WinCondition
+        }
+        set {
+          snapshot.updateValue(newValue, forKey: "winCondition")
+        }
+      }
+
+      public var maxScore: Int? {
+        get {
+          return snapshot["maxScore"] as? Int
+        }
+        set {
+          snapshot.updateValue(newValue, forKey: "maxScore")
+        }
+      }
+
+      public var maxRounds: Int? {
+        get {
+          return snapshot["maxRounds"] as? Int
+        }
+        set {
+          snapshot.updateValue(newValue, forKey: "maxRounds")
         }
       }
 

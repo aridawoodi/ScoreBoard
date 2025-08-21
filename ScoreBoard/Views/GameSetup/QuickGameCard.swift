@@ -147,8 +147,8 @@ struct QuickGameCard: View {
                 case .success(let createdGame):
                     print("🔍 DEBUG: Quick game created successfully with ID: \(createdGame.id)")
                     
-                    // Create initial scores for all players
-                    await createInitialScores(for: createdGame, playerNames: playerIDs)
+                    // Don't create initial scores - let users enter them as needed
+                    // await createInitialScores(for: createdGame, playerNames: playerIDs)
                     
                     await MainActor.run {
                         isCreating = false
