@@ -255,34 +255,48 @@ struct Scoreboardview: View {
     func checkGameCompletionAndWinner() {
         guard isGameComplete() && !players.isEmpty else { return }
         
-        // Find the player with the highest total score
-        let sortedPlayers = players.sorted { $0.total > $1.total }
-        let highestScore = sortedPlayers.first?.total ?? 0
+        print("🔍 DEBUG: Game winCondition: \(String(describing: game.winCondition))")
+        
+        // Determine winner based on game's win condition
+        let sortedPlayers: [TestPlayer]
+        let winningScore: Int
+        
+        if game.winCondition == .lowestScore {
+            // For lowest score wins, sort by ascending order
+            sortedPlayers = players.sorted { $0.total < $1.total }
+            winningScore = sortedPlayers.first?.total ?? 0
+        } else {
+            // Default to highest score wins (including when winCondition is nil or .highestScore)
+            sortedPlayers = players.sorted { $0.total > $1.total }
+            winningScore = sortedPlayers.first?.total ?? 0
+        }
         
         // Check if there's a clear winner (no ties)
-        let winners = sortedPlayers.filter { $0.total == highestScore }
+        let winners = sortedPlayers.filter { $0.total == winningScore }
         
         if winners.count == 1 {
             // We have a clear winner!
             winner = winners.first
-            celebrationMessage = "🎉 Congratulations \(winner?.name ?? "Player")! 🎉\nYou won with a total score of \(highestScore)!"
+            let winConditionText = game.winCondition == .lowestScore ? "lowest" : "highest"
+            celebrationMessage = "🎉 Congratulations \(winner?.name ?? "Player")! 🎉\nYou won with the \(winConditionText) score of \(winningScore)!"
             
             // Only show celebration if we haven't shown it before for this game
             if !hasShownCelebrationForGame() {
                 showCelebration = true
                 markCelebrationAsShown()
-                print("🔍 DEBUG: 🎉 GAME COMPLETE! Winner: \(winner?.name ?? "Unknown") with score: \(highestScore)")
+                print("🔍 DEBUG: 🎉 GAME COMPLETE! Winner: \(winner?.name ?? "Unknown") with \(winConditionText) score: \(winningScore)")
             }
         } else if winners.count > 1 {
             // We have a tie
             let winnerNames = winners.map { $0.name }.joined(separator: ", ")
-            celebrationMessage = "🤝 It's a tie! 🤝\nCongratulations to \(winnerNames)!\nAll tied with a score of \(highestScore)!"
+            let winConditionText = game.winCondition == .lowestScore ? "lowest" : "highest"
+            celebrationMessage = "🤝 It's a tie! 🤝\nCongratulations to \(winnerNames)!\nAll tied with the \(winConditionText) score of \(winningScore)!"
             
             // Only show celebration if we haven't shown it before for this game
             if !hasShownCelebrationForGame() {
                 showCelebration = true
                 markCelebrationAsShown()
-                print("🔍 DEBUG: 🤝 GAME COMPLETE! Tie between: \(winnerNames) with score: \(highestScore)")
+                print("🔍 DEBUG: 🤝 GAME COMPLETE! Tie between: \(winnerNames) with \(winConditionText) score: \(winningScore)")
             }
         }
     }
@@ -318,16 +332,30 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
         return (nil, "", false)
     }
     
-    let sortedPlayers = players.sorted { $0.total > $1.total }
-    let highestScore = sortedPlayers.first?.total ?? 0
-    let winners = sortedPlayers.filter { $0.total == highestScore }
+    // Determine winner based on game's win condition
+    let sortedPlayers: [TestPlayer]
+    let winningScore: Int
+    
+    if game.winCondition == .lowestScore {
+        // For lowest score wins, sort by ascending order
+        sortedPlayers = players.sorted { $0.total < $1.total }
+        winningScore = sortedPlayers.first?.total ?? 0
+    } else {
+        // Default to highest score wins (including when winCondition is nil or .highestScore)
+        sortedPlayers = players.sorted { $0.total > $1.total }
+        winningScore = sortedPlayers.first?.total ?? 0
+    }
+    
+    let winners = sortedPlayers.filter { $0.total == winningScore }
     
     if winners.count == 1 {
-        let message = "🏆 Winner: \(winners.first?.name ?? "Unknown") (\(highestScore) points)"
+        let winConditionText = game.winCondition == .lowestScore ? "lowest" : "highest"
+        let message = "🏆 Winner: \(winners.first?.name ?? "Unknown") (\(winConditionText): \(winningScore) points)"
         return (winners.first, message, false)
     } else if winners.count > 1 {
         let winnerNames = winners.map { $0.name }.joined(separator: ", ")
-        let message = "🤝 Tie: \(winnerNames) (\(highestScore) points each)"
+        let winConditionText = game.winCondition == .lowestScore ? "lowest" : "highest"
+        let message = "🤝 Tie: \(winnerNames) (\(winConditionText): \(winningScore) points each)"
         return (winners.first, message, true)
     }
     
@@ -1345,7 +1373,7 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
             
             ForEach(players.indices, id: \.self) { colIndex in
                 let player = players[colIndex]
-                let score = roundIndex < player.scores.count ? player.scores[roundIndex] : 0
+                let score = roundIndex < player.scores.count ? player.scores[roundIndex] : -1
                 let isEditingThisCell = editingPlayer?.playerID == player.playerID && editingRound == roundIndex + 1 && isScoreFieldFocused
                 
                 ScoreCell(
@@ -1671,29 +1699,30 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                         let roundNumber = roundIndex + 1
                         
                         // Ensure lastSavedScores array is properly sized
-                        var lastSavedScore = 0
+                        var lastSavedScore = -1  // Default to -1 (empty) if no last saved score
                         if let lastSavedArray = lastSavedScores[playerID], roundIndex < lastSavedArray.count {
                             lastSavedScore = lastSavedArray[roundIndex]
                         }
                         
                         print("🔍 DEBUG: Round \(roundNumber) - current: \(score), last saved: \(lastSavedScore)")
                         
-                        // Only persist non-zero values. If zero and exists -> delete. If zero and doesn't exist -> skip.
+                        // Only persist scores that are not -1 (empty). Zero is a valid score and should be saved.
                             let scoreKey = "\(playerID)-\(roundNumber)"
                         let existing = existingScoreMap[scoreKey]
-                        if score == 0 {
+                        if score == -1 {
+                            // Empty cell (-1): delete if exists, skip if doesn't exist
                             if let existingScore = existing {
-                                print("🔍 DEBUG: Zero value and exists -> delete for player \(playerID) round \(roundNumber)")
+                                print("🔍 DEBUG: Empty cell (-1) and exists -> delete for player \(playerID) round \(roundNumber)")
                                 let _ = try await Amplify.API.mutate(request: .delete(existingScore))
                             } else {
-                                print("🔍 DEBUG: Zero value and no existing -> skip create for player \(playerID) round \(roundNumber)")
+                                print("🔍 DEBUG: Empty cell (-1) and no existing -> skip create for player \(playerID) round \(roundNumber)")
                             }
                             continue
                         }
 
-                        // Non-zero: create or update if changed
+                        // Valid score (including 0): create or update if changed
                         if score != lastSavedScore || existing == nil {
-                            print("🔍 DEBUG: Persist non-zero \(score) for player \(playerID) round \(roundNumber)")
+                            print("🔍 DEBUG: Persist score \(score) for player \(playerID) round \(roundNumber)")
                             let scoreObject = Score(
                                 id: "\(game.id)-\(playerID)-\(roundNumber)",
                                 gameID: game.id,
@@ -1743,7 +1772,7 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
         for player in players {
             var row = player.scores
             // Ensure correct length for current dynamic rounds
-            while row.count < dynamicRounds { row.append(0) }
+            while row.count < dynamicRounds { row.append(-1) }
             if row.count > dynamicRounds { row = Array(row.prefix(dynamicRounds)) }
             scoresForAllPlayers[player.playerID] = row
             print("🔍 DEBUG: Table scores for \(player.playerID): \(row)")
@@ -1770,24 +1799,24 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                         for (roundIndex, scoreValue) in scoresRow.enumerated() {
                             let roundNumber = roundIndex + 1
                             let lastSavedArray = lastSavedScores[playerID] ?? []
-                            let lastSavedScore = (roundIndex < lastSavedArray.count) ? lastSavedArray[roundIndex] : 0
+                            let lastSavedScore = (roundIndex < lastSavedArray.count) ? lastSavedArray[roundIndex] : -1
                             let scoreKey = "\(playerID)-\(roundNumber)"
                             let existing = existingScoreMap[scoreKey]
 
-                            if scoreValue == 0 {
-                                // Zero: delete if exists; else do nothing
+                            if scoreValue == -1 {
+                                // Empty cell (-1): delete if exists; else do nothing
                                 if let existingScore = existing {
-                                    print("🔍 DEBUG: DELETE 0 for \(playerID) r\(roundNumber)")
+                                    print("🔍 DEBUG: DELETE empty cell (-1) for \(playerID) r\(roundNumber)")
                                     let _ = try await Amplify.API.mutate(request: .delete(existingScore))
                                 } else {
-                                    print("🔍 DEBUG: SKIP create 0 for \(playerID) r\(roundNumber)")
+                                    print("🔍 DEBUG: SKIP create empty cell (-1) for \(playerID) r\(roundNumber)")
                                 }
                                 continue
                             }
 
-                            // Non-zero: create or update
+                            // Valid score (including 0): create or update
                             if existing == nil || scoreValue != lastSavedScore {
-                                print("🔍 DEBUG: UPSERT non-zero \(scoreValue) for \(playerID) r\(roundNumber)")
+                                print("🔍 DEBUG: UPSERT score \(scoreValue) for \(playerID) r\(roundNumber)")
                             let scoreObject = Score(
                                 id: "\(game.id)-\(playerID)-\(roundNumber)",
                                 gameID: game.id,
@@ -2672,7 +2701,7 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
         var scoresForAllPlayers: [String: [Int]] = [:]
         for player in players {
             var row = player.scores
-            while row.count < dynamicRounds { row.append(0) }
+            while row.count < dynamicRounds { row.append(-1) }
             if row.count > dynamicRounds { row = Array(row.prefix(dynamicRounds)) }
             scoresForAllPlayers[player.playerID] = row
         }
@@ -2692,14 +2721,15 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                             let roundNumber = roundIndex + 1
                             let scoreKey = "\(playerID)-\(roundNumber)"
                             let existing = existingScoreMap[scoreKey]
-                            if scoreValue == 0 {
+                            if scoreValue == -1 {
+                                // Empty cell (-1): delete if exists
                                 if let existingScore = existing {
                                     let _ = try await Amplify.API.mutate(request: .delete(existingScore))
                                 }
                                 continue
                             }
                             let lastSavedArray = lastSavedScores[playerID] ?? []
-                            let lastSavedScore = (roundIndex < lastSavedArray.count) ? lastSavedArray[roundIndex] : 0
+                            let lastSavedScore = (roundIndex < lastSavedArray.count) ? lastSavedArray[roundIndex] : -1
                             if existing == nil || scoreValue != lastSavedScore {
                                 let scoreObject = Score(
                                     id: "\(game.id)-\(playerID)-\(roundNumber)",

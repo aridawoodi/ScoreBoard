@@ -25,11 +25,12 @@ struct CreateGameView: View {
     @State private var isLoading = false
     @State private var showAlert = false
     @State private var alertMessage = ""
+    @State private var showNoPlayersAlert = false
     @State private var currentUser: AuthUser?
     @State private var currentUserProfile: User?
     
     // Basic Settings
-    @State private var showBasicSettings = true
+
     @State private var useLastGameSettings = false
     
     // Advanced Settings
@@ -71,7 +72,7 @@ struct CreateGameView: View {
                     isSearching: $isSearching,
                     currentUser: $currentUser,
                     currentUserProfile: $currentUserProfile,
-                    showBasicSettings: $showBasicSettings,
+    
                     useLastGameSettings: $useLastGameSettings,
                     showAdvancedSettings: $showAdvancedSettings,
                     winCondition: $winCondition,
@@ -103,10 +104,17 @@ struct CreateGameView: View {
                         print("🔍 DEBUG: Create button tapped")
                         print("🔍 DEBUG: Players count: \(players.count)")
                         print("🔍 DEBUG: Is loading: \(isLoading)")
-                        createGame()
+                        
+                        let totalPlayers = getTotalPlayerCount()
+                        print("🔍 DEBUG: Total players count: \(totalPlayers) (manual players: \(players.count), host joining: \(hostJoinAsPlayer))")
+                        if totalPlayers < 2 {
+                            showNoPlayersAlert = true
+                        } else if !isLoading {
+                            createGame()
+                        }
                     }
                     .foregroundColor(.white)
-                    .disabled(players.isEmpty || isLoading)
+                    .disabled(isLoading)
                 }
             }
         }
@@ -114,6 +122,11 @@ struct CreateGameView: View {
                 Button("OK") { }
             } message: {
                 Text(alertMessage)
+            }
+            .alert("Add Players First", isPresented: $showNoPlayersAlert) {
+                Button("OK") { }
+            } message: {
+                Text("Please add at least two players to the game before creating it.")
             }
 
             .onAppear {
@@ -136,9 +149,10 @@ struct CreateGameView: View {
         isLoading = false
         showAlert = false
         alertMessage = ""
+        showNoPlayersAlert = false
         
         // Reset Basic Settings
-        showBasicSettings = true
+
         useLastGameSettings = false
         
         // Reset Advanced Settings
@@ -146,6 +160,17 @@ struct CreateGameView: View {
         winCondition = .highestScore
         maxScore = 100
         maxRounds = 10
+    }
+    
+    private func getTotalPlayerCount() -> Int {
+        var count = players.count
+        
+        // Add 1 if host is joining as player
+        if hostJoinAsPlayer {
+            count += 1
+        }
+        
+        return count
     }
     
     private func loadCurrentUser() {
@@ -234,9 +259,10 @@ struct CreateGameView: View {
     
     func createGame() {
         print("🔍 DEBUG: createGame() called")
-        guard !players.isEmpty else {
-            print("🔍 DEBUG: No players found, showing alert")
-            alertMessage = "Please add at least one player."
+        let totalPlayers = getTotalPlayerCount()
+        guard totalPlayers >= 2 else {
+            print("🔍 DEBUG: Not enough players found, showing alert")
+            alertMessage = "Please add at least two players to the game."
             showAlert = true
             return
         }
@@ -293,9 +319,9 @@ struct CreateGameView: View {
                     customRules: customRules.isEmpty ? nil : customRules,
                     finalScores: [],
                     gameStatus: .active,
-                    winCondition: nil, // Temporarily set to nil to test
-                    maxScore: nil, // Temporarily set to nil to test
-                    maxRounds: nil, // Temporarily set to nil to test
+                    winCondition: winCondition,
+                    maxScore: maxScore,
+                    maxRounds: maxRounds,
                     createdAt: Temporal.DateTime.now(),
                     updatedAt: Temporal.DateTime.now()
                 )
@@ -407,7 +433,7 @@ struct CreateGameContentView: View {
     @Binding var isSearching: Bool
     @Binding var currentUser: AuthUser?
     @Binding var currentUserProfile: User?
-    @Binding var showBasicSettings: Bool
+
     @Binding var useLastGameSettings: Bool
     @Binding var showAdvancedSettings: Bool
     @Binding var winCondition: WinCondition
@@ -426,6 +452,40 @@ struct CreateGameContentView: View {
     
     var body: some View {
         VStack(spacing: sectionSpacing) {
+            // Quick Start with Last Game Settings
+            let hasLastSettings = GameSettingsStorage.shared.hasLastGameSettings()
+            if hasLastSettings {
+                VStack(alignment: .leading, spacing: isIPad ? 16 : 12) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Quick Start")
+                            .font(bodyFont)
+                            .fontWeight(.medium)
+                            .foregroundColor(.white)
+                        
+                        Button(action: {
+                            loadLastGameSettings()
+                        }) {
+                            HStack {
+                                Image(systemName: "clock.arrow.circlepath")
+                                    .foregroundColor(.white)
+                                Text("Use Last Game Settings")
+                                    .foregroundColor(.white)
+                                    .fontWeight(.medium)
+                                Spacer()
+                            }
+                            .padding()
+                            .background(Color("LightGreen"))
+                            .cornerRadius(8)
+                            .shadow(color: Color.black.opacity(0.3), radius: 4, x: 0, y: 2)
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                    }
+                }
+                .padding(isIPad ? 24 : 16)
+                .background(Color.black.opacity(0.3))
+                .cornerRadius(isIPad ? 16 : 10)
+            }
+            
             // Game Settings
             VStack(alignment: .leading, spacing: isIPad ? 16 : 12) {
                 
@@ -455,95 +515,37 @@ struct CreateGameContentView: View {
                 Text("Rounds will be added dynamically during gameplay")
                     .font(.caption)
                     .foregroundColor(.white.opacity(0.7))
+                
+                // Number of Rounds
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Number of Rounds")
+                        .font(bodyFont)
+                        .fontWeight(.medium)
+                        .foregroundColor(.white)
+                    
+                    HStack {
+                        Text("\(rounds)")
+                            .foregroundColor(.white)
+                            .font(bodyFont)
+                        Spacer()
+                        Stepper("", value: $rounds, in: 1...50)
+                            .labelsHidden()
+                            .accentColor(Color("LightGreen"))
+                    }
+                    .padding()
+                    .background(Color.black.opacity(0.5))
+                    .cornerRadius(8)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                    )
+                }
             }
             .padding(isIPad ? 24 : 16)
             .background(Color.black.opacity(0.3))
             .cornerRadius(isIPad ? 16 : 10)
             
-            // Basic Settings
-            VStack(alignment: .leading, spacing: isIPad ? 16 : 12) {
-                Button(action: {
-                    withAnimation(.easeInOut(duration: 0.3)) {
-                        showBasicSettings.toggle()
-                    }
-                }) {
-                    HStack {
-                        Text("Basic Settings")
-                            .font(bodyFont)
-                            .fontWeight(.medium)
-                            .foregroundColor(.white)
-                        Spacer()
-                        Image(systemName: showBasicSettings ? "chevron.up" : "chevron.down")
-                            .foregroundColor(.white)
-                            .font(.system(size: isIPad ? 16 : 14))
-                    }
-                }
-                .buttonStyle(PlainButtonStyle())
-                
-                if showBasicSettings {
-                    VStack(alignment: .leading, spacing: isIPad ? 16 : 12) {
-                        // Quick Start with Last Game Settings
-                        let hasLastSettings = GameSettingsStorage.shared.hasLastGameSettings()
-                        if hasLastSettings {
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("Quick Start")
-                                    .font(bodyFont)
-                                    .fontWeight(.medium)
-                                    .foregroundColor(.white)
-                                
-                                Button(action: {
-                                    loadLastGameSettings()
-                                }) {
-                                    HStack {
-                                        Image(systemName: "clock.arrow.circlepath")
-                                            .foregroundColor(Color("LightGreen"))
-                                        Text("Use Last Game Settings")
-                                            .foregroundColor(.white)
-                                        Spacer()
-                                    }
-                                    .padding()
-                                    .background(Color.black.opacity(0.5))
-                                    .cornerRadius(8)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 8)
-                                            .stroke(Color.white.opacity(0.3), lineWidth: 1)
-                                    )
-                                }
-                                .buttonStyle(PlainButtonStyle())
-                            }
-                        }
-                        
-                        // Number of Rounds
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Number of Rounds")
-                                .font(bodyFont)
-                                .fontWeight(.medium)
-                                .foregroundColor(.white)
-                            
-                            HStack {
-                                Text("\(rounds)")
-                                    .foregroundColor(.white)
-                                    .font(bodyFont)
-                                Spacer()
-                                Stepper("", value: $rounds, in: 1...50)
-                                    .labelsHidden()
-                                    .accentColor(Color("LightGreen"))
-                            }
-                            .padding()
-                            .background(Color.black.opacity(0.5))
-                            .cornerRadius(8)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .stroke(Color.white.opacity(0.3), lineWidth: 1)
-                            )
-                        }
-                    }
-                    .transition(.opacity.combined(with: .move(edge: .top)))
-                }
-            }
-            .padding(isIPad ? 24 : 16)
-            .background(Color.black.opacity(0.3))
-            .cornerRadius(isIPad ? 16 : 10)
+
             
             // Host Join Option
             VStack(alignment: .leading, spacing: isIPad ? 16 : 12) {
