@@ -866,31 +866,31 @@ struct CreateGameContentView: View {
                 )
         }
         
-        let roundsStepper = HStack {
-            Text("\(rounds)")
-                .foregroundColor(.white)
-                .font(bodyFont)
-            Spacer()
-            Stepper("", value: $rounds, in: 1...50)
-                .labelsHidden()
-                .accentColor(Color("LightGreen"))
-        }
-        .padding()
-        .background(Color.black.opacity(0.5))
-        .cornerRadius(8)
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(Color.white.opacity(0.3), lineWidth: 1)
-        )
+        // let roundsStepper = HStack {
+        //     Text("\(rounds)")
+        //         .foregroundColor(.white)
+        //         .font(bodyFont)
+        //     Spacer()
+        //     Stepper("", value: $rounds, in: 1...50)
+        //         .labelsHidden()
+        //         .accentColor(Color("LightGreen"))
+        // }
+        // .padding()
+        // .background(Color.black.opacity(0.5))
+        // .cornerRadius(8)
+        // .overlay(
+        //     RoundedRectangle(cornerRadius: 8)
+        //         .stroke(Color.white.opacity(0.3), lineWidth: 1)
+        // )
         
-        let roundsSection = VStack(alignment: .leading, spacing: 8) {
-            Text("Number of Rounds")
-                .font(bodyFont)
-                .fontWeight(.medium)
-                .foregroundColor(.white)
-            
-            roundsStepper
-        }
+        // let roundsSection = VStack(alignment: .leading, spacing: 8) {
+        //     Text("Number of Rounds")
+        //             .font(bodyFont)
+        //             .fontWeight(.medium)
+        //             .foregroundColor(.white)
+        //     
+        //     roundsStepper
+        // }
         
         let gameSettingsContent = VStack(alignment: .leading, spacing: gameSettingsSpacing) {
             gameNameTextField
@@ -904,7 +904,7 @@ struct CreateGameContentView: View {
                 .foregroundColor(.white.opacity(0.7))
             
             // Number of Rounds
-            roundsSection
+            //roundsSection
         }
         .padding(gameSettingsPadding)
         .background(Color.black.opacity(0.3))
@@ -1112,12 +1112,53 @@ struct CreateGameContentView: View {
                 .fontWeight(.medium)
                 .foregroundColor(.white)
             
-            Picker("Win Condition", selection: $winCondition) {
-                Text("Highest Score Wins").tag(WinCondition.highestScore)
-                Text("Lowest Score Wins").tag(WinCondition.lowestScore)
+            GeometryReader { geometry in
+                ZStack {
+                    // Background container
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color.black.opacity(0.3))
+                    
+                    // Sliding background
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(Color("LightGreen"))
+                        .frame(width: geometry.size.width / 2 - 2)
+                        .offset(x: winCondition == .highestScore ? -geometry.size.width / 4 + 1 : geometry.size.width / 4 - 1)
+                        .animation(.easeInOut(duration: 0.3), value: winCondition)
+                    
+                    // Buttons
+                    HStack(spacing: 0) {
+                        // Highest Score Wins option
+                        Button(action: {
+                            winCondition = .highestScore
+                        }) {
+                            Text("Highest Score Wins")
+                                .font(.caption2)
+                                .fontWeight(.medium)
+                                .foregroundColor(winCondition == .highestScore ? .white : .white.opacity(0.7))
+                                .frame(maxWidth: .infinity)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        
+                        // Lowest Score Wins option
+                        Button(action: {
+                            winCondition = .lowestScore
+                        }) {
+                            Text("Lowest Score Wins")
+                                .font(.caption2)
+                                .fontWeight(.medium)
+                                .foregroundColor(winCondition == .lowestScore ? .white : .white.opacity(0.7))
+                                .frame(maxWidth: .infinity)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                    }
+                    .padding(2)
+                }
             }
-            .pickerStyle(SegmentedPickerStyle())
-            .accentColor(Color("LightGreen"))
+            .frame(height: 32)
         }
         
         let maxScoreSection = VStack(alignment: .leading, spacing: 8) {

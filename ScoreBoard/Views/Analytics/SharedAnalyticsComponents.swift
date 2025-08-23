@@ -609,50 +609,53 @@ struct GameStatusSegmentedPicker: View {
     let completedCount: Int
     
     var body: some View {
-        HStack(spacing: 0) {
-            // Active option
-            Button(action: {
-                selection = .active
-            }) {
-                Text("Active (\(activeCount))")
-                    .font(.caption)
-                    .fontWeight(.medium)
-                    .foregroundColor(selection == .active ? .white : .white.opacity(0.7))
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
-                    .background(
-                        selection == .active ? 
-                            Color.green : 
-                            Color.clear
-                    )
-                    .cornerRadius(8)
+        GeometryReader { geometry in
+            ZStack {
+                // Background container
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color.black.opacity(0.3))
+                
+                // Sliding background
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(Color("LightGreen"))
+                    .frame(width: geometry.size.width / 2 - 2)
+                    .offset(x: selection == .active ? -geometry.size.width / 4 + 1 : geometry.size.width / 4 - 1)
+                    .animation(.easeInOut(duration: 0.3), value: selection)
+                
+                // Buttons
+                HStack(spacing: 0) {
+                    // Active option
+                    Button(action: {
+                        selection = .active
+                    }) {
+                        Text("Active (\(activeCount))")
+                            .font(.caption2)
+                            .fontWeight(.medium)
+                            .foregroundColor(selection == .active ? .white : .white.opacity(0.7))
+                            .frame(maxWidth: .infinity)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    
+                    // Completed option
+                    Button(action: {
+                        selection = .completed
+                    }) {
+                        Text("Completed (\(completedCount))")
+                            .font(.caption2)
+                            .fontWeight(.medium)
+                            .foregroundColor(selection == .completed ? .white : .white.opacity(0.7))
+                            .frame(maxWidth: .infinity)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                }
+                .padding(2)
             }
-            .buttonStyle(PlainButtonStyle())
-            
-            Spacer()
-            
-            // Completed option
-            Button(action: {
-                selection = .completed
-            }) {
-                Text("Completed (\(completedCount))")
-                    .font(.caption)
-                    .fontWeight(.medium)
-                    .foregroundColor(selection == .completed ? .white : .white.opacity(0.7))
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
-                    .background(
-                        selection == .completed ? 
-                            Color.green : 
-                            Color.clear
-                    )
-                    .cornerRadius(8)
-            }
-            .buttonStyle(PlainButtonStyle())
         }
-        .padding(4)
-        .background(Color.black.opacity(0.3))
-        .cornerRadius(12)
+        .frame(height: 32)
     }
 }
 
@@ -661,34 +664,54 @@ struct AnalyticsTimeframeSegmentedPicker: View {
     @Binding var selection: AnalyticsTimeframe
     
     var body: some View {
-        HStack(spacing: 0) {
-            ForEach(AnalyticsTimeframe.allCases, id: \.self) { timeframe in
-                Button(action: {
-                    selection = timeframe
-                }) {
-                    Text(timeframe.rawValue)
-                        .font(.caption)
-                        .fontWeight(.medium)
-                        .foregroundColor(selection == timeframe ? .white : .white.opacity(0.7))
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
-                        .background(
-                            selection == timeframe ? 
-                                Color.green : 
-                                Color.clear
-                        )
-                        .cornerRadius(8)
-                }
-                .buttonStyle(PlainButtonStyle())
+        GeometryReader { geometry in
+            ZStack {
+                // Background container
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color.black.opacity(0.3))
                 
-                if timeframe != AnalyticsTimeframe.allCases.last {
-                    Spacer()
+                // Sliding background
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(Color("LightGreen"))
+                    .frame(width: geometry.size.width / 3 - 2)
+                    .offset(x: getOffset(for: selection, in: geometry))
+                    .animation(.easeInOut(duration: 0.3), value: selection)
+                
+                // Buttons
+                HStack(spacing: 0) {
+                    ForEach(AnalyticsTimeframe.allCases, id: \.self) { timeframe in
+                        Button(action: {
+                            selection = timeframe
+                        }) {
+                            Text(timeframe.rawValue)
+                                .font(.caption2)
+                                .fontWeight(.medium)
+                                .foregroundColor(selection == timeframe ? .white : .white.opacity(0.7))
+                                .frame(maxWidth: .infinity)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                    }
                 }
+                .padding(2)
             }
         }
-        .padding(4)
-        .background(Color.black.opacity(0.3))
-        .cornerRadius(12)
+        .frame(height: 32)
+    }
+    
+    private func getOffset(for selection: AnalyticsTimeframe, in geometry: GeometryProxy) -> CGFloat {
+        let segmentWidth = geometry.size.width / 3
+        let centerOffset = segmentWidth / 2 - 1
+        
+        switch selection {
+        case .week:
+            return -segmentWidth + centerOffset
+        case .month:
+            return centerOffset
+        case .year:
+            return segmentWidth - centerOffset
+        }
     }
 }
 
@@ -697,33 +720,39 @@ struct LeaderboardTimeframeSegmentedPicker: View {
     @Binding var selection: PlayerLeaderboardView.Timeframe
     
     var body: some View {
-        HStack(spacing: 0) {
-            ForEach(PlayerLeaderboardView.Timeframe.allCases, id: \.self) { timeframe in
-                Button(action: {
-                    selection = timeframe
-                }) {
-                    Text(timeframe.rawValue)
-                        .font(.caption)
-                        .fontWeight(.medium)
-                        .foregroundColor(selection == timeframe ? .white : .white.opacity(0.7))
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
-                        .background(
-                            selection == timeframe ? 
-                                Color.green : 
-                                Color.clear
-                        )
-                        .cornerRadius(8)
-                }
-                .buttonStyle(PlainButtonStyle())
+        GeometryReader { geometry in
+            ZStack {
+                // Background container
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color.black.opacity(0.3))
                 
-                if timeframe != PlayerLeaderboardView.Timeframe.allCases.last {
-                    Spacer()
+                // Sliding background
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(Color("LightGreen"))
+                    .frame(width: geometry.size.width / 2 - 2)
+                    .offset(x: selection == .weekly ? -geometry.size.width / 4 + 1 : geometry.size.width / 4 - 1)
+                    .animation(.easeInOut(duration: 0.3), value: selection)
+                
+                // Buttons
+                HStack(spacing: 0) {
+                    ForEach(PlayerLeaderboardView.Timeframe.allCases, id: \.self) { timeframe in
+                        Button(action: {
+                            selection = timeframe
+                        }) {
+                            Text(timeframe.rawValue)
+                                .font(.caption2)
+                                .fontWeight(.medium)
+                                .foregroundColor(selection == timeframe ? .white : .white.opacity(0.7))
+                                .frame(maxWidth: .infinity)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                    }
                 }
+                .padding(2)
             }
         }
-        .padding(4)
-        .background(Color.black.opacity(0.3))
-        .cornerRadius(12)
+        .frame(height: 32)
     }
 }
