@@ -141,6 +141,7 @@ struct Scoreboardview: View {
     @State private var players: [TestPlayer] = []
     @State private var isLoading = true
     @State private var showEditBoard = false
+    @State private var showGameSettings = false
     @State private var playerNames: [String: String] = [:]
     @State private var scores: [String: [Int]] = [:]
     @State private var gameUpdateCounter = 0 // Track game updates
@@ -210,6 +211,9 @@ struct Scoreboardview: View {
     
     // Trigger scroll to specific round
     @State private var scrollToRound: Int? = nil
+    
+    // Custom rules for score display
+    @State private var customRules: [CustomRule] = []
 
     let onGameUpdated: ((Game) -> Void)?
     let onGameDeleted: (() -> Void)?
@@ -626,11 +630,14 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                 }
             }
         }
+        // EditBoardView sheet - DISABLED: Users now use gear icon for editing
+        /*
         .sheet(isPresented: $showEditBoard) {
             EditBoardView(game: game) { updatedGame in
                 handleGameUpdate(updatedGame)
             }
         }
+        */
         // Remove modal sheet keyboard; use inline system number pad instead
         .alert("Save Failed", isPresented: $showSaveError) {
             Button("OK") { }
@@ -760,7 +767,7 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
             .id("\(game.id)-\(gameStatusRefreshTrigger)") // Force view refresh when game status changes
             // Hidden inline input to trigger the standard iOS number pad
             TextField("", text: $scoreInputText)
-                .keyboardType(.numberPad)
+                .keyboardType(.decimalPad)
                 .focused($isScoreFieldFocused)
                 .opacity(0)
                 .frame(width: 0, height: 0)
@@ -811,11 +818,11 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
             }
             .onChange(of: isScoreFieldFocused) { _, isFocused in
                 // Auto-save when input loses focus
-                if !isFocused && editingPlayer != nil && !scoreInputText.isEmpty {
-                    let currentScore = Int(scoreInputText) ?? 0
-                    updateScore(playerID: editingPlayer!.playerID, round: editingRound, newScore: currentScore)
-                    awaitSaveChangesSilently()
-                }
+                                        if !isFocused && editingPlayer != nil && !scoreInputText.isEmpty {
+                            let currentScore = parseScoreInput(scoreInputText) ?? 0
+                            updateScore(playerID: editingPlayer!.playerID, round: editingRound, newScore: currentScore)
+                            awaitSaveChangesSilently()
+                        }
             }
             
             // Celebration overlay
@@ -831,11 +838,25 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                 )
             }
         }
+        // EditBoardView sheet - DISABLED: Users now use gear icon for editing
+        /*
         .sheet(isPresented: $showEditBoard) {
             EditBoardView(game: game) { updatedGame in
                 handleGameUpdate(updatedGame)
             }
         }
+        */
+        .sheet(isPresented: $showGameSettings) {
+            CreateGameView(
+                showCreateGame: $showGameSettings,
+                mode: .edit(game), // This will use the updated game object after handleGameUpdate
+                onGameCreated: { _ in }, // Not used in edit mode
+                onGameUpdated: { updatedGame in
+                    handleGameUpdate(updatedGame)
+                }
+            )
+        }
+        .id("game-settings-sheet-\(game.id)-\(gameUpdateCounter)") // Force recreation when game updates
         .alert("Save Failed", isPresented: $showSaveError) {
             Button("OK") { }
         } message: {
@@ -946,6 +967,48 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                 Spacer()
             }
             
+            // Custom Rules Hint (only show if there are custom rules)
+            if !customRules.isEmpty {
+                VStack(spacing: 4) {
+                    Text("Custom Rules:")
+                        .font(.caption)
+                        .foregroundColor(.white.opacity(0.8))
+                        .fontWeight(.medium)
+                    
+                    HStack(spacing: 8) {
+                        ForEach(customRules, id: \.id) { rule in
+                            HStack(spacing: 4) {
+                                Text(rule.letter)
+                                    .font(.caption)
+                                    .fontWeight(.bold)
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(Color.blue.opacity(0.3))
+                                    .cornerRadius(4)
+                                
+                                Text("=")
+                                    .font(.caption)
+                                    .foregroundColor(.white.opacity(0.7))
+                                
+                                Text("\(rule.value)")
+                                    .font(.caption)
+                                    .fontWeight(.medium)
+                                    .foregroundColor(.white)
+                            }
+                        }
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(Color.black.opacity(0.2))
+                .cornerRadius(8)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                )
+            }
+            
             // Edit Board and Complete Game buttons
             HStack(spacing: 16) {
                 Spacer()
@@ -1016,7 +1079,8 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                 }
                 .disabled(isRefreshing)
                 
-                // Edit Board button
+                // Edit Board button - DISABLED: Users now use gear icon for editing
+                /*
                 Button(action: {
                     showEditBoard = true
                 }) {
@@ -1025,6 +1089,18 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                         .foregroundColor(canUserEditGame() ? .blue : .gray)
                 }
                 .disabled(!canUserEditGame())
+                */
+                
+                // Game Settings button (gear icon)
+                if canUserEditGame() && game.gameStatus == .active {
+                    Button(action: {
+                        showGameSettings = true
+                    }) {
+                        Image(systemName: "gearshape.circle.fill")
+                            .font(.system(size: 24, weight: .medium))
+                            .foregroundColor(.orange)
+                    }
+                }
             }
         }
         .padding(.horizontal)
@@ -1388,7 +1464,7 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                             // Auto-save current input if we're switching from another cell
                             if let currentEditingPlayer = editingPlayer, 
                                (currentEditingPlayer.playerID != player.playerID || editingRound != roundIndex + 1) {
-                                let currentScore = Int(scoreInputText) ?? 0
+                                let currentScore = parseScoreInput(scoreInputText) ?? 0
                                 updateScore(playerID: currentEditingPlayer.playerID, round: editingRound, newScore: currentScore)
                                 awaitSaveChangesSilently()
                             }
@@ -1396,13 +1472,13 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                             editingPlayer = player
                             editingRound = roundIndex + 1
                             // Don't show -1 in the input field, show empty instead
-                            scoreInputText = score == -1 ? "" : String(score)
+                            scoreInputText = score == -1 ? "" : getDisplayText(for: score) ?? String(score)
                             isScoreFieldFocused = true
                         }
                     },
                     currentScore: score,
                     backgroundColor: columnColor(colIndex),
-                    displayText: isEditingThisCell ? scoreInputText : nil,
+                    displayText: isEditingThisCell ? scoreInputText : getDisplayText(for: score),
                     isFocused: isEditingThisCell,
                     hasScoreBeenEntered: hasScoreBeenEntered(for: player.playerID, round: roundIndex + 1)
                 )
@@ -1466,6 +1542,38 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
         }
     }
     
+    // Convert score to display text using custom rules
+    func getDisplayText(for score: Int) -> String? {
+        if score == -1 {
+            return nil // Empty cell
+        }
+        
+        // Check if there's a custom rule for this score
+        if let customRule = customRules.first(where: { $0.value == score }) {
+            return customRule.letter
+        }
+        
+        // Otherwise return the score as string
+        return String(score)
+    }
+    
+    // Parse input text to score value (handles custom letters and numbers)
+    func parseScoreInput(_ input: String) -> Int? {
+        let trimmedInput = input.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        
+        if trimmedInput.isEmpty {
+            return nil
+        }
+        
+        // First check if it's a custom rule letter
+        if let customRule = customRules.first(where: { $0.letter == trimmedInput }) {
+            return customRule.value
+        }
+        
+        // Otherwise try to parse as regular number
+        return Int(trimmedInput)
+    }
+    
     // Check if a score has been explicitly entered for a player and round
     func hasScoreBeenEntered(for playerID: String, round: Int) -> Bool {
         let scoreKey = "\(playerID)-\(round)"
@@ -1499,6 +1607,11 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
         for (playerID, scores) in unsavedScores {
             print("🔍 DEBUG: Unsaved scores for \(playerID): \(scores)")
         }
+        
+        // Load custom rules from game
+        customRules = CustomRulesManager.shared.jsonToRules(game.customRules)
+        print("🔍 DEBUG: Loaded \(customRules.count) custom rules from game")
+        
         isLoading = true
         
         Task {

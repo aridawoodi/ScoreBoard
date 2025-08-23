@@ -62,7 +62,8 @@ class UserService: ObservableObject {
                 }
                 
                 // Create new guest user profile in database
-                let guestUsername = "Guest_" + String(guestUserId.prefix(8))
+                let idPrefix = String(guestUserId.dropFirst(6).prefix(3)) // Take first 3 characters after "guest_"
+                let guestUsername = "Yourself\(idPrefix)"
                 let guestEmail = "guest@scoreboard.app"
                 
                 print("🔍 DEBUG: Creating guest user profile in database")
@@ -129,7 +130,7 @@ class UserService: ObservableObject {
                     // Create local fallback if database creation fails
                     let localUser = User(
                         id: guestUserId,
-                        username: guestUsername,
+                        username: guestUsername, // Use the same username with ID suffix
                         email: guestEmail,
                         createdAt: Temporal.DateTime.now(),
                         updatedAt: Temporal.DateTime.now()

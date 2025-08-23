@@ -8,12 +8,18 @@
 import SwiftUI
 import Amplify
 
+enum GameViewMode {
+    case create
+    case edit(Game)
+}
+
 struct CreateGameView: View {
     @Binding var showCreateGame: Bool
+    let mode: GameViewMode
     let onGameCreated: (Game) -> Void
+    let onGameUpdated: ((Game) -> Void)?
     
     @State private var gameName = ""
-    @State private var customRules = ""
     @State private var rounds = 3
     @State private var hostJoinAsPlayer = false
     @State private var hostPlayerName = ""
@@ -29,6 +35,28 @@ struct CreateGameView: View {
     @State private var currentUser: AuthUser?
     @State private var currentUserProfile: User?
     
+    // Computed properties for mode-based behavior
+    private var isEditMode: Bool {
+        switch mode {
+        case .create: return false
+        case .edit: return true
+        }
+    }
+    
+    private var actionButtonText: String {
+        switch mode {
+        case .create: return "Create"
+        case .edit: return "Update"
+        }
+    }
+    
+    private var navigationTitle: String {
+        switch mode {
+        case .create: return ""
+        case .edit: return ""
+        }
+    }
+    
     // Basic Settings
 
     @State private var useLastGameSettings = false
@@ -38,6 +66,12 @@ struct CreateGameView: View {
     @State private var winCondition: WinCondition = .highestScore
     @State private var maxScore: Int = 100
     @State private var maxRounds: Int = 10
+    
+    // Custom Rules
+    @State private var customRules: [CustomRule] = []
+    @State private var newRuleLetter: String = ""
+    @State private var newRuleValue: Int = 0
+    @State private var showCustomRulesSection = false
     
     private var isIPad: Bool {
         UIDevice.current.userInterfaceIdiom == .pad
@@ -78,6 +112,9 @@ struct CreateGameView: View {
                     winCondition: $winCondition,
                     maxScore: $maxScore,
                     maxRounds: $maxRounds,
+                    showCustomRulesSection: $showCustomRulesSection,
+                    newRuleLetter: $newRuleLetter,
+                    newRuleValue: $newRuleValue,
                     isIPad: isIPad,
                     titleFont: titleFont,
                     bodyFont: bodyFont,
@@ -86,9 +123,11 @@ struct CreateGameView: View {
                     searchUsers: searchUsers,
                     addRegisteredPlayer: addRegisteredPlayer,
                     removePlayer: removePlayer,
-                    loadLastGameSettings: loadLastGameSettings
+                    loadLastGameSettings: loadLastGameSettings,
+                    addCustomRule: addCustomRule
                 )
             }
+            .navigationTitle(navigationTitle)
             .gradientBackground()
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -100,7 +139,7 @@ struct CreateGameView: View {
                 }
                 
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Create") {
+                    Button(actionButtonText) {
                         print("🔍 DEBUG: Create button tapped")
                         print("🔍 DEBUG: Players count: \(players.count)")
                         print("🔍 DEBUG: Is loading: \(isLoading)")
@@ -110,7 +149,11 @@ struct CreateGameView: View {
                         if totalPlayers < 2 {
                             showNoPlayersAlert = true
                         } else if !isLoading {
-                            createGame()
+                            if isEditMode {
+                                updateGame()
+                            } else {
+                                createGame()
+                            }
                         }
                     }
                     .foregroundColor(.white)
@@ -130,14 +173,25 @@ struct CreateGameView: View {
             }
 
             .onAppear {
-                loadCurrentUser()
+                print("🔍 DEBUG: CreateGameView onAppear - Mode: \(isEditMode ? "edit" : "create")")
+                print("🔍 DEBUG: CreateGameView onAppear - currentUserProfile: \(currentUserProfile?.username ?? "nil")")
+                print("🔍 DEBUG: CreateGameView onAppear - currentUser: \(currentUser?.userId ?? "nil")")
+                
+                // Delay all asynchronous operations to allow sheet presentation animation to complete
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    print("🔍 DEBUG: CreateGameView delayed operations starting...")
+                    loadCurrentUser()
+                    if isEditMode {
+                        loadGameDataForEdit()
+                    }
+                }
             }
         }
     }
     
     private func clearForm() {
         gameName = ""
-        customRules = ""
+        customRules = []
         rounds = 3
         hostJoinAsPlayer = false
         hostPlayerName = ""
@@ -174,10 +228,12 @@ struct CreateGameView: View {
     }
     
     private func loadCurrentUser() {
+        print("🔍 DEBUG: loadCurrentUser() called")
         Task {
             do {
                 // Check if we're in guest mode
                 let isGuestUser = UserDefaults.standard.bool(forKey: "is_guest_user")
+                print("🔍 DEBUG: loadCurrentUser() - isGuestUser: \(isGuestUser)")
                 
                 if isGuestUser {
                     // Handle guest user
@@ -192,11 +248,13 @@ struct CreateGameView: View {
                     )
                     
                     await MainActor.run {
+                        print("🔍 DEBUG: Setting currentUser to guest user")
                         self.currentUser = guestUser
                     }
                     
                     // Try to fetch guest user profile
                     do {
+                        print("🔍 DEBUG: Fetching guest user profile from API...")
                         let result = try await Amplify.API.query(request: .get(User.self, byId: guestUserId))
                         switch result {
                         case .success(let profile):
@@ -205,9 +263,10 @@ struct CreateGameView: View {
                                 self.currentUserProfile = profile
                                 print("🔍 DEBUG: Updated currentUserProfile to: \(profile?.username ?? "unknown")")
                             }
-                        case .failure(let error):
+                                                  case .failure(let error):
                             print("🔍 DEBUG: Failed to fetch guest user profile: \(error)")
                             await MainActor.run {
+                                print("🔍 DEBUG: Setting currentUserProfile to nil due to failure")
                                 self.currentUser = guestUser
                                 self.currentUserProfile = nil
                             }
@@ -215,19 +274,23 @@ struct CreateGameView: View {
                     } catch {
                         print("🔍 DEBUG: Error querying guest user profile: \(error)")
                         await MainActor.run {
+                            print("🔍 DEBUG: Setting currentUserProfile to nil due to error")
                             self.currentUser = guestUser
                             self.currentUserProfile = nil
                         }
                     }
                 } else {
                     // Handle regular authenticated user
+                    print("🔍 DEBUG: Handling regular authenticated user")
                     let user = try await Amplify.Auth.getCurrentUser()
                     await MainActor.run {
+                        print("🔍 DEBUG: Setting currentUser to authenticated user")
                         self.currentUser = user
                     }
                     
                     // Try to fetch user profile
                     do {
+                        print("🔍 DEBUG: Fetching authenticated user profile from API...")
                         let result = try await Amplify.API.query(request: .get(User.self, byId: user.userId))
                         switch result {
                         case .success(let profile):
@@ -251,9 +314,9 @@ struct CreateGameView: View {
                         }
                     }
                 }
-            } catch {
-                print("Error loading current user: \(error)")
-            }
+                          } catch {
+                print("🔍 DEBUG: Error loading current user: \(error)")
+              }
         }
     }
     
@@ -311,12 +374,15 @@ struct CreateGameView: View {
                 print("🔍 DEBUG: maxScore: \(maxScore)")
                 print("🔍 DEBUG: maxRounds: \(maxRounds)")
                 
+                // Convert custom rules array to JSON string for storage
+                let customRulesJSON = CustomRulesManager.shared.rulesToJSON(customRules)
+                
                 let game = Game(
                     gameName: gameName.isEmpty ? nil : gameName,
                     hostUserID: currentUserId,
                     playerIDs: playerIDs,
                     rounds: 1, // Start with 1 round for dynamic rounds
-                    customRules: customRules.isEmpty ? nil : customRules,
+                    customRules: customRulesJSON,
                     finalScores: [],
                     gameStatus: .active,
                     winCondition: winCondition,
@@ -358,6 +424,124 @@ struct CreateGameView: View {
         }
     }
     
+    func updateGame() {
+        print("🔍 DEBUG: updateGame() called")
+        let totalPlayers = getTotalPlayerCount()
+        guard totalPlayers >= 2 else {
+            print("🔍 DEBUG: Not enough players found, showing alert")
+            alertMessage = "Please add at least two players to the game."
+            showAlert = true
+            return
+        }
+        print("🔍 DEBUG: Setting isLoading to true")
+        isLoading = true
+        Task {
+            do {
+                print("🔍 DEBUG: Starting game update...")
+                
+                // Get the game to update
+                guard case .edit(let gameToUpdate) = mode else {
+                    print("🔍 DEBUG: Error: Not in edit mode")
+                    await MainActor.run {
+                        isLoading = false
+                        alertMessage = "Error: Invalid edit mode"
+                        showAlert = true
+                    }
+                    return
+                }
+                
+                // Check if we're in guest mode
+                let isGuestUser = UserDefaults.standard.bool(forKey: "is_guest_user")
+                let currentUserId: String
+                
+                if isGuestUser {
+                    currentUserId = UserDefaults.standard.string(forKey: "current_guest_user_id") ?? ""
+                    print("🔍 DEBUG: Guest user ID: \(currentUserId)")
+                } else {
+                    let user = try await Amplify.Auth.getCurrentUser()
+                    currentUserId = user.userId
+                    print("🔍 DEBUG: Current user ID: \(currentUserId)")
+                }
+                
+                var playerIDs = players.map { $0.userId ?? $0.name }
+                print("🔍 DEBUG: Player IDs: \(playerIDs)")
+                
+                // Add host as player if option is enabled
+                if hostJoinAsPlayer {
+                    if let currentUser = currentUser {
+                        playerIDs.append(currentUser.userId)
+                        print("🔍 DEBUG: Added host as registered user with ID: \(currentUser.userId)")
+                    } else {
+                        let hostName = hostPlayerName.trimmingCharacters(in: .whitespacesAndNewlines)
+                        if !hostName.isEmpty {
+                            playerIDs.append(hostName)
+                            print("🔍 DEBUG: Added host as anonymous user: \(hostName)")
+                        }
+                    }
+                }
+                
+                print("🔍 DEBUG: About to update Game object")
+                print("🔍 DEBUG: winCondition: \(winCondition)")
+                print("🔍 DEBUG: maxScore: \(maxScore)")
+                print("🔍 DEBUG: maxRounds: \(maxRounds)")
+                
+                // Convert custom rules array to JSON string for storage
+                let customRulesJSON = CustomRulesManager.shared.rulesToJSON(customRules)
+                
+                // Create updated game object
+                let updatedGame = Game(
+                    id: gameToUpdate.id,
+                    gameName: gameName.isEmpty ? nil : gameName,
+                    hostUserID: currentUserId,
+                    playerIDs: playerIDs,
+                    rounds: gameToUpdate.rounds, // Keep existing rounds
+                    customRules: customRulesJSON, // Update with new custom rules
+                    finalScores: gameToUpdate.finalScores, // Keep existing scores
+                    gameStatus: gameToUpdate.gameStatus, // Keep existing status
+                    winCondition: winCondition,
+                    maxScore: maxScore,
+                    maxRounds: maxRounds,
+                    createdAt: gameToUpdate.createdAt, // Keep original creation date
+                    updatedAt: Temporal.DateTime.now()
+                )
+                
+                print("🔍 DEBUG: Game object updated successfully")
+                print("🔍 DEBUG: Updating game with data: hostUserID=\(updatedGame.hostUserID), playerIDs=\(updatedGame.playerIDs)")
+                
+                let result = try await Amplify.API.mutate(request: .update(updatedGame))
+                await MainActor.run {
+                    isLoading = false
+                    switch result {
+                    case .success(let updatedGame):
+                        print("🔍 DEBUG: Game updated successfully with ID: \(updatedGame.id)")
+                        
+                        // Save current settings for next time
+                        saveCurrentGameSettings()
+                        
+                        print("🔍 DEBUG: Calling onGameUpdated callback")
+                        onGameUpdated?(updatedGame)
+                        print("🔍 DEBUG: onGameUpdated callback completed")
+                        
+                        // Close the sheet
+                        showCreateGame = false
+                        
+                    case .failure(let error):
+                        print("🔍 DEBUG: Game update failed with error: \(error)")
+                        alertMessage = "Failed to update game: \(error.localizedDescription)"
+                        showAlert = true
+                    }
+                }
+            } catch {
+                print("🔍 DEBUG: Error in game update: \(error)")
+                await MainActor.run {
+                    isLoading = false
+                    alertMessage = "Error: \(error.localizedDescription)"
+                    showAlert = true
+                }
+            }
+        }
+    }
+    
     private func addPlayer() {
         PlayerManagementFunctions.addPlayer(newPlayerName: $newPlayerName, players: $players)
     }
@@ -390,7 +574,11 @@ struct CreateGameView: View {
         winCondition = lastSettings.winCondition
         maxScore = lastSettings.maxScore
         maxRounds = lastSettings.maxRounds
-        customRules = lastSettings.customRules
+        
+        // Load custom rules from JSON
+        customRules = CustomRulesManager.shared.jsonToRules(lastSettings.customRules)
+        print("🔍 DEBUG: Loaded \(customRules.count) custom rules from last settings")
+        
         hostJoinAsPlayer = lastSettings.hostJoinAsPlayer
         hostPlayerName = lastSettings.hostPlayerName
         
@@ -402,14 +590,159 @@ struct CreateGameView: View {
         print("🔍 DEBUG: Loaded \(players.count) players from last settings")
     }
     
+    private func loadGameDataForEdit() {
+        print("🔍 DEBUG: loadGameDataForEdit() called")
+        guard case .edit(let game) = mode else { 
+            print("🔍 DEBUG: Not in edit mode, returning")
+            return 
+        }
+        
+        print("🔍 DEBUG: Loading game data for edit mode")
+        print("🔍 DEBUG: Game ID: \(game.id)")
+        
+        // Load basic game data from the game object (which should be updated after successful updates)
+        print("🔍 DEBUG: Loading basic game data...")
+        gameName = game.gameName ?? ""
+        rounds = game.rounds
+        winCondition = game.winCondition ?? .highestScore
+        maxScore = game.maxScore ?? 100
+        maxRounds = game.maxRounds ?? 10
+        
+        // Load custom rules from JSON
+        customRules = CustomRulesManager.shared.jsonToRules(game.customRules)
+        print("🔍 DEBUG: Loaded \(customRules.count) custom rules from game")
+        
+        print("🔍 DEBUG: Game data loaded - winCondition: \(game.winCondition?.rawValue ?? "nil"), maxScore: \(game.maxScore ?? -1), maxRounds: \(game.maxRounds ?? -1)")
+        
+        // Load players from game.playerIDs with username lookup
+        print("🔍 DEBUG: Starting player loading task...")
+        Task {
+            await loadPlayersWithUsernames(from: game.playerIDs)
+        }
+        
+        // Determine if host is joining as player
+        print("🔍 DEBUG: Determining host join status...")
+        // This is a bit tricky since we need to check if the current user is in the playerIDs
+        if let currentUser = currentUser {
+            hostJoinAsPlayer = game.playerIDs.contains(currentUser.userId)
+            print("🔍 DEBUG: Current user found, hostJoinAsPlayer: \(hostJoinAsPlayer)")
+        } else {
+            // For guest users, we'll assume they're joining if they have a display name
+            hostJoinAsPlayer = !hostPlayerName.isEmpty
+            print("🔍 DEBUG: No current user, using hostPlayerName check: \(hostJoinAsPlayer)")
+        }
+        
+        print("🔍 DEBUG: Host joining as player: \(hostJoinAsPlayer)")
+        print("🔍 DEBUG: loadGameDataForEdit() completed")
+    }
+    
+    private func loadPlayersWithUsernames(from playerIDs: [String]) async {
+        print("🔍 DEBUG: loadPlayersWithUsernames() called with \(playerIDs.count) player IDs")
+        print("🔍 DEBUG: Player IDs: \(playerIDs)")
+        
+        var loadedPlayers: [Player] = []
+        
+        for (index, playerID) in playerIDs.enumerated() {
+            print("🔍 DEBUG: Processing player \(index + 1)/\(playerIDs.count): \(playerID)")
+            
+            // Check if this is a registered user ID or just a name
+            if playerID.hasPrefix("guest_") || playerID.contains("@") {
+                print("🔍 DEBUG: \(playerID) appears to be a registered user ID")
+                // This is likely a registered user ID, try to fetch the username
+                do {
+                    print("🔍 DEBUG: Fetching user profile for \(playerID)...")
+                    let result = try await Amplify.API.query(request: .get(User.self, byId: playerID))
+                    switch result {
+                    case .success(let user):
+                        if let user = user {
+                            let username = user.username ?? playerID
+                            let email = user.email
+                            print("🔍 DEBUG: Found username '\(username)' for user ID '\(playerID)'")
+                            loadedPlayers.append(Player(name: username, isRegistered: true, userId: playerID, email: email))
+                        } else {
+                            print("🔍 DEBUG: User object is nil for user ID '\(playerID)'")
+                            loadedPlayers.append(Player(name: playerID, isRegistered: true, userId: playerID, email: nil))
+                        }
+                    case .failure(let error):
+                        print("🔍 DEBUG: Failed to fetch username for user ID '\(playerID)': \(error)")
+                        // Fallback to using the ID as name
+                        loadedPlayers.append(Player(name: playerID, isRegistered: true, userId: playerID, email: nil))
+                    }
+                } catch {
+                    print("🔍 DEBUG: Error fetching username for user ID '\(playerID)': \(error)")
+                    // Fallback to using the ID as name
+                    loadedPlayers.append(Player(name: playerID, isRegistered: true, userId: playerID, email: nil))
+                }
+            } else {
+                print("🔍 DEBUG: \(playerID) appears to be a display name (not registered user)")
+                // This is likely a display name (not a registered user)
+                print("🔍 DEBUG: Using display name '\(playerID)' (not registered user)")
+                loadedPlayers.append(Player(name: playerID, isRegistered: false, userId: nil, email: nil))
+            }
+        }
+        
+        print("🔍 DEBUG: About to update players array on MainActor")
+        await MainActor.run {
+            print("🔍 DEBUG: Updating players array with \(loadedPlayers.count) players")
+            self.players = loadedPlayers
+            print("🔍 DEBUG: Players array updated successfully")
+            print("🔍 DEBUG: Loaded \(loadedPlayers.count) players for edit mode")
+        }
+        print("🔍 DEBUG: loadPlayersWithUsernames() completed")
+    }
+    
+    private func addCustomRule() {
+        let letter = newRuleLetter.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // Validate input
+        guard !letter.isEmpty && letter.count == 1 else {
+            alertMessage = "Please enter a single letter"
+            showAlert = true
+            return
+        }
+        
+        guard letter.range(of: "^[A-Z]$", options: .regularExpression, range: nil, locale: nil) != nil else {
+            alertMessage = "Please enter a single uppercase letter (A-Z)"
+            showAlert = true
+            return
+        }
+        
+        // Check for duplicate letter
+        if customRules.contains(where: { $0.letter == letter }) {
+            alertMessage = "Letter '\(letter)' is already used in a custom rule"
+            showAlert = true
+            return
+        }
+        
+        // Check for duplicate value
+        if customRules.contains(where: { $0.value == newRuleValue }) {
+            alertMessage = "Value '\(newRuleValue)' is already used in a custom rule"
+            showAlert = true
+            return
+        }
+        
+        // Add the rule
+        let newRule = CustomRule(letter: letter, value: newRuleValue)
+        customRules.append(newRule)
+        
+        // Clear input fields
+        newRuleLetter = ""
+        newRuleValue = 0
+        
+        print("🔍 DEBUG: Added custom rule: \(letter) = \(newRuleValue)")
+    }
+    
     private func saveCurrentGameSettings() {
+        // Convert custom rules array to JSON string
+        let customRulesJSON = CustomRulesManager.shared.rulesToJSON(customRules) ?? ""
+        
         let settings = GameSettings(
             gameName: gameName,
             rounds: rounds,
             winCondition: winCondition,
             maxScore: maxScore,
             maxRounds: maxRounds,
-            customRules: customRules,
+            customRules: customRulesJSON,
             playerNames: players.map { $0.name },
             hostJoinAsPlayer: hostJoinAsPlayer,
             hostPlayerName: hostPlayerName
@@ -422,7 +755,7 @@ struct CreateGameView: View {
 // MARK: - CreateGameContentView
 struct CreateGameContentView: View {
     @Binding var gameName: String
-    @Binding var customRules: String
+    @Binding var customRules: [CustomRule]
     @Binding var rounds: Int
     @Binding var hostJoinAsPlayer: Bool
     @Binding var hostPlayerName: String
@@ -439,6 +772,9 @@ struct CreateGameContentView: View {
     @Binding var winCondition: WinCondition
     @Binding var maxScore: Int
     @Binding var maxRounds: Int
+    @Binding var showCustomRulesSection: Bool
+    @Binding var newRuleLetter: String
+    @Binding var newRuleValue: Int
     
     let isIPad: Bool
     let titleFont: Font
@@ -449,154 +785,427 @@ struct CreateGameContentView: View {
     let addRegisteredPlayer: (User) -> Void
     let removePlayer: (Player) -> Void
     let loadLastGameSettings: () -> Void
+    let addCustomRule: () -> Void
+    
+    private func getHostDisplayName(for user: AuthUser) -> String {
+        // Use username if available, otherwise show loading or fallback
+        guard let profile = currentUserProfile else {
+            return "Loading..." // Show loading while profile is being fetched
+        }
+        
+        // username is non-optional String, so we can use it directly
+        return profile.username
+    }
     
     var body: some View {
-        VStack(spacing: sectionSpacing) {
-            // Quick Start with Last Game Settings
-            let hasLastSettings = GameSettingsStorage.shared.hasLastGameSettings()
-            if hasLastSettings {
-                VStack(alignment: .leading, spacing: isIPad ? 16 : 12) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Quick Start")
-                            .font(bodyFont)
-                            .fontWeight(.medium)
-                            .foregroundColor(.white)
-                        
-                        Button(action: {
-                            loadLastGameSettings()
-                        }) {
-                            HStack {
-                                Image(systemName: "clock.arrow.circlepath")
-                                    .foregroundColor(.white)
-                                Text("Use Last Game Settings")
-                                    .foregroundColor(.white)
-                                    .fontWeight(.medium)
-                                Spacer()
-                            }
-                            .padding()
-                            .background(Color("LightGreen"))
-                            .cornerRadius(8)
-                            .shadow(color: Color.black.opacity(0.3), radius: 4, x: 0, y: 2)
-                        }
-                        .buttonStyle(PlainButtonStyle())
+        let quickStartPadding: CGFloat = isIPad ? 24 : 16
+        let quickStartSpacing: CGFloat = isIPad ? 16 : 12
+        let quickStartCornerRadius: CGFloat = isIPad ? 16 : 10
+        let gameSettingsPadding: CGFloat = isIPad ? 24 : 16
+        let gameSettingsSpacing: CGFloat = isIPad ? 16 : 12
+        let gameSettingsCornerRadius: CGFloat = isIPad ? 16 : 10
+        let hostJoinPadding: CGFloat = isIPad ? 24 : 16
+        let hostJoinSpacing: CGFloat = isIPad ? 16 : 12
+        let hostJoinCornerRadius: CGFloat = isIPad ? 16 : 10
+        let advancedSettingsPadding: CGFloat = isIPad ? 24 : 16
+        let advancedSettingsSpacing: CGFloat = isIPad ? 16 : 12
+        let advancedSettingsCornerRadius: CGFloat = isIPad ? 16 : 10
+        let advancedSettingsInnerSpacing: CGFloat = isIPad ? 16 : 12
+        let hostJoinInnerSpacing: CGFloat = isIPad ? 12 : 8
+        
+        let quickStartButton = Button(action: {
+            loadLastGameSettings()
+        }) {
+            HStack {
+                Image(systemName: "clock.arrow.circlepath")
+                    .foregroundColor(.white)
+                Text("Use Last Game Settings")
+                    .foregroundColor(.white)
+                    .fontWeight(.medium)
+                Spacer()
+            }
+            .padding()
+            .background(Color("LightGreen"))
+            .cornerRadius(8)
+            .shadow(color: Color.black.opacity(0.3), radius: 4, x: 0, y: 2)
+        }
+        .buttonStyle(PlainButtonStyle())
+        
+        let quickStartContent = VStack(alignment: .leading, spacing: 8) {
+            Text("Quick Start")
+                .font(bodyFont)
+                .fontWeight(.medium)
+                .foregroundColor(.white)
+            
+            quickStartButton
+        }
+        
+        let quickStartSection = VStack(alignment: .leading, spacing: quickStartSpacing) {
+            quickStartContent
+        }
+        .padding(quickStartPadding)
+        .background(Color.black.opacity(0.3))
+        .cornerRadius(quickStartCornerRadius)
+        
+        let gameNameTextField = ZStack(alignment: .leading) {
+            if gameName.isEmpty {
+                Text("Enter game name (optional)")
+                    .foregroundColor(.white.opacity(0.5))
+                    .font(bodyFont)
+                    .padding(.leading, 16)
+            }
+            TextField("", text: $gameName)
+                .font(bodyFont)
+                .foregroundColor(.white)
+                .padding()
+                .background(Color.black.opacity(0.5))
+                .cornerRadius(8)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                )
+        }
+        
+        let roundsStepper = HStack {
+            Text("\(rounds)")
+                .foregroundColor(.white)
+                .font(bodyFont)
+            Spacer()
+            Stepper("", value: $rounds, in: 1...50)
+                .labelsHidden()
+                .accentColor(Color("LightGreen"))
+        }
+        .padding()
+        .background(Color.black.opacity(0.5))
+        .cornerRadius(8)
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color.white.opacity(0.3), lineWidth: 1)
+        )
+        
+        let roundsSection = VStack(alignment: .leading, spacing: 8) {
+            Text("Number of Rounds")
+                .font(bodyFont)
+                .fontWeight(.medium)
+                .foregroundColor(.white)
+            
+            roundsStepper
+        }
+        
+        let gameSettingsContent = VStack(alignment: .leading, spacing: gameSettingsSpacing) {
+            gameNameTextField
+            
+            // Commented out for dynamic rounds - rounds will be added during gameplay
+            // Stepper("Number of Rounds: \(rounds)", value: $rounds, in: 1...10)
+            //     .font(bodyFont)
+            
+            Text("Rounds will be added dynamically during gameplay")
+                .font(.caption)
+                .foregroundColor(.white.opacity(0.7))
+            
+            // Number of Rounds
+            roundsSection
+        }
+        .padding(gameSettingsPadding)
+        .background(Color.black.opacity(0.3))
+        .cornerRadius(gameSettingsCornerRadius)
+        
+        let toggleContent = VStack(alignment: .leading, spacing: 4) {
+            Text("Join as Player")
+                .font(bodyFont)
+                .fontWeight(.medium)
+            Text("Add yourself to the scoreboard to play")
+                .font(isIPad ? .body : .caption)
+                .foregroundColor(.white.opacity(0.7))
+        }
+        
+        let hostJoinToggle = Toggle(isOn: $hostJoinAsPlayer) {
+            toggleContent
+        }
+        .toggleStyle(SwitchToggleStyle(tint: Color("LightGreen")))
+        
+        let hostNameTextField = ZStack(alignment: .leading) {
+            if hostPlayerName.isEmpty {
+                Text("Enter your display name")
+                    .foregroundColor(.white.opacity(0.5))
+                    .font(bodyFont)
+                    .padding(.leading, 16)
+            }
+            TextField("", text: $hostPlayerName)
+                .font(bodyFont)
+                .foregroundColor(.white)
+                .padding()
+                .background(Color.black.opacity(0.5))
+                .cornerRadius(8)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                )
+        }
+        
+        let hostJoinContent = VStack(alignment: .leading, spacing: hostJoinInnerSpacing) {
+            if let user = currentUser {
+                RegisteredUserView(
+                    displayName: getHostDisplayName(for: user),
+                    isIPad: isIPad,
+                    currentUserProfile: currentUserProfile,
+                    user: user
+                )
+            } else {
+                hostNameTextField
+            }
+        }
+        
+        let hostJoinSection = VStack(alignment: .leading, spacing: hostJoinSpacing) {
+            hostJoinToggle
+            
+            if hostJoinAsPlayer {
+                hostJoinContent
+            }
+        }
+        .padding(hostJoinPadding)
+        .background(Color.black.opacity(0.3))
+        .cornerRadius(hostJoinCornerRadius)
+        
+        let advancedSettingsButton = Button(action: {
+            withAnimation(.easeInOut(duration: 0.3)) {
+                showAdvancedSettings.toggle()
+            }
+        }) {
+            HStack {
+                Text("Advanced Settings")
+                    .font(bodyFont)
+                    .fontWeight(.medium)
+                    .foregroundColor(.white)
+                Spacer()
+                Image(systemName: showAdvancedSettings ? "chevron.up" : "chevron.down")
+                    .foregroundColor(.white)
+                    .font(.system(size: isIPad ? 16 : 14))
+            }
+        }
+        .buttonStyle(PlainButtonStyle())
+        
+        let customRulesButton = Button(action: {
+            withAnimation(.easeInOut(duration: 0.3)) {
+                showCustomRulesSection.toggle()
+            }
+        }) {
+            HStack {
+                Text("Custom Score Rules (Optional)")
+                    .font(bodyFont)
+                    .fontWeight(.medium)
+                    .foregroundColor(.white)
+                Spacer()
+                Image(systemName: showCustomRulesSection ? "chevron.up" : "chevron.down")
+                    .foregroundColor(.white)
+                    .font(.system(size: isIPad ? 16 : 14))
+            }
+        }
+        .buttonStyle(PlainButtonStyle())
+        
+        let customRulesDescription = Text("Define custom letters that represent specific scores (e.g., X=0, D=100)")
+            .font(.caption)
+            .foregroundColor(.white.opacity(0.7))
+        
+        let customRulesList = VStack(alignment: .leading, spacing: 8) {
+            Text("Current Rules:")
+                .font(.caption)
+                .fontWeight(.medium)
+                .foregroundColor(.white)
+            
+            ForEach(customRules) { rule in
+                HStack {
+                    Text("\(rule.letter) = \(rule.value)")
+                        .font(.caption)
+                        .foregroundColor(.white)
+                    Spacer()
+                    Button(action: {
+                        customRules.removeAll { $0.id == rule.id }
+                    }) {
+                        Image(systemName: "trash")
+                            .foregroundColor(.red)
+                            .font(.caption)
                     }
                 }
-                .padding(isIPad ? 24 : 16)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
                 .background(Color.black.opacity(0.3))
-                .cornerRadius(isIPad ? 16 : 10)
+                .cornerRadius(4)
+            }
+        }
+        
+        let addNewRuleSection = VStack(alignment: .leading, spacing: 8) {
+            Text("Add New Rule:")
+                .font(.caption)
+                .fontWeight(.medium)
+                .foregroundColor(.white)
+            
+            HStack(spacing: 8) {
+                TextField("Letter", text: $newRuleLetter)
+                    .font(.caption)
+                    .foregroundColor(.white)
+                    .padding(8)
+                    .background(Color.black.opacity(0.5))
+                    .cornerRadius(4)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 4)
+                            .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                    )
+                    .frame(width: 60)
+                    .textInputAutocapitalization(.characters)
+                    .onChange(of: newRuleLetter) { _, newValue in
+                        newRuleLetter = newValue.uppercased()
+                    }
+                
+                Text("=")
+                    .font(.caption)
+                    .foregroundColor(.white)
+                
+                TextField("Value", value: $newRuleValue, format: .number)
+                    .font(.caption)
+                    .foregroundColor(.white)
+                    .padding(8)
+                    .background(Color.black.opacity(0.5))
+                    .cornerRadius(4)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 4)
+                            .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                    )
+                    .frame(width: 80)
+                    .keyboardType(.numberPad)
+                
+                Button(action: addCustomRule) {
+                    Image(systemName: "plus.circle.fill")
+                        .foregroundColor(Color("LightGreen"))
+                        .font(.system(size: 20))
+                }
+                .disabled(newRuleLetter.isEmpty || newRuleLetter.count != 1)
+            }
+        }
+        
+        let customRulesContent = VStack(alignment: .leading, spacing: 12) {
+            customRulesDescription
+            
+            // Existing rules list
+            if !customRules.isEmpty {
+                customRulesList
+            }
+            
+            // Add new rule
+            addNewRuleSection
+        }
+        .padding()
+        .background(Color.black.opacity(0.2))
+        .cornerRadius(8)
+        
+        let customRulesSection = VStack(alignment: .leading, spacing: 8) {
+            customRulesButton
+            
+            if showCustomRulesSection {
+                customRulesContent
+            }
+        }
+        
+        let winConditionSection = VStack(alignment: .leading, spacing: 8) {
+            Text("Win Condition")
+                .font(bodyFont)
+                .fontWeight(.medium)
+                .foregroundColor(.white)
+            
+            Picker("Win Condition", selection: $winCondition) {
+                Text("Highest Score Wins").tag(WinCondition.highestScore)
+                Text("Lowest Score Wins").tag(WinCondition.lowestScore)
+            }
+            .pickerStyle(SegmentedPickerStyle())
+            .accentColor(Color("LightGreen"))
+        }
+        
+        let maxScoreSection = VStack(alignment: .leading, spacing: 8) {
+            Text("Max Score (Optional)")
+                .font(bodyFont)
+                .fontWeight(.medium)
+                .foregroundColor(.white)
+            
+            HStack {
+                Text("\(maxScore)")
+                    .foregroundColor(.white)
+                    .font(bodyFont)
+                Spacer()
+                Stepper("", value: $maxScore, in: 10...1000, step: 10)
+                    .labelsHidden()
+                    .accentColor(Color("LightGreen"))
+            }
+            .padding()
+            .background(Color.black.opacity(0.5))
+            .cornerRadius(8)
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(Color.white.opacity(0.3), lineWidth: 1)
+            )
+        }
+        
+        let maxRoundsSection = VStack(alignment: .leading, spacing: 8) {
+            Text("Max Rounds (Optional)")
+                .font(bodyFont)
+                .fontWeight(.medium)
+                .foregroundColor(.white)
+            
+            HStack {
+                Text("\(maxRounds)")
+                    .foregroundColor(.white)
+                    .font(bodyFont)
+                Spacer()
+                Stepper("", value: $maxRounds, in: 1...50)
+                    .labelsHidden()
+                    .accentColor(Color("LightGreen"))
+            }
+            .padding()
+            .background(Color.black.opacity(0.5))
+            .cornerRadius(8)
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(Color.white.opacity(0.3), lineWidth: 1)
+            )
+        }
+        
+        let advancedSettingsContent = VStack(alignment: .leading, spacing: advancedSettingsInnerSpacing) {
+            // Custom Score Rules
+            customRulesSection
+            
+            // Win Condition
+            winConditionSection
+            
+            // Max Score
+            maxScoreSection
+            
+            // Max Rounds
+            maxRoundsSection
+        }
+        
+        let advancedSettingsSection = VStack(alignment: .leading, spacing: advancedSettingsSpacing) {
+            advancedSettingsButton
+            
+            if showAdvancedSettings {
+                advancedSettingsContent
+            }
+        }
+        .padding(advancedSettingsPadding)
+        .background(Color.black.opacity(0.3))
+        .cornerRadius(advancedSettingsCornerRadius)
+        
+        return VStack(spacing: sectionSpacing) {
+            // Quick Start with Last Game Settings
+            if GameSettingsStorage.shared.hasLastGameSettings() {
+                quickStartSection
             }
             
             // Game Settings
-            VStack(alignment: .leading, spacing: isIPad ? 16 : 12) {
-                
-                ZStack(alignment: .leading) {
-                    if gameName.isEmpty {
-                        Text("Enter game name (optional)")
-                            .foregroundColor(.white.opacity(0.5))
-                            .font(bodyFont)
-                            .padding(.leading, 16)
-                    }
-                    TextField("", text: $gameName)
-                        .font(bodyFont)
-                        .foregroundColor(.white)
-                        .padding()
-                        .background(Color.black.opacity(0.5))
-                        .cornerRadius(8)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8)
-                                .stroke(Color.white.opacity(0.3), lineWidth: 1)
-                        )
-                }
-                
-                // Commented out for dynamic rounds - rounds will be added during gameplay
-                // Stepper("Number of Rounds: \(rounds)", value: $rounds, in: 1...10)
-                //     .font(bodyFont)
-                
-                Text("Rounds will be added dynamically during gameplay")
-                    .font(.caption)
-                    .foregroundColor(.white.opacity(0.7))
-                
-                // Number of Rounds
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Number of Rounds")
-                        .font(bodyFont)
-                        .fontWeight(.medium)
-                        .foregroundColor(.white)
-                    
-                    HStack {
-                        Text("\(rounds)")
-                            .foregroundColor(.white)
-                            .font(bodyFont)
-                        Spacer()
-                        Stepper("", value: $rounds, in: 1...50)
-                            .labelsHidden()
-                            .accentColor(Color("LightGreen"))
-                    }
-                    .padding()
-                    .background(Color.black.opacity(0.5))
-                    .cornerRadius(8)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(Color.white.opacity(0.3), lineWidth: 1)
-                    )
-                }
-            }
-            .padding(isIPad ? 24 : 16)
-            .background(Color.black.opacity(0.3))
-            .cornerRadius(isIPad ? 16 : 10)
+            gameSettingsContent
             
 
             
             // Host Join Option
-            VStack(alignment: .leading, spacing: isIPad ? 16 : 12) {
-                Toggle(isOn: $hostJoinAsPlayer) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Join as Player")
-                            .font(bodyFont)
-                            .fontWeight(.medium)
-                        Text("Add yourself to the scoreboard to play")
-                            .font(isIPad ? .body : .caption)
-                            .foregroundColor(.white.opacity(0.7))
-                    }
-                }
-                .toggleStyle(SwitchToggleStyle(tint: Color("LightGreen")))
-                
-                if hostJoinAsPlayer {
-                    VStack(alignment: .leading, spacing: isIPad ? 12 : 8) {
-                        if let user = currentUser {
-                            let displayName = currentUserProfile?.username ?? user.userId
-                            RegisteredUserView(
-                                displayName: displayName,
-                                isIPad: isIPad,
-                                currentUserProfile: currentUserProfile,
-                                user: user
-                            )
-                        } else {
-                            ZStack(alignment: .leading) {
-                                if hostPlayerName.isEmpty {
-                                    Text("Enter your display name")
-                                        .foregroundColor(.white.opacity(0.5))
-                                        .font(bodyFont)
-                                        .padding(.leading, 16)
-                                }
-                                TextField("", text: $hostPlayerName)
-                                    .font(bodyFont)
-                                    .foregroundColor(.white)
-                                    .padding()
-                                    .background(Color.black.opacity(0.5))
-                                    .cornerRadius(8)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 8)
-                                            .stroke(Color.white.opacity(0.3), lineWidth: 1)
-                                    )
-                            }
-                        }
-                    }
-                }
-            }
-            .padding(isIPad ? 24 : 16)
-            .background(Color.black.opacity(0.3))
-            .cornerRadius(isIPad ? 16 : 10)
+            hostJoinSection
             
             // Player Management
             PlayerManagementView(
@@ -612,125 +1221,7 @@ struct CreateGameContentView: View {
             )
             
             // Advanced Settings
-            VStack(alignment: .leading, spacing: isIPad ? 16 : 12) {
-                Button(action: {
-                    withAnimation(.easeInOut(duration: 0.3)) {
-                        showAdvancedSettings.toggle()
-                    }
-                }) {
-                    HStack {
-                        Text("Advanced Settings")
-                            .font(bodyFont)
-                            .fontWeight(.medium)
-                            .foregroundColor(.white)
-                        Spacer()
-                        Image(systemName: showAdvancedSettings ? "chevron.up" : "chevron.down")
-                            .foregroundColor(.white)
-                            .font(.system(size: isIPad ? 16 : 14))
-                    }
-                }
-                .buttonStyle(PlainButtonStyle())
-                
-                if showAdvancedSettings {
-                    VStack(alignment: .leading, spacing: isIPad ? 16 : 12) {
-                        // Custom Rules
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Custom Rules (Optional)")
-                                .font(bodyFont)
-                                .fontWeight(.medium)
-                                .foregroundColor(.white)
-                            
-                            ZStack(alignment: .leading) {
-                                if customRules.isEmpty {
-                                    Text("Enter custom rules (optional)")
-                                        .foregroundColor(.white.opacity(0.5))
-                                        .font(bodyFont)
-                                        .padding(.leading, 16)
-                                }
-                                TextField("", text: $customRules)
-                                    .font(bodyFont)
-                                    .foregroundColor(.white)
-                                    .padding()
-                                    .background(Color.black.opacity(0.5))
-                                    .cornerRadius(8)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 8)
-                                            .stroke(Color.white.opacity(0.3), lineWidth: 1)
-                                    )
-                            }
-                        }
-                        
-                        // Win Condition
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Win Condition")
-                                .font(bodyFont)
-                                .fontWeight(.medium)
-                                .foregroundColor(.white)
-                            
-                            Picker("Win Condition", selection: $winCondition) {
-                                Text("Highest Score Wins").tag(WinCondition.highestScore)
-                                Text("Lowest Score Wins").tag(WinCondition.lowestScore)
-                            }
-                            .pickerStyle(SegmentedPickerStyle())
-                            .accentColor(Color("LightGreen"))
-                        }
-                        
-                        // Max Score
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Max Score (Optional)")
-                                .font(bodyFont)
-                                .fontWeight(.medium)
-                                .foregroundColor(.white)
-                            
-                            HStack {
-                                Text("\(maxScore)")
-                                    .foregroundColor(.white)
-                                    .font(bodyFont)
-                                Spacer()
-                                Stepper("", value: $maxScore, in: 10...1000, step: 10)
-                                    .labelsHidden()
-                                    .accentColor(Color("LightGreen"))
-                            }
-                            .padding()
-                            .background(Color.black.opacity(0.5))
-                            .cornerRadius(8)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .stroke(Color.white.opacity(0.3), lineWidth: 1)
-                            )
-                        }
-                        
-                        // Max Rounds
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Max Rounds (Optional)")
-                                .font(bodyFont)
-                                .fontWeight(.medium)
-                                .foregroundColor(.white)
-                            
-                            HStack {
-                                Text("\(maxRounds)")
-                                    .foregroundColor(.white)
-                                    .font(bodyFont)
-                                Spacer()
-                                Stepper("", value: $maxRounds, in: 1...50)
-                                    .labelsHidden()
-                                    .accentColor(Color("LightGreen"))
-                            }
-                            .padding()
-                            .background(Color.black.opacity(0.5))
-                            .cornerRadius(8)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .stroke(Color.white.opacity(0.3), lineWidth: 1)
-                            )
-                        }
-                    }
-                    .transition(.opacity.combined(with: .move(edge: .top)))
-                }
-            }
-            .padding(isIPad ? 24 : 16)
-            .background(Color.black.opacity(0.3))
-            .cornerRadius(isIPad ? 16 : 10)
+            advancedSettingsSection
         }
         .padding()
     }
@@ -756,12 +1247,15 @@ struct RegisteredUserView: View {
                 .font(isIPad ? .body : .caption)
                 .foregroundColor(.white)
                 .onAppear {
-                    print("🔍 DEBUG: Displaying username: \(displayName)")
-                    print("🔍 DEBUG: currentUserProfile: \(currentUserProfile?.username ?? "nil")")
+                    print("🔍 DEBUG: RegisteredUserView onAppear - Displaying username: \(displayName)")
+                    print("🔍 DEBUG: RegisteredUserView onAppear - currentUserProfile: \(currentUserProfile?.username ?? "nil")")
+                    print("🔍 DEBUG: RegisteredUserView onAppear - user ID: \(user.userId)")
                 }
         }
-        .id("profile-display-\(currentUserProfile?.username ?? user.userId)")
         .fixedSize(horizontal: false, vertical: true)
+        .onAppear {
+            print("🔍 DEBUG: RegisteredUserView body onAppear")
+        }
     }
 }
 
@@ -771,9 +1265,11 @@ struct CreateGameView_Previews: PreviewProvider {
         NavigationView {
             CreateGameView(
                 showCreateGame: .constant(true),
+                mode: .create,
                 onGameCreated: { game in
                     print("Preview: Game created with ID: \(game.id)")
-                }
+                },
+                onGameUpdated: nil
             )
         }
         .previewDisplayName("Create Game View")
@@ -782,9 +1278,11 @@ struct CreateGameView_Previews: PreviewProvider {
         NavigationView {
             CreateGameView(
                 showCreateGame: .constant(true),
+                mode: .create,
                 onGameCreated: { game in
                     print("Preview: Game created with ID: \(game.id)")
-                }
+                },
+                onGameUpdated: nil
             )
         }
         .previewDevice(PreviewDevice(rawValue: "iPad Pro (11-inch)"))

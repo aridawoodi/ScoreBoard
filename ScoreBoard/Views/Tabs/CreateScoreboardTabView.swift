@@ -21,7 +21,10 @@ struct CreateScoreboardTabView: View {
     
     var body: some View {
         VStack {
-            CreateGameView(showCreateGame: $showCreateGame) { game in
+            CreateGameView(
+                showCreateGame: $showCreateGame,
+                mode: .create,
+                onGameCreated: { game in
                     print("🔍 DEBUG: ===== CREATE GAME CALLBACK IN CREATE SCOREBOARD TAB =====")
                     print("🔍 DEBUG: Game created with ID: \(game.id)")
                     print("🔍 DEBUG: Setting selectedGame to: \(game.id)")
@@ -29,7 +32,9 @@ struct CreateScoreboardTabView: View {
                     print("🔍 DEBUG: Setting selectedTab to: 2 (Your Board)")
                     selectedTab = 2
                     print("🔍 DEBUG: ===== CREATE GAME CALLBACK END =====")
-                }
+                },
+                onGameUpdated: nil
+            )
                 .gradientBackground()
                 .onAppear {
                     // Precompute an approximate rect for the top-right "Create" toolbar button

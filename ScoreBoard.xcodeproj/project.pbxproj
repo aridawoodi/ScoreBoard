@@ -34,6 +34,7 @@
 		5E2F66E22E4EAD870016B28D /* QuickGameCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E2F66E12E4EAD860016B28D /* QuickGameCard.swift */; };
 		5E2F66E42E4FF7D10016B28D /* testview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E2F66E32E4FF7BF0016B28D /* testview.swift */; };
 		5E2F66E82E50D9760016B28D /* GradientBackgroundView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E2F66E72E50D9760016B28D /* GradientBackgroundView.swift */; };
+		5E42F2982E5922C800B87471 /* CustomRule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E42F2972E5922C800B87471 /* CustomRule.swift */; };
 		5E5A911D2CD8849600EFE5C2 /* ScoreBoardApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E5A911C2CD8849600EFE5C2 /* ScoreBoardApp.swift */; };
 		5E5A911F2CD8849600EFE5C2 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E5A911E2CD8849600EFE5C2 /* ContentView.swift */; };
 		5E5A91232CD8849700EFE5C2 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 5E5A91222CD8849700EFE5C2 /* Assets.xcassets */; };
@@ -115,6 +116,7 @@
 		5E2F66E12E4EAD860016B28D /* QuickGameCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickGameCard.swift; sourceTree = "<group>"; };
 		5E2F66E32E4FF7BF0016B28D /* testview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = testview.swift; sourceTree = "<group>"; };
 		5E2F66E72E50D9760016B28D /* GradientBackgroundView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradientBackgroundView.swift; sourceTree = "<group>"; };
+		5E42F2972E5922C800B87471 /* CustomRule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomRule.swift; sourceTree = "<group>"; };
 		5E5A91192CD8849600EFE5C2 /* ScoreBoard.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ScoreBoard.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		5E5A911C2CD8849600EFE5C2 /* ScoreBoardApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoreBoardApp.swift; sourceTree = "<group>"; };
 		5E5A911E2CD8849600EFE5C2 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -366,6 +368,7 @@
 				5EFE08D32E558AFD007E207E /* GameSettingsStorage.swift */,
 				5E737DA92CDB413F00F407D3 /* NotificationsManager.swift */,
 				5EFE18722E2A0BCE0056C708 /* UserService.swift */,
+				5E42F2972E5922C800B87471 /* CustomRule.swift */,
 				5E2CB2E92E42C8A3006EC186 /* DataManager.swift */,
 				5EFEF3FB2E4028E800D39D8B /* UsernameCacheService.swift */,
 			);
@@ -537,6 +540,7 @@
 				5E2CB2FB2E43167E006EC186 /* CreateScoreboardTabView.swift in Sources */,
 				5E737D8A2CDB3C3400F407D3 /* GameService.swift in Sources */,
 				5E737DAA2CDB413F00F407D3 /* NotificationsManager.swift in Sources */,
+				5E42F2982E5922C800B87471 /* CustomRule.swift in Sources */,
 				5E5A911D2CD8849600EFE5C2 /* ScoreBoardApp.swift in Sources */,
 				5E737DA82CDB411D00F407D3 /* Helpers.swift in Sources */,
 				5E28C2D22E2B64C200F3AD25 /* CreateUserProfileView.swift in Sources */,

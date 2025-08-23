@@ -254,22 +254,27 @@ struct ContentView: View {
                 )
             }
             .sheet(isPresented: $showCreateGame) {
-                CreateGameView(showCreateGame: $showCreateGame) { game in
-                    print("🔍 DEBUG: ===== CREATE GAME CALLBACK START =====")
-                    print("🔍 DEBUG: Game created with ID: \(game.id)")
-                    print("🔍 DEBUG: Game playerIDs: \(game.playerIDs)")
-                    print("🔍 DEBUG: Setting selectedGame to: \(game.id)")
-                    navigationState.selectedGame = game
-                    print("🔍 DEBUG: Setting selectedTab to: 2 (Your Board)")
-                    selectedTab = 2 // Switch to Your Board
-                    print("🔍 DEBUG: Current selectedTab value: \(selectedTab)")
-                    print("🔍 DEBUG: Current navigationState.selectedGame: \(navigationState.selectedGame?.id ?? "nil")")
-                    
-                    // Reload user games to update the latestGame
-                    print("🔍 DEBUG: Calling loadUserGames() to refresh user games")
-                    loadUserGames()
-                    print("🔍 DEBUG: ===== CREATE GAME CALLBACK END =====")
-                }
+                CreateGameView(
+                    showCreateGame: $showCreateGame,
+                    mode: .create,
+                    onGameCreated: { game in
+                        print("🔍 DEBUG: ===== CREATE GAME CALLBACK START =====")
+                        print("🔍 DEBUG: Game created with ID: \(game.id)")
+                        print("🔍 DEBUG: Game playerIDs: \(game.playerIDs)")
+                        print("🔍 DEBUG: Setting selectedGame to: \(game.id)")
+                        navigationState.selectedGame = game
+                        print("🔍 DEBUG: Setting selectedTab to: 2 (Your Board)")
+                        selectedTab = 2 // Switch to Your Board
+                        print("🔍 DEBUG: Current selectedTab value: \(selectedTab)")
+                        print("🔍 DEBUG: Current navigationState.selectedGame: \(navigationState.selectedGame?.id ?? "nil")")
+                        
+                        // Reload user games to update the latestGame
+                        print("🔍 DEBUG: Calling loadUserGames() to refresh user games")
+                        loadUserGames()
+                        print("🔍 DEBUG: ===== CREATE GAME CALLBACK END =====")
+                    },
+                    onGameUpdated: nil
+                )
             }
             .onChange(of: selectedTab) { newValue in
                 print("🔍 DEBUG: selectedTab changed to: \(newValue)")
