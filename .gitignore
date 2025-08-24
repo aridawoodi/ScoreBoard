@@ -25,3 +25,32 @@ amplifytools.xcconfig
 .secret-*
 **.sample
 #amplify-do-not-edit-end
+
+# Additional security - AWS and Amplify sensitive files
+awsconfiguration.json
+amplifyconfiguration.json
+amplify_outputs.json
+amplify/team-provider-info.json
+amplify/.config/local-aws-info.json
+amplify/.config/local-env-info.json
+
+# Environment files
+.env
+.env.local
+.env.development
+.env.production
+
+# IDE and system files
+.DS_Store
+*.swp
+*.swo
+*~
+
+# Xcode
+*.xcuserstate
+*.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcuserdata/
+
+# Cursor IDE
+.cursor/
