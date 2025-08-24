@@ -26,6 +26,16 @@ amplifytools.xcconfig
 **.sample
 #amplify-do-not-edit-end
 
+# Additional Amplify security - sensitive configuration files
+amplify/team-provider-info.json
+amplify/backend/backend-config.json
+amplify/backend/api/*/cli-inputs.json
+amplify/backend/api/*/parameters.json
+amplify/backend/auth/*/cli-inputs.json
+amplify/backend/auth/*/parameters.json
+amplify/backend/amplify-meta.json
+amplify/generated/
+
 # Additional security - AWS and Amplify sensitive files
 awsconfiguration.json
 amplifyconfiguration.json
