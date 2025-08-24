@@ -57,7 +57,7 @@ struct QuickGameCard: View {
                     .padding(.vertical, 8)
                     .background(
                         RoundedRectangle(cornerRadius: 20)
-                            .fill(isCreating ? Color.gray : Color.blue)
+                            .fill(isCreating ? Color.gray : Color("LightGreen"))
                     )
                 }
                 .disabled(isCreating)

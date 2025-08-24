@@ -8,6 +8,186 @@
 import SwiftUI
 import Amplify
 
+// MARK: - Search Registered Users Sheet
+struct SearchRegisteredUsersSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Binding var searchText: String
+    @Binding var searchResults: [User]
+    @Binding var isSearching: Bool
+    let addRegisteredPlayer: (User) -> Void
+    
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 20) {
+                // Header
+                VStack(spacing: 8) {
+                    Text("Search Registered Users")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                        .foregroundColor(.white)
+                    
+                    Text("Find and add registered users to your game")
+                        .font(.subheadline)
+                        .foregroundColor(.white.opacity(0.7))
+                        .multilineTextAlignment(.center)
+                }
+                .padding(.top, 20)
+                
+                // Search Field
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        ZStack(alignment: .leading) {
+                            if searchText.isEmpty {
+                                Text("Search by username or email")
+                                    .foregroundColor(.white.opacity(0.5))
+                                    .padding(.leading, 16)
+                            }
+                            TextField("", text: $searchText)
+                                .foregroundColor(.white)
+                                .padding()
+                                .background(Color.black.opacity(0.5))
+                                .cornerRadius(8)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                                )
+                                .onChange(of: searchText) { _, newValue in
+                                    // Trigger search when text changes
+                                    if !newValue.isEmpty {
+                                        searchUsers(newValue)
+                                    } else {
+                                        searchResults = []
+                                    }
+                                }
+                        }
+                        
+                        if isSearching {
+                            ProgressView()
+                                .scaleEffect(0.8)
+                                .padding(.leading, 8)
+                        }
+                    }
+                }
+                .padding(.horizontal)
+                
+                // Search Results
+                ScrollView {
+                    LazyVStack(spacing: 12) {
+                        if !searchResults.isEmpty {
+                            ForEach(searchResults, id: \.id) { user in
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(user.username)
+                                            .font(.body)
+                                            .fontWeight(.medium)
+                                            .foregroundColor(.white)
+                                        Text(user.email)
+                                            .font(.caption)
+                                            .foregroundColor(.white.opacity(0.7))
+                                    }
+                                    Spacer()
+                                    Button("Add") {
+                                        addRegisteredPlayer(user)
+                                        dismiss()
+                                    }
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 8)
+                                    .background(Color.green)
+                                    .cornerRadius(8)
+                                }
+                                .padding()
+                                .background(Color.black.opacity(0.3))
+                                .cornerRadius(12)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                                )
+                            }
+                        } else if !searchText.isEmpty && !isSearching {
+                            VStack(spacing: 12) {
+                                Image(systemName: "magnifyingglass")
+                                    .font(.system(size: 40))
+                                    .foregroundColor(.white.opacity(0.5))
+                                Text("No users found")
+                                    .font(.headline)
+                                    .foregroundColor(.white.opacity(0.7))
+                                Text("Try searching with a different username or email")
+                                    .font(.caption)
+                                    .foregroundColor(.white.opacity(0.5))
+                                    .multilineTextAlignment(.center)
+                            }
+                            .padding(.top, 40)
+                        } else if searchText.isEmpty {
+                            VStack(spacing: 12) {
+                                Image(systemName: "person.2")
+                                    .font(.system(size: 40))
+                                    .foregroundColor(.white.opacity(0.5))
+                                Text("Search for registered users")
+                                    .font(.headline)
+                                    .foregroundColor(.white.opacity(0.7))
+                                Text("Enter a username or email to find users")
+                                    .font(.caption)
+                                    .foregroundColor(.white.opacity(0.5))
+                                    .multilineTextAlignment(.center)
+                            }
+                            .padding(.top, 40)
+                        }
+                    }
+                    .padding(.horizontal)
+                }
+                
+                Spacer()
+            }
+            .navigationTitle("Search Users")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbarBackground(Color.clear, for: .navigationBar)
+            .navigationBarItems(
+                leading: Button("Cancel") {
+                    dismiss()
+                }
+                .foregroundColor(.white)
+            )
+            .gradientBackground()
+        }
+    }
+    
+    private func searchUsers(_ query: String) {
+        guard !query.isEmpty else {
+            searchResults = []
+            return
+        }
+        
+        isSearching = true
+        Task {
+            do {
+                let result = try await Amplify.API.query(request: .list(User.self))
+                await MainActor.run {
+                    switch result {
+                    case .success(let users):
+                        searchResults = users.filter { 
+                            $0.username.lowercased().contains(query.lowercased()) || 
+                            $0.email.lowercased().contains(query.lowercased())
+                        }
+                    case .failure(let error):
+                        print("Search error: \(error)")
+                        searchResults = []
+                    }
+                    isSearching = false
+                }
+            } catch {
+                await MainActor.run {
+                    print("Search error: \(error)")
+                    searchResults = []
+                    isSearching = false
+                }
+            }
+        }
+    }
+}
+
 // MARK: - Player Management View
 struct PlayerManagementView: View {
     @Binding var players: [Player]
@@ -20,6 +200,8 @@ struct PlayerManagementView: View {
     let searchUsers: (String) -> Void
     let addRegisteredPlayer: (User) -> Void
     let removePlayer: (Player) -> Void
+    
+    @State private var showSearchSheet = false
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -103,83 +285,37 @@ struct PlayerManagementView: View {
                     .disabled(newPlayerName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
                 
-                // Search Registered Users
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Search Registered Users")
-                        .font(.subheadline)
-                        .foregroundColor(.white.opacity(0.7))
-                    
+                // Search Registered Users Button
+                Button(action: {
+                    showSearchSheet = true
+                }) {
                     HStack {
-                        ZStack(alignment: .leading) {
-                            if searchText.isEmpty {
-                                Text("Search by username or email")
-                                    .foregroundColor(.white.opacity(0.5))
-                                    .padding(.leading, 16)
-                            }
-                            TextField("", text: $searchText)
-                                .foregroundColor(.white)
-                                .padding()
-                                .background(Color.black.opacity(0.5))
-                                .cornerRadius(8)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .stroke(Color.white.opacity(0.3), lineWidth: 1)
-                                )
-                                .onChange(of: searchText) { _, newValue in
-                                    searchUsers(newValue)
-                                }
-                        }
-                        
-                        if isSearching {
-                            ProgressView()
-                                .scaleEffect(0.8)
-                        }
+                        Image(systemName: "magnifyingglass")
+                            .foregroundColor(.white)
+                        Text("Search Registered Users")
+                            .foregroundColor(.white)
+                            .fontWeight(.medium)
+                        Spacer()
                     }
-                    
-                    if !searchResults.isEmpty {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Search Results")
-                                .font(.caption)
-                                .foregroundColor(.white.opacity(0.7))
-                            
-                            ForEach(searchResults, id: \.id) { user in
-                                HStack {
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(user.username)
-                                            .font(.body)
-                                            .fontWeight(.medium)
-                                        Text(user.email)
-                                            .font(.caption)
-                                            .foregroundColor(.white.opacity(0.7))
-                                    }
-                                    Spacer()
-                                    Button("Add") {
-                                        addRegisteredPlayer(user)
-                                    }
-                                    .foregroundColor(.white)
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 4)
-                                    .background(Color.green)
-                                    .cornerRadius(6)
-                                    .controlSize(.small)
-                                }
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(Color.black.opacity(0.5))
-                                .cornerRadius(6)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 6)
-                                        .stroke(Color.white.opacity(0.3), lineWidth: 1)
-                                )
-                            }
-                        }
-                    }
+                    .padding()
+                    .background(Color("LightGreen"))
+                    .cornerRadius(8)
+                    .shadow(color: Color.black.opacity(0.3), radius: 4, x: 0, y: 2)
                 }
+                .buttonStyle(PlainButtonStyle())
             }
         }
         .padding()
         .background(Color.black.opacity(0.3))
         .cornerRadius(10)
+        .sheet(isPresented: $showSearchSheet) {
+            SearchRegisteredUsersSheet(
+                searchText: $searchText,
+                searchResults: $searchResults,
+                isSearching: $isSearching,
+                addRegisteredPlayer: addRegisteredPlayer
+            )
+        }
     }
 }
 
@@ -189,9 +325,21 @@ struct PlayerManagementFunctions {
         let trimmedName = newPlayerName.wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedName.isEmpty else { return }
         
+        // Check if player with this name already exists
+        let playerExists = players.wrappedValue.contains { player in
+            player.name.lowercased() == trimmedName.lowercased()
+        }
+        
+        guard !playerExists else {
+            print("🔍 DEBUG: Player '\(trimmedName)' already exists, skipping addition")
+            newPlayerName.wrappedValue = ""
+            return
+        }
+        
         let player = Player(name: trimmedName, isRegistered: false, userId: nil)
         players.wrappedValue.append(player)
         newPlayerName.wrappedValue = ""
+        print("🔍 DEBUG: Added anonymous player: \(trimmedName)")
     }
     
     static func searchUsers(query: String, searchResults: Binding<[User]>, isSearching: Binding<Bool>) {
@@ -228,10 +376,26 @@ struct PlayerManagementFunctions {
     }
     
     static func addRegisteredPlayer(_ user: User, players: Binding<[Player]>, searchText: Binding<String>, searchResults: Binding<[User]>) {
+        // Check if player with this user ID already exists
+        let playerExists = players.wrappedValue.contains { player in
+            if let playerUserId = player.userId {
+                return playerUserId == user.id
+            }
+            return false
+        }
+        
+        guard !playerExists else {
+            print("🔍 DEBUG: Registered player '\(user.username)' (ID: \(user.id)) already exists, skipping addition")
+            searchText.wrappedValue = ""
+            searchResults.wrappedValue = []
+            return
+        }
+        
         let player = Player(name: user.username, isRegistered: true, userId: user.id)
         players.wrappedValue.append(player)
         searchText.wrappedValue = ""
         searchResults.wrappedValue = []
+        print("🔍 DEBUG: Added registered player: \(user.username) (ID: \(user.id))")
     }
     
     static func removePlayer(_ player: Player, players: Binding<[Player]>) {

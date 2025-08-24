@@ -214,6 +214,9 @@ struct Scoreboardview: View {
     
     // Custom rules for score display
     @State private var customRules: [CustomRule] = []
+    
+    // Game list sheet state
+    @State private var showGameListSheet = false
 
     let onGameUpdated: ((Game) -> Void)?
     let onGameDeleted: (() -> Void)?
@@ -256,7 +259,7 @@ struct Scoreboardview: View {
     }
     
     /// Check if game is complete and determine winner
-    func checkGameCompletionAndWinner() {
+    func checkGameCompletionAndWinner(showCelebration: Bool = false) {
         guard isGameComplete() && !players.isEmpty else { return }
         
         print("🔍 DEBUG: Game winCondition: \(String(describing: game.winCondition))")
@@ -284,9 +287,9 @@ struct Scoreboardview: View {
             let winConditionText = game.winCondition == .lowestScore ? "lowest" : "highest"
             celebrationMessage = "🎉 Congratulations \(winner?.name ?? "Player")! 🎉\nYou won with the \(winConditionText) score of \(winningScore)!"
             
-            // Only show celebration if we haven't shown it before for this game
-            if !hasShownCelebrationForGame() {
-                showCelebration = true
+            // Only show celebration if explicitly requested and we haven't shown it before for this game
+            if showCelebration && !hasShownCelebrationForGame() {
+                self.showCelebration = true
                 markCelebrationAsShown()
                 print("🔍 DEBUG: 🎉 GAME COMPLETE! Winner: \(winner?.name ?? "Unknown") with \(winConditionText) score: \(winningScore)")
             }
@@ -296,9 +299,9 @@ struct Scoreboardview: View {
             let winConditionText = game.winCondition == .lowestScore ? "lowest" : "highest"
             celebrationMessage = "🤝 It's a tie! 🤝\nCongratulations to \(winnerNames)!\nAll tied with the \(winConditionText) score of \(winningScore)!"
             
-            // Only show celebration if we haven't shown it before for this game
-            if !hasShownCelebrationForGame() {
-                showCelebration = true
+            // Only show celebration if explicitly requested and we haven't shown it before for this game
+            if showCelebration && !hasShownCelebrationForGame() {
+                self.showCelebration = true
                 markCelebrationAsShown()
                 print("🔍 DEBUG: 🤝 GAME COMPLETE! Tie between: \(winnerNames) with \(winConditionText) score: \(winningScore)")
             }
@@ -703,21 +706,158 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
         .ignoresSafeArea(.keyboard, edges: .bottom) // Allow keyboard to push content up
     }
     
-    private var mainContentView: some View {
-        VStack(spacing: 0) {
-            // Page indicators
-            if availableGames.count > 1 {
-                HStack(spacing: 8) {
-                    ForEach(0..<availableGames.count, id: \.self) { index in
-                        Circle()
-                            .fill(index == currentGameIndex ? Color.white : Color.white.opacity(0.3))
-                            .frame(width: 8, height: 8)
-                            .scaleEffect(index == currentGameIndex ? 1.2 : 1.0)
+    private var bottomSheetTriggerView: some View {
+        Button(action: {
+            showGameListSheet = true
+        }) {
+            HStack(spacing: 12) {
+                Image(systemName: "list.bullet")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(.white)
+                
+                Text("\(availableGames.count) Games")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(.white)
+                
+                Spacer()
+                
+                // Mini carousel preview
+                HStack(spacing: 4) {
+                    ForEach(0..<min(3, availableGames.count), id: \.self) { index in
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(index == currentGameIndex ? Color("LightGreen") : Color.white.opacity(0.3))
+                            .frame(width: 16, height: 4)
                             .animation(.easeInOut(duration: 0.2), value: currentGameIndex)
                     }
                 }
+                
+                Image(systemName: "chevron.up")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(.white.opacity(0.7))
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color.black.opacity(0.6))
+                    .shadow(color: .black.opacity(0.3), radius: 6, x: 0, y: 3)
+            )
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 8)
+        .padding(.bottom, 12)
+    }
+    
+    private var mainContentView: some View {
+        VStack(spacing: 0) {
+            // Enhanced Page indicators - COMMENTED OUT
+            /*
+            if availableGames.count > 1 {
+                HStack(spacing: 12) {
+                    ForEach(0..<availableGames.count, id: \.self) { index in
+                        Circle()
+                            .fill(index == currentGameIndex ? Color("LightGreen") : Color.white.opacity(0.4))
+                            .frame(width: 12, height: 12)
+                            .scaleEffect(index == currentGameIndex ? 1.3 : 1.0)
+                            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: currentGameIndex)
+                            .onTapGesture {
+                                withAnimation(.easeInOut(duration: 0.3)) {
+                                    currentGameIndex = index
+                                }
+                            }
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .background(
+                    RoundedRectangle(cornerRadius: 20)
+                        .fill(Color.black.opacity(0.6))
+                        .shadow(color: .black.opacity(0.3), radius: 8, x: 0, y: 4)
+                )
+                .padding(.top, 12)
+                .padding(.bottom, 8)
+            }
+            */
+            
+            // Alternative: Floating indicator with side arrows
+            if availableGames.count > 1 {
+                HStack(spacing: 0) {
+                    // Left arrow
+                    Button(action: {
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            if currentGameIndex > 0 {
+                                currentGameIndex -= 1
+                            } else {
+                                currentGameIndex = availableGames.count - 1
+                            }
+                        }
+                    }) {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(.white)
+                            .frame(width: 32, height: 32)
+                            .background(
+                                Circle()
+                                    .fill(Color.black.opacity(0.6))
+                                    .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
+                            )
+                    }
+                    
+                    Spacer()
+                    
+                    // Floating page indicator
+                    HStack(spacing: 8) {
+                        ForEach(0..<availableGames.count, id: \.self) { index in
+                            Capsule()
+                                .fill(index == currentGameIndex ? Color("LightGreen") : Color.white.opacity(0.3))
+                                .frame(width: index == currentGameIndex ? 24 : 8, height: 8)
+                                .animation(.spring(response: 0.3, dampingFraction: 0.7), value: currentGameIndex)
+                                .onTapGesture {
+                                    withAnimation(.easeInOut(duration: 0.3)) {
+                                        currentGameIndex = index
+                                    }
+                                }
+                        }
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(
+                        Capsule()
+                            .fill(Color.black.opacity(0.7))
+                            .shadow(color: .black.opacity(0.4), radius: 6, x: 0, y: 3)
+                    )
+                    
+                    Spacer()
+                    
+                    // Right arrow
+                    Button(action: {
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            if currentGameIndex < availableGames.count - 1 {
+                                currentGameIndex += 1
+                            } else {
+                                currentGameIndex = 0
+                            }
+                        }
+                    }) {
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(.white)
+                            .frame(width: 32, height: 32)
+                            .background(
+                                Circle()
+                                    .fill(Color.black.opacity(0.6))
+                                    .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
+                            )
+                    }
+                }
+                .padding(.horizontal, 20)
                 .padding(.top, 8)
-                .padding(.bottom, 4)
+                .padding(.bottom, 12)
+            }
+            
+            // Alternative: Bottom sheet trigger with carousel preview
+            if availableGames.count > 1 {
+                bottomSheetTriggerView
             }
             
             // Swipeable content
@@ -901,6 +1041,16 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
             Button("Cancel", role: .cancel) { }
         } message: {
             Text("Delete this entire game? This will permanently remove the game and all its scores. This action cannot be undone.")
+        }
+        .sheet(isPresented: $showGameListSheet) {
+            GameListBottomSheet(
+                games: availableGames,
+                currentIndex: $currentGameIndex,
+                onGameSelected: { index in
+                    currentGameIndex = index
+                    showGameListSheet = false
+                }
+            )
         }
     }
     
@@ -1738,9 +1888,10 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                             self.enteredScores.insert(scoreKey)
                         }
                         
-                        // Check for game completion and winner (unless suppressed)
-                        if !suppressCompletionCelebration {
-                        checkGameCompletionAndWinner()
+                        // Check for game completion and winner (only if game is not already completed)
+                        // Celebration will only be shown when user explicitly hits "Complete Game" button
+                        if !suppressCompletionCelebration && game.gameStatus != .completed {
+                            checkGameCompletionAndWinner()
                         }
                         
 
@@ -2886,6 +3037,9 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
             return 
         }
         
+        // Trigger celebration when user explicitly completes the game
+        checkGameCompletionAndWinner(showCelebration: true)
+        
         // Update local state immediately for better UX
         var updated = game
         updated.gameStatus = .completed
@@ -3166,5 +3320,175 @@ struct ConfettiPieceView: View {
                     isAnimating = true
                 }
             }
+    }
+}
+
+// MARK: - Game List Bottom Sheet
+struct GameListBottomSheet: View {
+    let games: [Game]
+    @Binding var currentIndex: Int
+    let onGameSelected: (Int) -> Void
+    
+    @Environment(\.dismiss) private var dismiss
+    
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 0) {
+                // Header
+                VStack(spacing: 12) {
+                    // Drag indicator
+                    RoundedRectangle(cornerRadius: 2.5)
+                        .fill(Color.gray.opacity(0.5))
+                        .frame(width: 36, height: 5)
+                        .padding(.top, 8)
+                    
+                    Text("Select Game")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                        .foregroundColor(.white)
+                    
+                    Text("\(games.count) games available")
+                        .font(.caption)
+                        .foregroundColor(.white.opacity(0.7))
+                }
+                .padding(.bottom, 20)
+                
+                // Carousel preview
+                TabView(selection: $currentIndex) {
+                    ForEach(Array(games.enumerated()), id: \.element.id) { index, game in
+                        GameCardViewBottomSheet(game: game, isSelected: index == currentIndex)
+                            .tag(index)
+                    }
+                }
+                .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
+                .frame(height: 200)
+                .padding(.horizontal, 20)
+                
+                // Game list
+                ScrollView {
+                    LazyVStack(spacing: 12) {
+                        ForEach(Array(games.enumerated()), id: \.element.id) { index, game in
+                            GameListItemView(
+                                game: game,
+                                isSelected: index == currentIndex,
+                                onTap: {
+                                    onGameSelected(index)
+                                }
+                            )
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 20)
+                }
+                
+                Spacer()
+            }
+            .padding()
+            .background(GradientBackgroundView())
+            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarBackButtonHidden(true)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                    .foregroundColor(.white)
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Game Card View for Bottom Sheet
+struct GameCardViewBottomSheet: View {
+    let game: Game
+    let isSelected: Bool
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            // Game name
+            Text(game.gameName ?? "Untitled Game")
+                .font(.title3)
+                .fontWeight(.bold)
+                .foregroundColor(.white)
+                .lineLimit(1)
+            
+            // Game info
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("\(game.playerIDs.count) Players")
+                        .font(.caption)
+                        .foregroundColor(.white.opacity(0.8))
+                    
+                    Text("\(game.rounds) Rounds")
+                        .font(.caption)
+                        .foregroundColor(.white.opacity(0.8))
+                }
+                
+                Spacer()
+                
+                // Status indicator
+                Circle()
+                    .fill(isSelected ? Color("LightGreen") : Color.white.opacity(0.3))
+                    .frame(width: 12, height: 12)
+            }
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color.black.opacity(0.4))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(isSelected ? Color("LightGreen") : Color.clear, lineWidth: 2)
+                )
+        )
+        .scaleEffect(isSelected ? 1.05 : 1.0)
+        .animation(.easeInOut(duration: 0.2), value: isSelected)
+    }
+}
+
+// MARK: - Game List Item View
+struct GameListItemView: View {
+    let game: Game
+    let isSelected: Bool
+    let onTap: () -> Void
+    
+    var body: some View {
+        Button(action: onTap) {
+            HStack(spacing: 12) {
+                // Game icon
+                Image(systemName: "gamecontroller.fill")
+                    .font(.title2)
+                    .foregroundColor(isSelected ? Color("LightGreen") : .white.opacity(0.7))
+                    .frame(width: 24)
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(game.gameName ?? "Untitled Game")
+                        .font(.body)
+                        .fontWeight(.medium)
+                        .foregroundColor(.white)
+                        .lineLimit(1)
+                    
+                    Text("\(game.playerIDs.count) players • \(game.rounds) rounds")
+                        .font(.caption)
+                        .foregroundColor(.white.opacity(0.7))
+                }
+                
+                Spacer()
+                
+                // Selection indicator
+                if isSelected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.title2)
+                        .foregroundColor(Color("LightGreen"))
+                }
+            }
+            .padding(12)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(isSelected ? Color("LightGreen").opacity(0.2) : Color.black.opacity(0.3))
+            )
+        }
+        .buttonStyle(PlainButtonStyle())
     }
 }

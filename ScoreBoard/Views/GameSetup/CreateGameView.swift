@@ -126,6 +126,7 @@ struct CreateGameView: View {
                     loadLastGameSettings: loadLastGameSettings,
                     addCustomRule: addCustomRule
                 )
+                .padding(.bottom, 100) // Add bottom padding to avoid floating tab bar
             }
             .navigationTitle(navigationTitle)
             .gradientBackground()
@@ -356,15 +357,24 @@ struct CreateGameView: View {
                 // Add host as player if option is enabled
                 if hostJoinAsPlayer {
                     if let currentUser = currentUser {
-                        // Always use the user ID for registered users, not username
-                        playerIDs.append(currentUser.userId)
-                        print("🔍 DEBUG: Added host as registered user with ID: \(currentUser.userId)")
+                        // Check if host is already in the players array before adding
+                        if !isUserAlreadyInPlayers(userId: currentUser.userId, players: players) {
+                            playerIDs.append(currentUser.userId)
+                            print("🔍 DEBUG: Added host as registered user with ID: \(currentUser.userId)")
+                        } else {
+                            print("🔍 DEBUG: Host is already in players array, skipping duplicate addition")
+                        }
                     } else {
                         // Host is anonymous - use their chosen display name
                         let hostName = hostPlayerName.trimmingCharacters(in: .whitespacesAndNewlines)
                         if !hostName.isEmpty {
-                            playerIDs.append(hostName)
-                            print("🔍 DEBUG: Added host as anonymous user: \(hostName)")
+                            // Check if host name is already in the players array
+                            if !isUserAlreadyInPlayers(userId: hostName, players: players) {
+                                playerIDs.append(hostName)
+                                print("🔍 DEBUG: Added host as anonymous user: \(hostName)")
+                            } else {
+                                print("🔍 DEBUG: Host name is already in players array, skipping duplicate addition")
+                            }
                         }
                     }
                 }
@@ -469,13 +479,23 @@ struct CreateGameView: View {
                 // Add host as player if option is enabled
                 if hostJoinAsPlayer {
                     if let currentUser = currentUser {
-                        playerIDs.append(currentUser.userId)
-                        print("🔍 DEBUG: Added host as registered user with ID: \(currentUser.userId)")
+                        // Check if host is already in the players array before adding
+                        if !isUserAlreadyInPlayers(userId: currentUser.userId, players: players) {
+                            playerIDs.append(currentUser.userId)
+                            print("🔍 DEBUG: Added host as registered user with ID: \(currentUser.userId)")
+                        } else {
+                            print("🔍 DEBUG: Host is already in players array, skipping duplicate addition")
+                        }
                     } else {
                         let hostName = hostPlayerName.trimmingCharacters(in: .whitespacesAndNewlines)
                         if !hostName.isEmpty {
-                            playerIDs.append(hostName)
-                            print("🔍 DEBUG: Added host as anonymous user: \(hostName)")
+                            // Check if host name is already in the players array
+                            if !isUserAlreadyInPlayers(userId: hostName, players: players) {
+                                playerIDs.append(hostName)
+                                print("🔍 DEBUG: Added host as anonymous user: \(hostName)")
+                            } else {
+                                print("🔍 DEBUG: Host name is already in players array, skipping duplicate addition")
+                            }
                         }
                     }
                 }
@@ -646,7 +666,12 @@ struct CreateGameView: View {
             print("🔍 DEBUG: Processing player \(index + 1)/\(playerIDs.count): \(playerID)")
             
             // Check if this is a registered user ID or just a name
-            if playerID.hasPrefix("guest_") || playerID.contains("@") {
+            // Cognito user IDs are UUIDs, guest IDs start with "guest_", and email addresses contain "@"
+            let isRegisteredUserID = playerID.hasPrefix("guest_") || 
+                                   playerID.contains("@") || 
+                                   (playerID.count == 36 && playerID.contains("-")) // UUID format
+            
+            if isRegisteredUserID {
                 print("🔍 DEBUG: \(playerID) appears to be a registered user ID")
                 // This is likely a registered user ID, try to fetch the username
                 do {
@@ -692,6 +717,13 @@ struct CreateGameView: View {
     }
     
     private func addCustomRule() {
+        // Check if user already has one custom rule (locked feature)
+        if customRules.count >= 1 {
+            alertMessage = "Custom rules feature is locked. You can only create one custom rule in the free version."
+            showAlert = true
+            return
+        }
+        
         let letter = newRuleLetter.trimmingCharacters(in: .whitespacesAndNewlines)
         
         // Validate input
@@ -730,6 +762,20 @@ struct CreateGameView: View {
         newRuleValue = 0
         
         print("🔍 DEBUG: Added custom rule: \(letter) = \(newRuleValue)")
+    }
+    
+    // MARK: - Helper Functions
+    
+    /// Check if a user is already in the players array
+    private func isUserAlreadyInPlayers(userId: String, players: [Player]) -> Bool {
+        return players.contains { player in
+            // Check if the player has the same user ID
+            if let playerUserId = player.userId {
+                return playerUserId == userId
+            }
+            // For anonymous players, check if the name matches (though this is less reliable)
+            return player.name == userId
+        }
     }
     
     private func saveCurrentGameSettings() {
@@ -899,7 +945,7 @@ struct CreateGameContentView: View {
             // Stepper("Number of Rounds: \(rounds)", value: $rounds, in: 1...10)
             //     .font(bodyFont)
             
-            Text("Rounds will be added dynamically during gameplay")
+            Text("Rounds can be added during gameplay")
                 .font(.caption)
                 .foregroundColor(.white.opacity(0.7))
             
@@ -1040,46 +1086,70 @@ struct CreateGameContentView: View {
                 .fontWeight(.medium)
                 .foregroundColor(.white)
             
-            HStack(spacing: 8) {
-                TextField("Letter", text: $newRuleLetter)
-                    .font(.caption)
-                    .foregroundColor(.white)
-                    .padding(8)
-                    .background(Color.black.opacity(0.5))
-                    .cornerRadius(4)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 4)
-                            .stroke(Color.white.opacity(0.3), lineWidth: 1)
-                    )
-                    .frame(width: 60)
-                    .textInputAutocapitalization(.characters)
-                    .onChange(of: newRuleLetter) { _, newValue in
-                        newRuleLetter = newValue.uppercased()
-                    }
-                
-                Text("=")
-                    .font(.caption)
-                    .foregroundColor(.white)
-                
-                TextField("Value", value: $newRuleValue, format: .number)
-                    .font(.caption)
-                    .foregroundColor(.white)
-                    .padding(8)
-                    .background(Color.black.opacity(0.5))
-                    .cornerRadius(4)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 4)
-                            .stroke(Color.white.opacity(0.3), lineWidth: 1)
-                    )
-                    .frame(width: 80)
-                    .keyboardType(.numberPad)
-                
-                Button(action: addCustomRule) {
-                    Image(systemName: "plus.circle.fill")
-                        .foregroundColor(Color("LightGreen"))
-                        .font(.system(size: 20))
+            // Check if feature is locked (user already has one rule)
+            if customRules.count >= 1 {
+                // Show locked state
+                HStack(spacing: 8) {
+                    Image(systemName: "lock.fill")
+                        .foregroundColor(.orange)
+                        .font(.caption)
+                    
+                    Text("Feature Locked - Free version limited to 1 custom rule")
+                        .font(.caption)
+                        .foregroundColor(.orange)
+                    
+                    Spacer()
                 }
-                .disabled(newRuleLetter.isEmpty || newRuleLetter.count != 1)
+                .padding(8)
+                .background(Color.orange.opacity(0.1))
+                .cornerRadius(4)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 4)
+                        .stroke(Color.orange.opacity(0.3), lineWidth: 1)
+                )
+            } else {
+                // Show normal input fields
+                HStack(spacing: 8) {
+                    TextField("Letter", text: $newRuleLetter)
+                        .font(.caption)
+                        .foregroundColor(.white)
+                        .padding(8)
+                        .background(Color.black.opacity(0.5))
+                        .cornerRadius(4)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 4)
+                                .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                        )
+                        .frame(width: 60)
+                        .textInputAutocapitalization(.characters)
+                        .onChange(of: newRuleLetter) { _, newValue in
+                            newRuleLetter = newValue.uppercased()
+                        }
+                    
+                    Text("=")
+                        .font(.caption)
+                        .foregroundColor(.white)
+                    
+                    TextField("Value", value: $newRuleValue, format: .number)
+                        .font(.caption)
+                        .foregroundColor(.white)
+                        .padding(8)
+                        .background(Color.black.opacity(0.5))
+                        .cornerRadius(4)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 4)
+                                .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                        )
+                        .frame(width: 80)
+                        .keyboardType(.numberPad)
+                    
+                    Button(action: addCustomRule) {
+                        Image(systemName: "plus.circle.fill")
+                            .foregroundColor(Color("LightGreen"))
+                            .font(.system(size: 20))
+                    }
+                    .disabled(newRuleLetter.isEmpty || newRuleLetter.count != 1)
+                }
             }
         }
         

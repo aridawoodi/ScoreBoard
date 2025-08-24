@@ -54,8 +54,8 @@ struct JoinScoreboardTabView: View {
                         }
                         Spacer()
                         HStack(spacing: 4) {
-                            let chevronColor: Color = navigationState.hasGames ? .green : .white.opacity(0.7)
-                            let countColor: Color = navigationState.hasGames ? .green : .white.opacity(0.7)
+                            let chevronColor: Color = navigationState.hasGames ? Color("LightGreen") : .white.opacity(0.7)
+                            let countColor: Color = navigationState.hasGames ? Color("LightGreen") : .white.opacity(0.7)
                             
                             Image(systemName: "chevron.right")
                                 .foregroundColor(chevronColor)
@@ -80,7 +80,7 @@ struct JoinScoreboardTabView: View {
                     HStack {
                         Image(systemName: "plus.circle.fill")
                             .font(.title2)
-                            .foregroundColor(.blue)
+                            .foregroundColor(Color("LightGreen"))
                         VStack(alignment: .leading) {
                             Text("Join a Board")
                                 .font(.headline)
@@ -91,7 +91,7 @@ struct JoinScoreboardTabView: View {
                         }
                         Spacer()
                         Image(systemName: "chevron.right")
-                            .foregroundColor(.blue)
+                            .foregroundColor(Color("LightGreen"))
                     }
                     .padding(.horizontal, 16)
                     .padding(.vertical, 12)
@@ -109,7 +109,7 @@ struct JoinScoreboardTabView: View {
                     HStack {
                         Image(systemName: "list.number")
                             .font(.title2)
-                            .foregroundColor(.purple)
+                            .foregroundColor(Color("LightGreen"))
                         VStack(alignment: .leading) {
                             Text("Player Leaderboard")
                                 .font(.headline)
@@ -120,7 +120,7 @@ struct JoinScoreboardTabView: View {
                         }
                         Spacer()
                         Image(systemName: "chevron.right")
-                            .foregroundColor(.purple)
+                            .foregroundColor(Color("LightGreen"))
                     }
                     .padding(.horizontal, 16)
                     .padding(.vertical, 12)

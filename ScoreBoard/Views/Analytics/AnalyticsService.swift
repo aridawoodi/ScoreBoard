@@ -38,7 +38,13 @@ class AnalyticsService: ObservableObject {
             switch gamesResult {
             case .success(let allGames):
                 let userGames = allGames.filter { game in
-                    game.playerIDs.contains(userId) == true || game.hostUserID == userId
+                    // Check if user is the host
+                    if game.hostUserID == userId {
+                        return true
+                    }
+                    
+                    // Check if user is a player using improved detection
+                    return isUserInGame(userId: userId, playerIDs: game.playerIDs)
                 }
                 
                 print("🔍 DEBUG: Found \(userGames.count) games for user")
@@ -91,5 +97,31 @@ class AnalyticsService: ObservableObject {
             }
             return nil
         }
+    }
+    
+    /// Helper function to check if a user is in a game's player list
+    /// This handles both registered users (direct user ID) and anonymous users (userID:displayName format)
+    private func isUserInGame(userId: String, playerIDs: [String]) -> Bool {
+        // Check for exact match (registered users)
+        if playerIDs.contains(userId) {
+            return true
+        }
+        
+        // Check for prefix match (anonymous users with format "userID:displayName")
+        let hasPrefixMatch = playerIDs.contains { playerID in
+            playerID.hasPrefix(userId + ":")
+        }
+        
+        if hasPrefixMatch {
+            return true
+        }
+        
+        // Additional check: look for any playerID that contains the user ID
+        // This handles edge cases where the format might be different
+        let hasContainedMatch = playerIDs.contains { playerID in
+            playerID.contains(userId)
+        }
+        
+        return hasContainedMatch
     }
 }

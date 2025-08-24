@@ -291,14 +291,15 @@ struct JoinGameView: View {
                 
                 // Check if user is already in the game
                 let playerIDs = game.playerIDs
-                if playerIDs.contains(userId) {
-                    // User already in game - just navigate to scoreboard
+                if isUserAlreadyInGame(userId: userId, playerIDs: playerIDs) {
+                    // User already in game - navigate to scoreboard immediately
                     await MainActor.run {
-                        alertMessage = "You are already in this game!"
-                        showAlert = true
-                        // Still navigate to scoreboard since they're already a player
+                        // Navigate to scoreboard immediately
                         foundGame = game
                         onGameJoined(game)
+                        // Dismiss the join game sheet
+                        showJoinGame = false
+                        isProcessingJoin = false
                     }
                     return
                 }
@@ -368,15 +369,16 @@ struct JoinGameView: View {
                 print("🔍 DEBUG: Is guest: \(isGuest)")
                 print("🔍 DEBUG: Game playerIDs: \(game.playerIDs ?? [])")
                 
-                // Check if user is already in the game (by user ID)
+                // Check if user is already in the game using improved detection
                 let playerIDs = game.playerIDs
-                if playerIDs.contains(userId) {
+                if isUserAlreadyInGame(userId: userId, playerIDs: playerIDs) {
                     print("🔍 DEBUG: User \(userId) is already in game with playerIDs: \(playerIDs)")
-                    // User already in game - just navigate to scoreboard without showing alert
+                    // User already in game - navigate to scoreboard immediately
                     await MainActor.run {
+                        // Navigate to scoreboard immediately
                         foundGame = game
                         onGameJoined(game)
-                        // Dismiss the join game sheet immediately
+                        // Dismiss the join game sheet
                         showJoinGame = false
                         isProcessingJoin = false
                     }
@@ -387,7 +389,7 @@ struct JoinGameView: View {
                 // We'll use a format like "userID:displayName" to maintain uniqueness
                 let playerIdentifier = "\(userId):\(playerName)"
                 
-                // Check if this specific user ID is already in the game
+                // Check if this specific user ID is already in the game (for anonymous users)
                 if let existingPlayerID = playerIDs.first(where: { $0.hasPrefix(userId) }) {
                     print("🔍 DEBUG: User \(userId) is already in game (anonymous) with playerIDs: \(playerIDs)")
                     
@@ -468,5 +470,41 @@ struct JoinGameView: View {
                 }
             }
         }
+    }
+    
+    // MARK: - Helper Functions
+    
+    /// Improved function to check if a user is already in a game
+    /// This handles both registered users (direct user ID) and anonymous users (userID:displayName format)
+    private func isUserAlreadyInGame(userId: String, playerIDs: [String]) -> Bool {
+        // Check for exact match (registered users)
+        if playerIDs.contains(userId) {
+            print("🔍 DEBUG: Found exact user ID match: \(userId)")
+            return true
+        }
+        
+        // Check for prefix match (anonymous users with format "userID:displayName")
+        let hasPrefixMatch = playerIDs.contains { playerID in
+            playerID.hasPrefix(userId + ":")
+        }
+        
+        if hasPrefixMatch {
+            print("🔍 DEBUG: Found prefix match for user ID: \(userId)")
+            return true
+        }
+        
+        // Additional check: look for any playerID that contains the user ID
+        // This handles edge cases where the format might be different
+        let hasContainedMatch = playerIDs.contains { playerID in
+            playerID.contains(userId)
+        }
+        
+        if hasContainedMatch {
+            print("🔍 DEBUG: Found contained match for user ID: \(userId)")
+            return true
+        }
+        
+        print("🔍 DEBUG: No match found for user ID: \(userId)")
+        return false
     }
 } 

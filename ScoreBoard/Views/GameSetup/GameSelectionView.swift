@@ -278,19 +278,6 @@ struct GameCardView: View {
                 }
             }
             
-            // Custom rules if any
-            if let customRules = game.customRules, !customRules.isEmpty {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Rules:")
-                        .font(.caption)
-                        .foregroundColor(.white.opacity(0.7))
-                    Text(customRules)
-                        .font(.caption)
-                        .foregroundColor(.white)
-                        .lineLimit(2)
-                }
-            }
-            
             // Action buttons
             HStack {
                 Spacer()

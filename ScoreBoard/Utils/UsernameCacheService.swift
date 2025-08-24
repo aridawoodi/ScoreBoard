@@ -35,7 +35,13 @@ class UsernameCacheService: ObservableObject {
     }
     
     func getDisplayName(for playerID: String) -> String {
-        return cachedUsernames[playerID] ?? "Player \(String(playerID.prefix(6)))"
+        if let cachedName = cachedUsernames[playerID] {
+            // If we have a cached username, use it as is
+            return cachedName
+        } else {
+            // For fallback, just use the first 6 characters of the playerID
+            return String(playerID.prefix(6))
+        }
     }
     
     private func fetchUsernames(for playerIDs: [String]) async -> [String: String] {
@@ -44,8 +50,8 @@ class UsernameCacheService: ObservableObject {
         var usernames: [String: String] = [:]
         
         for playerID in playerIDs {
-            // Generate a simple display name based on the player ID
-            let displayName = "Player \(String(playerID.prefix(6)))"
+            // Just use the first 6 characters of the playerID without any prefix
+            let displayName = String(playerID.prefix(6))
             usernames[playerID] = displayName
         }
         
