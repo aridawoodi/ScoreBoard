@@ -1,4 +1,0 @@
----
-alwaysApply: true
----
-When generating code that fetches, updates, creates, or deletes backend data, always reuse existing logic instead of duplicating it. Ensure all views automatically update when data changes in one place (reactive/shared state). Optimize for lower AWS costs by avoiding redundant calls, batching requests, caching, and using subscriptions instead of polling. Code must be resilient (retry with backoff, offline support, error handling) and cleanly structured (modular, testable, SwiftUI + Amplify best practices).

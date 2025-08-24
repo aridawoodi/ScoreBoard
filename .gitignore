@@ -54,6 +54,7 @@ amplify/.config/local-env-info.json
 
 # Cursor IDE
 .cursor/
+.cursor/rules/
 
 # Generated Amplify files
 API.swift
