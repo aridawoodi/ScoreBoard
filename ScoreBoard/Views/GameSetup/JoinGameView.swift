@@ -57,26 +57,10 @@ struct JoinGameView: View {
                         .font(.headline)
                         .foregroundColor(.white)
                     
-                    ZStack(alignment: .leading) {
-                        if gameCode.isEmpty {
-                            Text("Enter 6-character code")
-                                .foregroundColor(.white.opacity(0.5))
-                                .font(.title2)
-                                .padding(.leading, 16)
-                        }
-                        TextField("", text: $gameCode)
-                            .accentColor(.white)
-                            .font(.title2)
-                            .foregroundColor(.white)
-                            .padding()
-                            .background(Color.black.opacity(0.5))
-                            .cornerRadius(8)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .stroke(Color.white.opacity(0.3), lineWidth: 1)
-                            )
-                            .textInputAutocapitalization(.characters)
-                    }
+                    TextField("", text: $gameCode)
+                        .modifier(AppTextFieldStyle(placeholder: "Enter 6-character code", text: $gameCode))
+                        .font(.title2)
+                        .textInputAutocapitalization(.characters)
                         .onChange(of: gameCode) { newValue in
                             gameCode = newValue.uppercased()
                         }

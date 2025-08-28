@@ -49,64 +49,16 @@ struct ContentView: View {
                 )
                 .ignoresSafeArea(.all, edges: .all)
                 
-                // Main Authenticator
-                Authenticator { state in
-                    VStack {
-                        Button("Sign out") {
-                            Task {
-                                await state.signOut()
-                                authStatus = .signedOut
-                            }
-                        }
-                    }
-                    .onAppear {
-                        if state is SignedInState {
-                            authStatus = .signedIn
-                            // Automatically create user profile when user signs in
-                            Task {
-                                await userService.ensureUserProfile()
-                            }
-                        }
+                // Custom Authentication View with LightGreen theme
+                CustomSignInView {
+                    authStatus = .signedIn
+                    // Automatically create user profile when user signs in
+                    Task {
+                        await userService.ensureUserProfile()
                     }
                 }
                 
-                // Guest Login Button - Overlay at the bottom
-                VStack {
-                    Spacer()
-                    
-                    // Guest login section
-                    VStack(spacing: 16) {
-                        Divider()
-                            .padding(.horizontal, 40)
-                        
-                        Text("Or")
-                            .font(.subheadline)
-                            .foregroundColor(.white.opacity(0.7))
-                        
-                        Button(action: {
-                            Task {
-                                await signInAsGuest()
-                            }
-                        }) {
-                            HStack(spacing: 12) {
-                                Image(systemName: "person.crop.circle")
-                                    .font(.system(size: 18, weight: .medium))
-                                
-                                Text("Continue as Guest")
-                                    .font(.system(size: 16, weight: .medium))
-                            }
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 24)
-                            .padding(.vertical, 12)
-                            .background(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .stroke(Color.white.opacity(0.3), lineWidth: 1)
-                            )
-                        }
-                        .padding(.bottom, 40)
-                    }
-                    .background(Color.clear)
-                }
+
             }
         } else {
             ZStack {

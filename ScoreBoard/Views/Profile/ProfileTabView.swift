@@ -98,7 +98,7 @@ struct ProfileTabView: View {
                         SettingsRow(
                             icon: "pencil.circle.fill",
                             title: "Edit Profile",
-                            iconColor: .blue
+                            iconColor: Color("LightGreen")
                         ) {
                             showProfileEdit = true
                         }
@@ -111,7 +111,7 @@ struct ProfileTabView: View {
                             SettingsRow(
                                 icon: "info.circle.fill",
                                 title: "Guest Mode Active",
-                                iconColor: .orange
+                                iconColor: Color("LightGreen")
                             ) {
                                 // Show guest info
                             }
@@ -123,7 +123,7 @@ struct ProfileTabView: View {
                         SettingsRow(
                             icon: "person.badge.plus",
                             title: "Create Profile",
-                            iconColor: .blue
+                            iconColor: Color("LightGreen")
                         ) {
                             showUserProfile = true
                         }
@@ -136,7 +136,7 @@ struct ProfileTabView: View {
                     SettingsRow(
                         icon: "lock.circle.fill",
                         title: "Update Password",
-                        iconColor: .orange
+                        iconColor: Color("LightGreen")
                     ) {
                         // Future functionality
                     }
@@ -151,7 +151,7 @@ struct ProfileTabView: View {
                             SettingsRow(
                                 icon: "trash.circle.fill",
                                 title: "Delete My Account",
-                                iconColor: .red
+                                iconColor: Color("LightGreen")
                             ) {
                                 showDeleteAccountAlert = true
                             }
@@ -165,7 +165,7 @@ struct ProfileTabView: View {
                     SettingsRow(
                         icon: "arrow.clockwise.circle.fill",
                         title: "Reset Onboarding",
-                        iconColor: .orange
+                        iconColor: Color("LightGreen")
                     ) {
                         OnboardingManager().resetOnboarding()
                         showOnboardingResetToast = true
@@ -178,7 +178,7 @@ struct ProfileTabView: View {
                     SettingsRow(
                         icon: "rectangle.portrait.and.arrow.right",
                         title: "Sign Out",
-                        iconColor: .red
+                        iconColor: Color("LightGreen")
                     ) {
                         Task {
                             await onSignOut()

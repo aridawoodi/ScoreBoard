@@ -7,7 +7,70 @@
 
 import SwiftUI
 
+// MARK: - App Text Field Style
+struct AppTextFieldStyle: ViewModifier {
+    let placeholder: String
+    @Binding var text: String
+    
+    func body(content: Content) -> some View {
+        ZStack(alignment: .leading) {
+            if text.isEmpty {
+                Text(placeholder)
+                    .foregroundColor(.white.opacity(0.5))
+                    .font(.body)
+                    .padding(.leading, 16)
+            }
+            TextField("", text: $text)
+                .font(.body)
+                .foregroundColor(.white)
+                .padding()
+                .background(Color.black.opacity(0.5))
+                .cornerRadius(8)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                )
+        }
+    }
+}
+
+// MARK: - App Text Field Component
+struct AppTextField: View {
+    let placeholder: String
+    @Binding var text: String
+    let font: Font
+    
+    init(placeholder: String, text: Binding<String>, font: Font = .body) {
+        self.placeholder = placeholder
+        self._text = text
+        self.font = font
+    }
+    
+    var body: some View {
+        ZStack(alignment: .leading) {
+            if text.isEmpty {
+                Text(placeholder)
+                    .foregroundColor(.white.opacity(0.5))
+                    .font(font)
+                    .padding(.leading, 16)
+            }
+            TextField("", text: $text)
+                .font(font)
+                .foregroundColor(.white)
+                .padding()
+                .background(Color.black.opacity(0.5))
+                .cornerRadius(8)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                )
+        }
+    }
+}
+
 struct AppViewModifier: View {
+    @State private var sampleText = ""
+    
     var body: some View {
         ZStack {
             // Background gradient
@@ -47,6 +110,33 @@ struct AppViewModifier: View {
                         .font(.subheadline)
                 }
                 .padding(.top, 10)
+                
+                // Text Field Demo Section
+                VStack(spacing: 16) {
+                    Text("Text Field Style Demo")
+                        .foregroundColor(.white)
+                        .font(.headline)
+                        .padding(.top, 20)
+                    
+                    // Using ViewModifier approach
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("ViewModifier Style:")
+                            .foregroundColor(.white.opacity(0.8))
+                            .font(.caption)
+                        TextField("", text: $sampleText)
+                            .modifier(AppTextFieldStyle(placeholder: "Enter text here...", text: $sampleText))
+                    }
+                    .padding(.horizontal)
+                    
+                    // Using Component approach
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Component Style:")
+                            .foregroundColor(.white.opacity(0.8))
+                            .font(.caption)
+                        AppTextField(placeholder: "Enter text here...", text: $sampleText)
+                    }
+                    .padding(.horizontal)
+                }
                 
                 // Action buttons
                 HStack(spacing: 20) {

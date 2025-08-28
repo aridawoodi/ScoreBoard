@@ -36,30 +36,23 @@ struct SearchRegisteredUsersSheet: View {
                 // Search Field
                 VStack(alignment: .leading, spacing: 12) {
                     HStack {
-                        ZStack(alignment: .leading) {
-                            if searchText.isEmpty {
-                                Text("Search by username or email")
-                                    .foregroundColor(.white.opacity(0.5))
-                                    .padding(.leading, 16)
-                            }
-                            TextField("", text: $searchText)
-                                .foregroundColor(.white)
-                                .padding()
-                                .background(Color.black.opacity(0.5))
-                                .cornerRadius(8)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .stroke(Color.white.opacity(0.3), lineWidth: 1)
-                                )
-                                .onChange(of: searchText) { _, newValue in
-                                    // Trigger search when text changes
-                                    if !newValue.isEmpty {
-                                        searchUsers(newValue)
-                                    } else {
-                                        searchResults = []
-                                    }
-                                }
+                                            ZStack(alignment: .leading) {
+                        if searchText.isEmpty {
+                            Text("Search by username or email")
+                                .foregroundColor(.white.opacity(0.5))
+                                .padding(.leading, 16)
                         }
+                        TextField("", text: $searchText)
+                            .modifier(AppTextFieldStyle(placeholder: "Search by username or email", text: $searchText))
+                            .onChange(of: searchText) { _, newValue in
+                                // Trigger search when text changes
+                                if !newValue.isEmpty {
+                                    searchUsers(newValue)
+                                } else {
+                                    searchResults = []
+                                }
+                            }
+                    }
                         
                         if isSearching {
                             ProgressView()
@@ -264,14 +257,7 @@ struct PlayerManagementView: View {
                                 .padding(.leading, 16)
                         }
                         TextField("", text: $newPlayerName)
-                            .foregroundColor(.white)
-                            .padding()
-                            .background(Color.black.opacity(0.5))
-                            .cornerRadius(8)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .stroke(Color.white.opacity(0.3), lineWidth: 1)
-                            )
+                            .modifier(AppTextFieldStyle(placeholder: "Enter player name", text: $newPlayerName))
                     }
                     
                     Button("Add") {

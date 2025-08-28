@@ -132,18 +132,29 @@ struct FloatingTabBar: View {
         print("🔍 DEBUG: Current selectedGame: \(navigationState.selectedGame?.id ?? "nil")")
         print("🔍 DEBUG: Has games: \(navigationState.hasGames)")
         print("🔍 DEBUG: Latest game: \(navigationState.latestGame?.id ?? "nil")")
+        print("🔍 DEBUG: shouldShowMainBoard: \(navigationState.shouldShowMainBoard)")
         
-        if selectedTab == 2 {
-            // Already on Your Board tab - do nothing to avoid conflicts
-            // Use the floating action button for navigation instead
-            print("🔍 DEBUG: Already on Your Board tab - use floating action button for navigation")
-            return
-        } else {
-            // Coming from another tab - switch to Your Board tab
+        // Always clear the selected game to go back to main board view
+        // This provides the same functionality as "Back to Boards" button
+        if navigationState.selectedGame != nil {
+            print("🔍 DEBUG: Clearing selected game to return to main board")
+            navigationState.selectedGame = nil
+        }
+        
+        // Set a flag to prevent auto-selection of latest game
+        navigationState.shouldShowMainBoard = true
+        print("🔍 DEBUG: Set shouldShowMainBoard to true")
+        
+        // Switch to Your Board tab if not already there
+        if selectedTab != 2 {
             print("🔍 DEBUG: Switching to Your Board tab from tab \(selectedTab)")
             withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
                 selectedTab = 2
             }
+        } else {
+            print("🔍 DEBUG: Already on Your Board tab - just cleared selected game")
+            // Force a refresh of the YourBoardTabView by triggering objectWillChange
+            navigationState.objectWillChange.send()
         }
         
         print("🔍 DEBUG: ===== YOUR BOARD TAB TAP HANDLER END =====")

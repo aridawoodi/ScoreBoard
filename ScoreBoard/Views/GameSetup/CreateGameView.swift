@@ -187,6 +187,9 @@ struct CreateGameView: View {
                     }
                 }
             }
+            .onDisappear {
+                print("🔍 DEBUG: CreateGameView onDisappear - Mode: \(isEditMode ? "edit" : "create")")
+            }
         }
     }
     
@@ -893,24 +896,8 @@ struct CreateGameContentView: View {
         .background(Color.black.opacity(0.3))
         .cornerRadius(quickStartCornerRadius)
         
-        let gameNameTextField = ZStack(alignment: .leading) {
-            if gameName.isEmpty {
-                Text("Enter game name (optional)")
-                    .foregroundColor(.white.opacity(0.5))
-                    .font(bodyFont)
-                    .padding(.leading, 16)
-            }
-            TextField("", text: $gameName)
-                .font(bodyFont)
-                .foregroundColor(.white)
-                .padding()
-                .background(Color.black.opacity(0.5))
-                .cornerRadius(8)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8)
-                        .stroke(Color.white.opacity(0.3), lineWidth: 1)
-                )
-        }
+        let gameNameTextField = TextField("", text: $gameName)
+            .modifier(AppTextFieldStyle(placeholder: "Enter game name (optional)", text: $gameName))
         
         // let roundsStepper = HStack {
         //     Text("\(rounds)")
@@ -970,24 +957,8 @@ struct CreateGameContentView: View {
         }
         .toggleStyle(SwitchToggleStyle(tint: Color("LightGreen")))
         
-        let hostNameTextField = ZStack(alignment: .leading) {
-            if hostPlayerName.isEmpty {
-                Text("Enter your display name")
-                    .foregroundColor(.white.opacity(0.5))
-                    .font(bodyFont)
-                    .padding(.leading, 16)
-            }
-            TextField("", text: $hostPlayerName)
-                .font(bodyFont)
-                .foregroundColor(.white)
-                .padding()
-                .background(Color.black.opacity(0.5))
-                .cornerRadius(8)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8)
-                        .stroke(Color.white.opacity(0.3), lineWidth: 1)
-                )
-        }
+        let hostNameTextField = TextField("", text: $hostPlayerName)
+            .modifier(AppTextFieldStyle(placeholder: "Enter your display name", text: $hostPlayerName))
         
         let hostJoinContent = VStack(alignment: .leading, spacing: hostJoinInnerSpacing) {
             if let user = currentUser {
@@ -1110,16 +1081,8 @@ struct CreateGameContentView: View {
             } else {
                 // Show normal input fields
                 HStack(spacing: 8) {
-                    TextField("Letter", text: $newRuleLetter)
-                        .font(.caption)
-                        .foregroundColor(.white)
-                        .padding(8)
-                        .background(Color.black.opacity(0.5))
-                        .cornerRadius(4)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 4)
-                                .stroke(Color.white.opacity(0.3), lineWidth: 1)
-                        )
+                    TextField("", text: $newRuleLetter)
+                        .modifier(AppTextFieldStyle(placeholder: "Letter", text: $newRuleLetter))
                         .frame(width: 60)
                         .textInputAutocapitalization(.characters)
                         .onChange(of: newRuleLetter) { _, newValue in
@@ -1130,16 +1093,15 @@ struct CreateGameContentView: View {
                         .font(.caption)
                         .foregroundColor(.white)
                     
-                    TextField("Value", value: $newRuleValue, format: .number)
-                        .font(.caption)
-                        .foregroundColor(.white)
-                        .padding(8)
-                        .background(Color.black.opacity(0.5))
-                        .cornerRadius(4)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 4)
-                                .stroke(Color.white.opacity(0.3), lineWidth: 1)
-                        )
+                    TextField("", value: $newRuleValue, format: .number)
+                        .modifier(AppTextFieldStyle(placeholder: "Value", text: Binding(
+                            get: { String(newRuleValue) },
+                            set: { newValue in
+                                if let intValue = Int(newValue) {
+                                    newRuleValue = intValue
+                                }
+                            }
+                        )))
                         .frame(width: 80)
                         .keyboardType(.numberPad)
                     

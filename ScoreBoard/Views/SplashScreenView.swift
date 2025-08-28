@@ -8,44 +8,29 @@ struct SplashScreenView: View {
     
     var body: some View {
         ZStack {
-            // Clean white background
-            Color.white
-                .ignoresSafeArea()
+            // Background gradient matching app theme
+            LinearGradient(
+                gradient: Gradient(colors: [
+                    Color("GradientBackground"), // Dark green from asset
+                    Color.black // Very dark gray / almost black
+                ]),
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
             
             VStack(spacing: 0) {
                 Spacer()
                 
-                // Logo Container
-                ZStack {
-                    // Background circle with subtle gradient
-                    Circle()
-                        .fill(
-                            LinearGradient(
-                                colors: [
-                                    Color(red: 0.2, green: 0.6, blue: 1.0),
-                                    Color(red: 0.4, green: 0.2, blue: 0.8)
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .frame(width: 100, height: 100)
-                        .shadow(color: .black.opacity(0.1), radius: 10, x: 0, y: 5)
-                    
-                    // ScoreBoard Logo
-                    Image("logo")
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(width: 100, height: 100)
-                        .clipShape(Circle())
-                }
-                .scaleEffect(logoScale)
-                .opacity(logoOpacity)
+                // Logo Container using shared component
+                AnimatedLogoView.splashScreen(size: 100)
+                    .scaleEffect(logoScale)
+                    .opacity(logoOpacity)
                 
                 // App name with modern typography
                 Text("ScoreBoard")
                     .font(.system(size: 42, weight: .bold, design: .default))
-                    .foregroundColor(Color(red: 0.1, green: 0.1, blue: 0.1))
+                    .foregroundColor(.white)
                     .tracking(1.5) // Letter spacing
                     .opacity(textOpacity)
                     .offset(y: textOffset)
@@ -53,7 +38,7 @@ struct SplashScreenView: View {
                 // Subtitle
                 Text("Track • Score • Win")
                     .font(.system(size: 16, weight: .medium, design: .default))
-                    .foregroundColor(Color(red: 0.4, green: 0.4, blue: 0.4))
+                    .foregroundColor(.white.opacity(0.7))
                     .tracking(0.5)
                     .opacity(textOpacity)
                     .offset(y: textOffset)
@@ -63,7 +48,7 @@ struct SplashScreenView: View {
             }
         }
         .onAppear {
-            // Animate logo appearance
+            // Animate logo appearance with exciting effects
             withAnimation(.easeOut(duration: 0.8)) {
                 logoScale = 1.0
                 logoOpacity = 1.0

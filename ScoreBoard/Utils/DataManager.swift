@@ -2,6 +2,31 @@ import Foundation
 import Amplify
 import Combine
 
+// MARK: - Player Leaderboard Entry
+struct PlayerLeaderboardEntry: Identifiable {
+    let id = UUID()
+    let nickname: String
+    let playerID: String
+    let totalWins: Int
+    let totalGames: Int
+    let winRate: Double
+    let highestScoreWins: Int
+    let lowestScoreWins: Int
+    let averageScore: Double
+    let gamesWon: [GameWinDetail]
+}
+
+// MARK: - Game Win Detail
+struct GameWinDetail: Identifiable {
+    let id = UUID()
+    let gameID: String
+    let gameName: String
+    let winCondition: WinCondition
+    let finalScore: Int
+    let date: Date
+    let totalPlayers: Int
+}
+
 // MARK: - Data Manager for Cost-Efficient AWS Usage
 class DataManager: ObservableObject {
     static let shared = DataManager()
@@ -125,56 +150,124 @@ class DataManager: ObservableObject {
     func calculateLeaderboard() async {
         isLoadingLeaderboard = true
         
-        // Calculate total points for each player and track their games
-        var playerPoints: [String: Int] = [:]
-        var playerGames: [String: Set<String>] = [:]
+        // Group games by completion status and calculate wins
+        var playerStats: [String: PlayerStats] = [:]
         
-        // Group scores by player and sum them, also track games
-        for score in scores {
-            let playerId = score.playerID
-            playerPoints[playerId, default: 0] += score.score
+        // Process completed games to determine winners
+        for game in games where game.gameStatus == .completed {
+            guard let winCondition = game.winCondition else { continue }
             
-            // Track games for this player
-            if playerGames[playerId] == nil {
-                playerGames[playerId] = Set<String>()
+            // Get all scores for this game
+            let gameScores = scores.filter { $0.gameID == game.id }
+            guard !gameScores.isEmpty else { continue }
+            
+            // Determine winner based on win condition
+            let winner: Score?
+            switch winCondition {
+            case .highestScore:
+                winner = gameScores.max { $0.score < $1.score }
+            case .lowestScore:
+                winner = gameScores.min { $0.score < $1.score }
             }
-            playerGames[playerId]?.insert(score.gameID)
+            
+            guard let winningScore = winner else { continue }
+            let winnerPlayerID = winningScore.playerID
+            
+            // Initialize player stats if needed
+            if playerStats[winnerPlayerID] == nil {
+                playerStats[winnerPlayerID] = PlayerStats(playerID: winnerPlayerID)
+            }
+            
+            // Update winner stats
+            playerStats[winnerPlayerID]?.totalWins += 1
+            playerStats[winnerPlayerID]?.gamesWon.append(GameWinDetail(
+                gameID: game.id,
+                gameName: game.gameName ?? "Untitled Game",
+                winCondition: winCondition,
+                finalScore: winningScore.score,
+                date: game.createdAt.foundationDate ?? Date(),
+                totalPlayers: game.playerIDs.count
+            ))
+            
+            // Update win condition specific stats
+            switch winCondition {
+            case .highestScore:
+                playerStats[winnerPlayerID]?.highestScoreWins += 1
+            case .lowestScore:
+                playerStats[winnerPlayerID]?.lowestScoreWins += 1
+            }
         }
         
-        // Create leaderboard entries with user information and game details
+        // Calculate total games played for each player
+        for score in scores {
+            let playerID = score.playerID
+            if playerStats[playerID] == nil {
+                playerStats[playerID] = PlayerStats(playerID: playerID)
+            }
+            
+            // Count unique games played
+            if !playerStats[playerID]!.gamesPlayed.contains(score.gameID) {
+                playerStats[playerID]!.gamesPlayed.insert(score.gameID)
+            }
+            
+            // Calculate average score
+            playerStats[playerID]!.totalScore += score.score
+            playerStats[playerID]!.scoreCount += 1
+        }
+        
+        // Create leaderboard entries
         var leaderboardEntries: [PlayerLeaderboardEntry] = []
         
-        for (playerId, totalPoints) in playerPoints {
-            // Get game names for this player
-            let gameIds = playerGames[playerId] ?? Set<String>()
-            let gameNames = gameIds.compactMap { gameId in
-                games.first { $0.id == gameId }?.gameName ?? "None"
+        for (playerID, stats) in playerStats {
+            let totalGames = stats.gamesPlayed.count
+            let winRate = totalGames > 0 ? Double(stats.totalWins) / Double(totalGames) : 0.0
+            let averageScore = stats.scoreCount > 0 ? Double(stats.totalScore) / Double(stats.scoreCount) : 0.0
+            
+            // Get player nickname
+            let nickname: String
+            if let user = users.first(where: { $0.id == playerID }) {
+                nickname = user.username ?? "Unknown Player"
+            } else {
+                nickname = playerID.count <= 10 ? playerID : String(playerID.prefix(8))
             }
             
-            // Find user information
-            if let user = users.first(where: { $0.id == playerId }) {
-                leaderboardEntries.append(PlayerLeaderboardEntry(
-                    nickname: user.username ?? "Unknown Player",
-                    points: totalPoints,
-                    games: gameNames
-                ))
-            } else {
-                // Handle anonymous players
-                let anonymousName = playerId.count <= 10 ? playerId : String(playerId.prefix(8))
-                leaderboardEntries.append(PlayerLeaderboardEntry(
-                    nickname: anonymousName,
-                    points: totalPoints,
-                    games: gameNames
-                ))
-            }
+            leaderboardEntries.append(PlayerLeaderboardEntry(
+                nickname: nickname,
+                playerID: playerID,
+                totalWins: stats.totalWins,
+                totalGames: totalGames,
+                winRate: winRate,
+                highestScoreWins: stats.highestScoreWins,
+                lowestScoreWins: stats.lowestScoreWins,
+                averageScore: averageScore,
+                gamesWon: stats.gamesWon
+            ))
         }
         
-        // Sort by points (descending) and take top players
+        // Sort by total wins (descending), then by win rate (descending)
         leaderboardData = Array(leaderboardEntries
-            .sorted { $0.points > $1.points }
+            .sorted { player1, player2 in
+                if player1.totalWins != player2.totalWins {
+                    return player1.totalWins > player2.totalWins
+                }
+                return player1.winRate > player2.winRate
+            }
             .prefix(100)) // Limit to top 100 players
         
         isLoadingLeaderboard = false
+    }
+    
+    // MARK: - Helper Struct for Leaderboard Calculation
+    
+    private struct PlayerStats {
+        let playerID: String
+        var totalWins: Int = 0
+        var totalScore: Int = 0
+        var scoreCount: Int = 0
+        var highestScoreWins: Int = 0
+        var lowestScoreWins: Int = 0
+        var gamesPlayed: Set<String> = []
+        var gamesWon: [GameWinDetail] = []
     }
     
     // MARK: - Cache Management
@@ -275,12 +368,4 @@ class DataManager: ObservableObject {
         await loadUsers()
         await calculateLeaderboard()
     }
-}
-
-// MARK: - Player Leaderboard Entry
-struct PlayerLeaderboardEntry: Identifiable {
-    let id = UUID()
-    let nickname: String
-    let points: Int
-    let games: [String]
 } 

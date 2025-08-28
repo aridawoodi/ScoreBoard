@@ -553,6 +553,24 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
         print("🔍 DEBUG: Updated game rounds: \(updatedGame.rounds)")
         print("🔍 DEBUG: Original game playerIDs: \(game.playerIDs)")
         print("🔍 DEBUG: Updated game playerIDs: \(updatedGame.playerIDs)")
+        print("🔍 DEBUG: showGameSettings current state: \(showGameSettings)")
+        print("🔍 DEBUG: showGameListSheet current state: \(showGameListSheet)")
+        
+        // If a sheet is currently being presented, delay the game update to prevent interference
+        if showGameSettings || showGameListSheet {
+            print("🔍 DEBUG: Sheet is currently presented - delaying game update")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                self.performGameUpdate(updatedGame)
+            }
+        } else {
+            performGameUpdate(updatedGame)
+        }
+        
+        print("🔍 DEBUG: ===== GAME UPDATE CALLBACK END =====")
+    }
+    
+    private func performGameUpdate(_ updatedGame: Game) {
+        print("🔍 DEBUG: Performing game update")
         
         // Update the game binding immediately
         self.game = updatedGame
@@ -566,7 +584,7 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
         // Call the parent callback
         self.onGameUpdated?(updatedGame)
         
-        print("🔍 DEBUG: ===== GAME UPDATE CALLBACK END =====")
+        print("🔍 DEBUG: Game update completed")
     }
     
     @Environment(\.colorScheme) var colorScheme
@@ -609,7 +627,8 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
             //     .transition(.opacity)
             // }
             
-            // Floating Action Button
+            // Floating Action Button - COMMENTED OUT FOR FUTURE USE
+            /*
             FloatingActionButton(
                 isExpanded: $isFloatingButtonExpanded,
                 onBackToBoards: {
@@ -632,28 +651,7 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                     loadAvailableGames()
                 }
             }
-        }
-        // EditBoardView sheet - DISABLED: Users now use gear icon for editing
-        /*
-        .sheet(isPresented: $showEditBoard) {
-            EditBoardView(game: game) { updatedGame in
-                handleGameUpdate(updatedGame)
-            }
-        }
-        */
-        // Remove modal sheet keyboard; use inline system number pad instead
-        .alert("Save Failed", isPresented: $showSaveError) {
-            Button("OK") { }
-        } message: {
-            Text(saveErrorMessage)
-        }
-        .alert("Remove Round", isPresented: $showRemoveRoundAlert) {
-            Button("Remove", role: .destructive) {
-                removeRound()
-            }
-            Button("Cancel", role: .cancel) { }
-        } message: {
-            Text("Remove round \(roundToRemove)? This will delete all scores for this round.")
+            */
         }
         // Persistent accessory bar above the keyboard for Cancel/Save
         .safeAreaInset(edge: .bottom) {
@@ -703,12 +701,122 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                 .overlay(Divider(), alignment: .top)
             }
         }
-        .ignoresSafeArea(.keyboard, edges: .bottom) // Allow keyboard to push content up
+        // EditBoardView sheet - DISABLED: Users now use gear icon for editing
+        /*
+        .sheet(isPresented: $showEditBoard) {
+            EditBoardView(game: game) { updatedGame in
+                handleGameUpdate(updatedGame)
+            }
+        }
+        */
+        .sheet(isPresented: $showGameSettings) {
+            //print("🔍 DEBUG: Creating CreateGameView for sheet")
+            CreateGameView(
+                showCreateGame: $showGameSettings,
+                mode: .edit(game), // This will use the updated game object after handleGameUpdate
+                onGameCreated: { _ in }, // Not used in edit mode
+                onGameUpdated: { updatedGame in
+                    //print("🔍 DEBUG: CreateGameView onGameUpdated callback triggered")
+                    handleGameUpdate(updatedGame)
+                }
+            )
+        }
+        .onChange(of: showGameSettings) { _, isPresented in
+            print("🔍 DEBUG: showGameSettings changed to: \(isPresented)")
+            if isPresented {
+                print("🔍 DEBUG: Game settings sheet is being presented")
+            } else {
+                print("🔍 DEBUG: Game settings sheet is being dismissed")
+            }
+        }
+        // .id("game-settings-sheet-\(game.id)-\(gameUpdateCounter)") // Force recreation when game updates - TEMPORARILY DISABLED
+        .alert("Save Failed", isPresented: $showSaveError) {
+            Button("OK") { }
+        } message: {
+            Text(saveErrorMessage)
+        }
+
+        .alert("Remove Round", isPresented: $showRemoveRoundAlert) {
+            Button("Remove", role: .destructive) {
+                removeRound()
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Remove round \(roundToRemove)? This will delete all scores for this round.")
+        }
+        
+        .alert("Delete Player", isPresented: $showDeletePlayerAlert) {
+            Button("Delete", role: .destructive) {
+                if let player = playerToDelete {
+                    deletePlayer(player)
+                }
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            if let player = playerToDelete {
+                Text("Delete \(player.name) from this game? This will remove all their scores and cannot be undone.")
+            }
+        }
+        
+        .alert("Delete Round", isPresented: $showDeleteRoundAlert) {
+            Button("Delete", role: .destructive) {
+                deleteRound(roundToDelete)
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Delete round \(roundToDelete)? This will remove all scores for this round and cannot be undone.")
+        }
+        
+        .alert("Delete Game", isPresented: $showDeleteGameAlert) {
+            Button("Delete", role: .destructive) {
+                deleteGame()
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Delete this entire game? This will permanently remove the game and all its scores. This action cannot be undone.")
+        }
+        .sheet(isPresented: $showGameListSheet) {
+            //print("🔍 DEBUG: Creating GameListBottomSheet for sheet")
+            GameListBottomSheet(
+                games: availableGames,
+                currentIndex: $currentGameIndex,
+                onGameSelected: { index in
+                    print("🔍 DEBUG: Game selected in list sheet: \(index)")
+                    currentGameIndex = index
+                    showGameListSheet = false
+                }
+            )
+        }
+        .onChange(of: showGameListSheet) { _, isPresented in
+            print("🔍 DEBUG: showGameListSheet changed to: \(isPresented)")
+            if isPresented {
+                print("🔍 DEBUG: Game list sheet is being presented")
+            } else {
+                print("🔍 DEBUG: Game list sheet is being dismissed")
+            }
+        }
     }
     
     private var bottomSheetTriggerView: some View {
         Button(action: {
-            showGameListSheet = true
+            print("🔍 DEBUG: Game list button tapped - attempting to show game list sheet")
+            print("🔍 DEBUG: showGameSettings current state: \(showGameSettings)")
+            print("🔍 DEBUG: showGameListSheet current state: \(showGameListSheet)")
+            
+            // Prevent multiple sheets from being presented simultaneously
+            if !showGameSettings {
+                showGameListSheet = true
+                print("🔍 DEBUG: Game list sheet presentation triggered")
+            } else {
+                print("🔍 DEBUG: Game settings sheet is already presented - delaying game list sheet")
+                // Delay the presentation to avoid conflicts
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    if !showGameSettings {
+                        showGameListSheet = true
+                        print("🔍 DEBUG: Game list sheet presentation triggered after delay")
+                    }
+                }
+            }
         }) {
             HStack(spacing: 12) {
                 Image(systemName: "list.bullet")
@@ -779,7 +887,8 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
             }
             */
             
-            // Alternative: Floating indicator with side arrows
+            // Alternative: Floating indicator with side arrows - COMMENTED OUT
+            /*
             if availableGames.count > 1 {
                 HStack(spacing: 0) {
                     // Left arrow
@@ -854,6 +963,7 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                 .padding(.top, 8)
                 .padding(.bottom, 12)
             }
+            */
             
             // Alternative: Bottom sheet trigger with carousel preview
             if availableGames.count > 1 {
@@ -904,7 +1014,14 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
 
                 Spacer()
             }
-            .id("\(game.id)-\(gameStatusRefreshTrigger)") // Force view refresh when game status changes
+            .id("\(game.id)-\(gameStatusRefreshTrigger)")
+            .background(Color.clear)
+            .navigationBarTitleDisplayMode(.large)
+            .navigationBarHidden(true)
+            .onAppear {
+                onAppearAction()
+            }
+            
             // Hidden inline input to trigger the standard iOS number pad
             TextField("", text: $scoreInputText)
                 .keyboardType(.decimalPad)
@@ -912,58 +1029,6 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                 .opacity(0)
                 .frame(width: 0, height: 0)
                 .allowsHitTesting(false)
-            .background(Color.clear)
-            .navigationBarTitleDisplayMode(.large)
-            .navigationBarHidden(true)
-            .onAppear {
-                onAppearAction()
-            }
-            .onChange(of: gameUpdateCounter) { _, _ in
-                print("🔍 DEBUG: Game update counter changed - reloading data")
-                loadGameData()
-            }
-            .onChange(of: game.rounds) { _, newRounds in
-                print("🔍 DEBUG: ===== GAME ROUNDS CHANGED =====")
-                print("🔍 DEBUG: Game rounds changed to \(newRounds) - updating state and reloading data")
-                print("🔍 DEBUG: Previous dynamicRounds: \(dynamicRounds)")
-                lastKnownGameRounds = newRounds
-                dynamicRounds = newRounds
-                print("🔍 DEBUG: New dynamicRounds: \(dynamicRounds)")
-                // Reset selectedRound if it's now out of bounds
-                if selectedRound > newRounds {
-                    selectedRound = 1
-                }
-                loadGameData()
-                print("🔍 DEBUG: ===== GAME ROUNDS CHANGED END =====")
-            }
-            .onChange(of: game.playerIDs) { _, newPlayerIDs in
-                print("🔍 DEBUG: Game playerIDs changed to \(newPlayerIDs) - reloading data")
-                loadGameData()
-            }
-            .onChange(of: game.id) { _, newGameId in
-                print("🔍 DEBUG: Game ID changed to \(newGameId) - updating state and reloading data")
-                currentGameId = newGameId
-                loadGameData()
-            }
-            .onChange(of: game.gameStatus) { _, newStatus in
-                print("🔍 DEBUG: Game status changed to \(newStatus)")
-                // Automatically disable delete mode when game is completed
-                if newStatus == .completed && isDeleteMode {
-                    withAnimation(.easeInOut(duration: 0.3)) {
-                        isDeleteMode = false
-                    }
-                }
-                // Force view refresh when game status changes
-                gameStatusRefreshTrigger += 1
-            }
-            .onChange(of: isScoreFieldFocused) { _, isFocused in
-                // Auto-save when input loses focus
-                                        if !isFocused && editingPlayer != nil && !scoreInputText.isEmpty {
-                            let currentScore = parseScoreInput(scoreInputText) ?? 0
-                            updateScore(playerID: editingPlayer!.playerID, round: editingRound, newScore: currentScore)
-                            awaitSaveChangesSilently()
-                        }
-            }
             
             // Celebration overlay
             if showCelebration {
@@ -978,123 +1043,111 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                 )
             }
         }
-        // EditBoardView sheet - DISABLED: Users now use gear icon for editing
-        /*
-        .sheet(isPresented: $showEditBoard) {
-            EditBoardView(game: game) { updatedGame in
-                handleGameUpdate(updatedGame)
-            }
+        .onChange(of: gameUpdateCounter) { _, _ in
+            print("🔍 DEBUG: Game update counter changed - reloading data")
+            print("🔍 DEBUG: showGameSettings: \(showGameSettings), showGameListSheet: \(showGameListSheet)")
+            loadGameData()
         }
-        */
-        .sheet(isPresented: $showGameSettings) {
-            CreateGameView(
-                showCreateGame: $showGameSettings,
-                mode: .edit(game), // This will use the updated game object after handleGameUpdate
-                onGameCreated: { _ in }, // Not used in edit mode
-                onGameUpdated: { updatedGame in
-                    handleGameUpdate(updatedGame)
+        .onChange(of: game.rounds) { _, newRounds in
+            print("🔍 DEBUG: ===== GAME ROUNDS CHANGED =====")
+            print("🔍 DEBUG: Game rounds changed to \(newRounds) - updating state and reloading data")
+            print("🔍 DEBUG: Previous dynamicRounds: \(dynamicRounds)")
+            print("🔍 DEBUG: showGameSettings: \(showGameSettings), showGameListSheet: \(showGameListSheet)")
+            lastKnownGameRounds = newRounds
+            dynamicRounds = newRounds
+            print("🔍 DEBUG: New dynamicRounds: \(dynamicRounds)")
+            // Reset selectedRound if it's now out of bounds
+            if selectedRound > newRounds {
+                selectedRound = 1
+            }
+            loadGameData()
+            print("🔍 DEBUG: ===== GAME ROUNDS CHANGED END =====")
+        }
+        .onChange(of: game.playerIDs) { _, newPlayerIDs in
+            print("🔍 DEBUG: Game playerIDs changed to \(newPlayerIDs) - reloading data")
+            print("🔍 DEBUG: showGameSettings: \(showGameSettings), showGameListSheet: \(showGameListSheet)")
+            loadGameData()
+        }
+        .onChange(of: game.id) { _, newGameId in
+            print("🔍 DEBUG: Game ID changed to \(newGameId) - updating state and reloading data")
+            print("🔍 DEBUG: showGameSettings: \(showGameSettings), showGameListSheet: \(showGameListSheet)")
+            currentGameId = newGameId
+            loadGameData()
+        }
+        .onChange(of: game.gameStatus) { _, newStatus in
+            print("🔍 DEBUG: Game status changed to \(newStatus)")
+            print("🔍 DEBUG: showGameSettings: \(showGameSettings), showGameListSheet: \(showGameListSheet)")
+            // Automatically disable delete mode when game is completed
+            if newStatus == .completed && isDeleteMode {
+                withAnimation(.easeInOut(duration: 0.3)) {
+                    isDeleteMode = false
                 }
-            )
-        }
-        .id("game-settings-sheet-\(game.id)-\(gameUpdateCounter)") // Force recreation when game updates
-        .alert("Save Failed", isPresented: $showSaveError) {
-            Button("OK") { }
-        } message: {
-            Text(saveErrorMessage)
-        }
-
-        .alert("Remove Round", isPresented: $showRemoveRoundAlert) {
-            Button("Remove", role: .destructive) {
-                removeRound()
             }
-            Button("Cancel", role: .cancel) { }
-        } message: {
-            Text("Remove round \(roundToRemove)? This will delete all scores for this round.")
+            // Force view refresh when game status changes
+            gameStatusRefreshTrigger += 1
         }
-        
-        .alert("Delete Player", isPresented: $showDeletePlayerAlert) {
-            Button("Delete", role: .destructive) {
-                if let player = playerToDelete {
-                    deletePlayer(player)
-                }
+        .onChange(of: isScoreFieldFocused) { _, isFocused in
+            // Auto-save when input loses focus
+            let shouldAutoSave = !isFocused && editingPlayer != nil && !scoreInputText.isEmpty
+            if shouldAutoSave {
+                let currentScore = parseScoreInput(scoreInputText) ?? 0
+                updateScore(playerID: editingPlayer!.playerID, round: editingRound, newScore: currentScore)
+                awaitSaveChangesSilently()
             }
-            Button("Cancel", role: .cancel) { }
-        } message: {
-            if let player = playerToDelete {
-                Text("Delete \(player.name) from this game? This will remove all their scores and cannot be undone.")
-            }
-        }
-        
-        .alert("Delete Round", isPresented: $showDeleteRoundAlert) {
-            Button("Delete", role: .destructive) {
-                deleteRound(roundToDelete)
-            }
-            Button("Cancel", role: .cancel) { }
-        } message: {
-            Text("Delete round \(roundToDelete)? This will remove all scores for this round and cannot be undone.")
-        }
-        
-        .alert("Delete Game", isPresented: $showDeleteGameAlert) {
-            Button("Delete", role: .destructive) {
-                deleteGame()
-            }
-            Button("Cancel", role: .cancel) { }
-        } message: {
-            Text("Delete this entire game? This will permanently remove the game and all its scores. This action cannot be undone.")
-        }
-        .sheet(isPresented: $showGameListSheet) {
-            GameListBottomSheet(
-                games: availableGames,
-                currentIndex: $currentGameIndex,
-                onGameSelected: { index in
-                    currentGameIndex = index
-                    showGameListSheet = false
-                }
-            )
         }
     }
     
-//    private var scoreInputSheet: some View {
-//        Group {
-//            if let player = editingPlayer {
-//                ScoreInputView(
-//                    playerName: player.name,
-//                    currentScore: editingScore,
-//                    onScoreChanged: { newScore in
-//                        updateScore(playerID: player.playerID, round: editingRound, newScore: newScore)
-//                    },
-//                    isIPad: UIDevice.current.userInterfaceIdiom == .pad
-//                )
-//            }
-//        }
-//    }
-    
-    // MARK: - View Components
-    
     private var headerView: some View {
         VStack(spacing: 12) {
-            // Game name centered with truncation
-            if let gameName = game.gameName, !gameName.isEmpty {
-                Text(gameName)
-                    .font(.system(size: 36, weight: .bold))
-                    .foregroundColor(.white)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .frame(maxWidth: .infinity)
-                    .multilineTextAlignment(.center)
-            } else {
-                // Fallback if no game name is provided
-                Text("Game")
-                    .font(.system(size: 36, weight: .bold))
-                    .foregroundColor(.white.opacity(0.8))
-                    .frame(maxWidth: .infinity)
-                    .multilineTextAlignment(.center)
-            }
-            
-            // Game ID with copy functionality
-            HStack {
-                Spacer()
-                Text("Game: \(String(game.id.prefix(8)))")
+            // Game name, custom rules, and ID all on the same line
+            HStack(spacing: 8) {
+                // Game name with truncation - aligned to left
+                if let gameName = game.gameName, !gameName.isEmpty {
+                    Text(gameName)
+                        .font(.system(size: 36, weight: .bold))
+                        .foregroundColor(.white)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .multilineTextAlignment(.leading)
+                } else {
+                    // Fallback if no game name is provided
+                    Text("Game")
+                        .font(.system(size: 36, weight: .bold))
+                        .foregroundColor(.white.opacity(0.8))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .multilineTextAlignment(.leading)
+                }
+                
+                // Custom Rules Hint (only show if there are custom rules)
+                if !customRules.isEmpty {
+                    HStack(spacing: 8) {
+                        ForEach(customRules, id: \.id) { rule in
+                            HStack(spacing: 4) {
+                                Text(rule.letter)
+                                    .font(.caption)
+                                    .fontWeight(.bold)
+                                    .foregroundColor(.white.opacity(0.7))
+                                
+                                Text("=")
+                                    .font(.caption)
+                                    .foregroundColor(.white.opacity(0.7))
+                                
+                                Text("\(rule.value)")
+                                    .font(.caption)
+                                    .fontWeight(.medium)
+                                    .foregroundColor(.white.opacity(0.7))
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(Color.black.opacity(0.3))
+                    .cornerRadius(8)
+                }
+                
+                // Game ID with copy functionality
+                Text("Game: \(String(game.id.prefix(6)))")
                     .font(.caption)
                     .foregroundColor(.white.opacity(0.7))
                     .padding(.horizontal, 12)
@@ -1103,7 +1156,7 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                     .cornerRadius(8)
                     .onLongPressGesture {
                         // Copy the short ID (the one shown)
-                        UIPasteboard.general.string = String(game.id.prefix(8))
+                        UIPasteboard.general.string = String(game.id.prefix(6))
                         
                         // Show visual feedback
                         withAnimation(.easeInOut(duration: 0.2)) {
@@ -1114,49 +1167,6 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                         let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
                         impactFeedback.impactOccurred()
                     }
-                Spacer()
-            }
-            
-            // Custom Rules Hint (only show if there are custom rules)
-            if !customRules.isEmpty {
-                VStack(spacing: 4) {
-                    Text("Custom Rules:")
-                        .font(.caption)
-                        .foregroundColor(.white.opacity(0.8))
-                        .fontWeight(.medium)
-                    
-                    HStack(spacing: 8) {
-                        ForEach(customRules, id: \.id) { rule in
-                            HStack(spacing: 4) {
-                                Text(rule.letter)
-                                    .font(.caption)
-                                    .fontWeight(.bold)
-                                    .foregroundColor(.white)
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 2)
-                                    .background(Color.blue.opacity(0.3))
-                                    .cornerRadius(4)
-                                
-                                Text("=")
-                                    .font(.caption)
-                                    .foregroundColor(.white.opacity(0.7))
-                                
-                                Text("\(rule.value)")
-                                    .font(.caption)
-                                    .fontWeight(.medium)
-                                    .foregroundColor(.white)
-                            }
-                        }
-                    }
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(Color.black.opacity(0.2))
-                .cornerRadius(8)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8)
-                        .stroke(Color.white.opacity(0.2), lineWidth: 1)
-                )
             }
             
             // Edit Board and Complete Game buttons
@@ -1244,11 +1254,28 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                 // Game Settings button (gear icon)
                 if canUserEditGame() && game.gameStatus == .active {
                     Button(action: {
-                        showGameSettings = true
+                        print("🔍 DEBUG: Gear icon tapped - attempting to show game settings sheet")
+                        print("🔍 DEBUG: showGameListSheet current state: \(showGameListSheet)")
+                        print("🔍 DEBUG: showGameSettings current state: \(showGameSettings)")
+                        
+                        // Prevent multiple sheets from being presented simultaneously
+                        if !showGameListSheet {
+                            showGameSettings = true
+                            print("🔍 DEBUG: Game settings sheet presentation triggered")
+                        } else {
+                            print("🔍 DEBUG: Game list sheet is already presented - delaying game settings sheet")
+                            // Delay the presentation to avoid conflicts
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                                if !showGameListSheet {
+                                    showGameSettings = true
+                                    print("🔍 DEBUG: Game settings sheet presentation triggered after delay")
+                                }
+                            }
+                        }
                     }) {
                         Image(systemName: "gearshape.circle.fill")
                             .font(.system(size: 24, weight: .medium))
-                            .foregroundColor(.orange)
+                            .foregroundColor(.white.opacity(0.7))
                     }
                 }
             }
@@ -1301,18 +1328,26 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
             // Excel-like table container with scroll
             ScrollViewReader { proxy in
                 ScrollView {
-                    VStack(spacing: 0) {
-                        headerRow
-                        scoreRows
-                        addRoundButton
+                    ZStack {
+                        // Glow effect behind table content only
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color("LightGreen").opacity(0.3))
+                            .blur(radius: 15)
+                            .scaleEffect(1.05)
+                        
+                        VStack(spacing: 0) {
+                            headerRow
+                            scoreRows
+                            addRoundButton
+                        }
+                        .background(Color.black.opacity(0.2))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 4)
+                                .stroke(Color.green, lineWidth: 2)
+                        )
+                        .cornerRadius(4)
+                        .shadow(color: Color.black.opacity(0.3), radius: 4, x: 0, y: 2)
                     }
-                    .background(Color.black.opacity(0.2))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 4)
-                            .stroke(Color.green, lineWidth: 2)
-                    )
-                    .cornerRadius(4)
-                    .shadow(color: Color.black.opacity(0.3), radius: 4, x: 0, y: 2)
                 }
                 .frame(maxHeight: UIScreen.main.bounds.height * 0.6) // Limit height to 60% of screen
                 .refreshable {
@@ -1416,7 +1451,7 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                     .frame(maxWidth: .infinity, minHeight: 32)
                     .background(
                         RoundedRectangle(cornerRadius: 6)
-                            .fill(Color(.systemGray6))
+                            .fill(Color.clear)
                     )
                     .overlay(
                         RoundedRectangle(cornerRadius: 6)
@@ -1542,7 +1577,7 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
         } else if isNewlyAdded {
             roundTextColor = Color.green
         } else {
-            roundTextColor = Color.secondary
+            roundTextColor = Color.white
         }
         
         let roundBorderColor: Color
@@ -1591,7 +1626,7 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                 }
             }
             .frame(width: effectiveDeleteMode ? 40 : 30, height: 44)
-            .background(Color(.systemBackground))
+            .background(Color.clear)
             .overlay(
                 RoundedRectangle(cornerRadius: 6)
                     .stroke(roundBorderColor, lineWidth: roundBorderWidth)
@@ -1750,6 +1785,7 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
         print("🔍 DEBUG: Dynamic rounds: \(dynamicRounds)")
         print("🔍 DEBUG: Game playerIDs: \(game.playerIDs)")
         print("🔍 DEBUG: Current players before load: \(players.count)")
+        print("🔍 DEBUG: showGameSettings: \(showGameSettings), showGameListSheet: \(showGameListSheet)")
         for (index, player) in players.enumerated() {
             print("🔍 DEBUG: Player \(index) (\(player.name)) current scores: \(player.scores)")
         }
@@ -3088,6 +3124,9 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
         }
     }
 
+
+    
+    // MARK: - View Components
 }
 
 
@@ -3299,6 +3338,12 @@ struct GameListBottomSheet: View {
                 }
             }
         }
+        .onAppear {
+            print("🔍 DEBUG: GameListBottomSheet onAppear - games count: \(games.count)")
+        }
+        .onDisappear {
+            print("🔍 DEBUG: GameListBottomSheet onDisappear")
+        }
     }
 }
 
@@ -3359,11 +3404,8 @@ struct GameListItemView: View {
     var body: some View {
         Button(action: onTap) {
             HStack(spacing: 12) {
-                // Game icon
-                Image(systemName: "gamecontroller.fill")
-                    .font(.title2)
-                    .foregroundColor(isSelected ? Color("LightGreen") : .white.opacity(0.7))
-                    .frame(width: 24)
+                // Game icon - Animated Logo
+                AppLogoIcon(isSelected: isSelected, size: 20)
                 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(game.gameName ?? "Untitled Game")

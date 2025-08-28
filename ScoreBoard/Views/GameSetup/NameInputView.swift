@@ -48,16 +48,8 @@ struct NameInputView: View {
                                 .padding(.leading, 16)
                         }
                         TextField("", text: $playerName)
-                            .accentColor(.white)
+                            .modifier(AppTextFieldStyle(placeholder: "Enter your name", text: $playerName))
                             .font(.title2)
-                            .foregroundColor(.white)
-                            .padding()
-                            .background(Color.black.opacity(0.5))
-                            .cornerRadius(8)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .stroke(Color.white.opacity(0.3), lineWidth: 1)
-                            )
                             .autocapitalization(.words)
                     }
                         .onSubmit {

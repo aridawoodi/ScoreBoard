@@ -13,11 +13,28 @@ struct PlayerLeaderboardView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var searchText = ""
     @State private var selectedTimeframe: Timeframe = .allTime
+    @State private var selectedWinCondition: WinConditionFilter = .allGames
+    @State private var selectedPlayerType: PlayerTypeFilter = .allPlayers
+    @State private var selectedPlayer: PlayerLeaderboardEntry?
+    @State private var showPlayerDetail = false
     @StateObject private var dataManager = DataManager.shared
     
     enum Timeframe: String, CaseIterable {
         case weekly = "Weekly"
+        case monthly = "Monthly"
         case allTime = "All Time"
+    }
+    
+    enum WinConditionFilter: String, CaseIterable {
+        case allGames = "All Games"
+        case highestScore = "Highest Score"
+        case lowestScore = "Lowest Score"
+    }
+    
+    enum PlayerTypeFilter: String, CaseIterable {
+        case allPlayers = "All Players"
+        case registered = "Registered"
+        case guests = "Guests"
     }
     
     var body: some View {
@@ -26,7 +43,7 @@ struct PlayerLeaderboardView: View {
                 // Filter Section
                 VStack(spacing: 12) {
                     HStack {
-                        Text("Everyone")
+                        Text("Player Leaderboard")
                             .font(.headline)
                             .foregroundColor(.white)
                         Spacer()
@@ -34,6 +51,40 @@ struct PlayerLeaderboardView: View {
                     
                     // Timeframe Picker
                     LeaderboardTimeframeSegmentedPicker(selection: $selectedTimeframe)
+                    
+                    // Win Condition Filter
+                    HStack(spacing: 8) {
+                        ForEach(WinConditionFilter.allCases, id: \.self) { filter in
+                            Button(action: {
+                                selectedWinCondition = filter
+                            }) {
+                                Text(filter.rawValue)
+                                    .font(.caption)
+                                    .foregroundColor(selectedWinCondition == filter ? .white : .white.opacity(0.7))
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
+                                    .background(selectedWinCondition == filter ? Color("LightGreen") : Color.black.opacity(0.3))
+                                    .cornerRadius(8)
+                            }
+                        }
+                    }
+                    
+                    // Player Type Filter
+                    HStack(spacing: 8) {
+                        ForEach(PlayerTypeFilter.allCases, id: \.self) { filter in
+                            Button(action: {
+                                selectedPlayerType = filter
+                            }) {
+                                Text(filter.rawValue)
+                                    .font(.caption)
+                                    .foregroundColor(selectedPlayerType == filter ? .white : .white.opacity(0.7))
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
+                                    .background(selectedPlayerType == filter ? Color("LightGreen") : Color.black.opacity(0.3))
+                                    .cornerRadius(8)
+                            }
+                        }
+                    }
                 }
                 .padding()
                 .background(Color.black.opacity(0.3))
@@ -42,16 +93,8 @@ struct PlayerLeaderboardView: View {
                 HStack {
                     Image(systemName: "magnifyingglass")
                         .foregroundColor(.white.opacity(0.7))
-                    ZStack(alignment: .leading) {
-                        if searchText.isEmpty {
-                            Text("Search players...")
-                                .foregroundColor(.white.opacity(0.5))
-                                .font(.body)
-                        }
-                        TextField("", text: $searchText)
-                            .foregroundColor(.white)
-                            .textFieldStyle(.plain)
-                    }
+                    TextField("", text: $searchText)
+                        .modifier(AppTextFieldStyle(placeholder: "Search players...", text: $searchText))
                 }
                 .padding()
                 .background(Color.black.opacity(0.3))
@@ -84,14 +127,18 @@ struct PlayerLeaderboardView: View {
                                     .font(.headline)
                                     .foregroundColor(.white)
                                     .frame(maxWidth: .infinity, alignment: .leading)
+                                Text("Wins")
+                                    .font(.headline)
+                                    .foregroundColor(.white)
+                                    .frame(width: 60, alignment: .center)
                                 Text("Games")
                                     .font(.headline)
                                     .foregroundColor(.white)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                Text("Points")
+                                    .frame(width: 60, alignment: .center)
+                                Text("Win%")
                                     .font(.headline)
                                     .foregroundColor(.white)
-                                    .frame(width: 80, alignment: .trailing)
+                                    .frame(width: 60, alignment: .trailing)
                             }
                             .padding()
                             .background(Color.black.opacity(0.3))
@@ -101,7 +148,11 @@ struct PlayerLeaderboardView: View {
                                 let player = filteredPlayers[index]
                                 PlayerLeaderboardRow(
                                     rank: index + 1,
-                                    player: player
+                                    player: player,
+                                    onTap: {
+                                        selectedPlayer = player
+                                        showPlayerDetail = true
+                                    }
                                 )
                                 
                                 if index < filteredPlayers.count - 1 {
@@ -138,20 +189,79 @@ struct PlayerLeaderboardView: View {
                     await dataManager.refreshData()
                 }
             }
+            .onChange(of: selectedWinCondition) { _ in
+                // Filter is applied in computed property, no need to refresh data
+            }
+            .onChange(of: selectedPlayerType) { _ in
+                // Filter is applied in computed property, no need to refresh data
+            }
+            .sheet(isPresented: $showPlayerDetail) {
+                if let player = selectedPlayer {
+                    PlayerDetailView(player: player)
+                }
+            }
             .gradientBackground()
         }
     }
     
     private var filteredPlayers: [PlayerLeaderboardEntry] {
-        let players = dataManager.leaderboardData
+        var players = dataManager.leaderboardData
         
-        if searchText.isEmpty {
-            return players
-        } else {
-            return players.filter { player in
+        // Apply search filter
+        if !searchText.isEmpty {
+            players = players.filter { player in
                 player.nickname.localizedCaseInsensitiveContains(searchText)
             }
         }
+        
+        // Apply win condition filter
+        switch selectedWinCondition {
+        case .highestScore:
+            players = players.filter { $0.highestScoreWins > 0 }
+        case .lowestScore:
+            players = players.filter { $0.lowestScoreWins > 0 }
+        case .allGames:
+            break // No filtering
+        }
+        
+        // Apply player type filter
+        switch selectedPlayerType {
+        case .registered:
+            players = players.filter { player in
+                dataManager.users.contains { $0.id == player.playerID }
+            }
+        case .guests:
+            players = players.filter { player in
+                !dataManager.users.contains { $0.id == player.playerID }
+            }
+        case .allPlayers:
+            break // No filtering
+        }
+        
+        // Apply timeframe filter
+        let calendar = Calendar.current
+        let now = Date()
+        
+        switch selectedTimeframe {
+        case .weekly:
+            let weekAgo = calendar.date(byAdding: .day, value: -7, to: now) ?? now
+            players = players.filter { player in
+                player.gamesWon.contains { game in
+                    game.date >= weekAgo
+                }
+            }
+        case .monthly:
+            let monthAgo = calendar.date(byAdding: .month, value: -1, to: now) ?? now
+            players = players.filter { player in
+                player.gamesWon.contains { game in
+                    game.date >= monthAgo
+                }
+            }
+        case .allTime:
+            break // No filtering
+        }
+        
+        return players
     }
 }
 
@@ -159,6 +269,7 @@ struct PlayerLeaderboardView: View {
 struct PlayerLeaderboardRow: View {
     let rank: Int
     let player: PlayerLeaderboardEntry
+    let onTap: () -> Void
     
     private var rankColor: Color {
         switch rank {
@@ -178,57 +289,56 @@ struct PlayerLeaderboardRow: View {
         }
     }
     
-    var body: some View {
-        HStack {
-            // Rank
-            HStack(spacing: 4) {
-                Text("\(rank)")
-                    .font(.headline)
-                    .foregroundColor(rankColor)
-                    .frame(width: 50, alignment: .leading)
-                
-                if !rankIcon.isEmpty {
-                    Text(rankIcon)
-                        .font(.title2)
-                }
-            }
-            
-            // Nickname
-            Text(player.nickname)
-                .font(.body)
-                .foregroundColor(.white)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .lineLimit(1)
-            
-            // Games
-            VStack(alignment: .leading, spacing: 2) {
-                ForEach(player.games.prefix(2), id: \.self) { gameName in
-                    Text(gameName)
-                        .font(.caption)
-                        .foregroundColor(.white.opacity(0.7))
-                        .lineLimit(1)
-                }
-                if player.games.count > 2 {
-                    Text("+\(player.games.count - 2) more")
-                        .font(.caption2)
-                        .foregroundColor(.white.opacity(0.7))
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            
-            // Points
-            Text(formatPoints(player.points))
-                .font(.body)
-                .foregroundColor(.white)
-                .frame(width: 80, alignment: .trailing)
-        }
-        .padding()
-        .background(Color.black.opacity(0.3))
+    private var winRateColor: Color {
+        if player.winRate >= 0.7 { return .green }
+        else if player.winRate >= 0.5 { return .orange }
+        else { return .red }
     }
     
-    private func formatPoints(_ points: Int) -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        return formatter.string(from: NSNumber(value: points)) ?? "\(points)"
+    var body: some View {
+        Button(action: onTap) {
+            HStack {
+                // Rank
+                HStack(spacing: 4) {
+                    Text("\(rank)")
+                        .font(.headline)
+                        .foregroundColor(rankColor)
+                        .frame(width: 50, alignment: .leading)
+                    
+                    if !rankIcon.isEmpty {
+                        Text(rankIcon)
+                            .font(.title2)
+                    }
+                }
+                
+                // Player Name
+                Text(player.nickname)
+                    .font(.body)
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .lineLimit(1)
+                
+                // Wins
+                Text("\(player.totalWins)")
+                    .font(.body)
+                    .foregroundColor(.white)
+                    .frame(width: 60, alignment: .center)
+                
+                // Games
+                Text("\(player.totalGames)")
+                    .font(.body)
+                    .foregroundColor(.white)
+                    .frame(width: 60, alignment: .center)
+                
+                // Win Rate
+                Text("\(Int(player.winRate * 100))%")
+                    .font(.body)
+                    .foregroundColor(winRateColor)
+                    .frame(width: 60, alignment: .trailing)
+            }
+            .padding()
+            .background(Color.black.opacity(0.3))
+        }
+        .buttonStyle(PlainButtonStyle())
     }
 } 

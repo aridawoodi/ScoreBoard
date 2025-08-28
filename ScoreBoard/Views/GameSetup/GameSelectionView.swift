@@ -44,10 +44,16 @@ struct GameSelectionView: View {
             VStack(spacing: 20) {
                 // Header
                 VStack(spacing: 8) {
-                    Text("Select a Game")
-                        .font(.title)
-                        .fontWeight(.bold)
+                    HStack {
+                        Spacer()
+                        
+                        Button("Cancel") {
+                            dismiss()
+                        }
                         .foregroundColor(.white)
+                        .font(.body)
+                    }
+                    .padding(.horizontal)
                     
                     Text("Choose which game you'd like to view")
                         .font(.subheadline)
@@ -94,17 +100,9 @@ struct GameSelectionView: View {
                 
                 Spacer()
             }
-            .navigationTitle("My Games")
-            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarHidden(true)
+            .toolbarBackground(.hidden, for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
-            .toolbarBackground(Color.clear, for: .navigationBar)
-            .navigationBarItems(
-                leading: Button("Cancel") {
-                    dismiss()
-                }
-                .foregroundColor(.white)
-            )
             .gradientBackground()
             .onAppear {
                 loadUsernamesFromCache()
@@ -197,7 +195,7 @@ struct GameCardView: View {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
-                        Text("Game: \(String(game.id.prefix(8)))")
+                        Text(game.gameName?.isEmpty != false ? "Untitled Game" : (game.gameName ?? "Untitled Game"))
                             .font(.headline)
                             .fontWeight(.semibold)
                         

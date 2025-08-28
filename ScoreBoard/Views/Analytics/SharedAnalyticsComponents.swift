@@ -729,8 +729,8 @@ struct LeaderboardTimeframeSegmentedPicker: View {
                 // Sliding background
                 RoundedRectangle(cornerRadius: 6)
                     .fill(Color("LightGreen"))
-                    .frame(width: geometry.size.width / 2 - 2)
-                    .offset(x: selection == .weekly ? -geometry.size.width / 4 + 1 : geometry.size.width / 4 - 1)
+                    .frame(width: geometry.size.width / 3 - 2)
+                    .offset(x: getOffset(for: selection, in: geometry))
                     .animation(.easeInOut(duration: 0.3), value: selection)
                 
                 // Buttons
@@ -754,5 +754,18 @@ struct LeaderboardTimeframeSegmentedPicker: View {
             }
         }
         .frame(height: 32)
+    }
+    
+    private func getOffset(for selection: PlayerLeaderboardView.Timeframe, in geometry: GeometryProxy) -> CGFloat {
+        let segmentWidth = geometry.size.width / 3
+        
+        switch selection {
+        case .weekly:
+            return -segmentWidth
+        case .monthly:
+            return 0
+        case .allTime:
+            return segmentWidth
+        }
     }
 }
