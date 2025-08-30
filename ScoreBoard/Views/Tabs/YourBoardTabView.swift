@@ -46,11 +46,19 @@ struct YourBoardTabView: View {
                         print("🔍 DEBUG: Before - selectedGame: \(navigationState.selectedGame?.id ?? "nil")")
                         print("🔍 DEBUG: Before - userGames count: \(navigationState.userGames.count)")
                         
-                        // When a game disappears on backend, clear selection so empty state shows
-                        navigationState.selectedGame = nil
-                        
-                        // Immediately remove the deleted game from userGames array
+                        // Remove the deleted game from userGames array
                         navigationState.userGames.removeAll { $0.id == selectedGame.id }
+                        
+                        // Switch to another game if available
+                        if let nextGame = navigationState.userGames.first {
+                            print("🔍 DEBUG: Switching to next available game: \(nextGame.id)")
+                            navigationState.selectedGame = nextGame
+                            print("🔍 DEBUG: Set selectedGame to: \(nextGame.id)")
+                        } else {
+                            print("🔍 DEBUG: No games left, going back to main board")
+                            // No games left, go back to main board
+                            navigationState.selectedGame = nil
+                        }
                         
                         print("🔍 DEBUG: After - selectedGame: \(navigationState.selectedGame?.id ?? "nil")")
                         print("🔍 DEBUG: After - userGames count: \(navigationState.userGames.count)")
@@ -58,11 +66,14 @@ struct YourBoardTabView: View {
                         // Force view refresh by triggering objectWillChange
                         navigationState.objectWillChange.send()
                         
-                        // Force view reset
-                        forceViewReset = true
-                        
-                        // Then refresh from backend to ensure consistency
-                        Task { await navigationState.refreshUserGames() }
+                        // Don't set forceViewReset or refresh from backend immediately
+                        // This prevents race conditions that might interfere with the game switching
+                        print("🔍 DEBUG: Game deletion callback completed - view should stay in ScoreboardView")
+                    } onKeyboardStateChanged: { isKeyboardActive in
+                        // Update navigation state to hide/show floating tab bar
+                        print("🔍 DEBUG: YourBoardTabView (selected) received keyboard state: \(isKeyboardActive)")
+                        navigationState.isKeyboardActive = isKeyboardActive
+                        print("🔍 DEBUG: navigationState.isKeyboardActive set to: \(navigationState.isKeyboardActive)")
                     }
                     .onAppear {
                         print("🔍 DEBUG: Showing selectedGame view for: \(selectedGame.id)")
@@ -90,11 +101,19 @@ struct YourBoardTabView: View {
                         print("🔍 DEBUG: Before - selectedGame: \(navigationState.selectedGame?.id ?? "nil")")
                         print("🔍 DEBUG: Before - userGames count: \(navigationState.userGames.count)")
                         
-                        // When latest is deleted, refresh list and allow empty state to appear
-                        navigationState.selectedGame = nil
-                        
-                        // Immediately remove the deleted game from userGames array
+                        // Remove the deleted game from userGames array
                         navigationState.userGames.removeAll { $0.id == latestGame.id }
+                        
+                        // Switch to another game if available
+                        if let nextGame = navigationState.userGames.first {
+                            print("🔍 DEBUG: Switching to next available game: \(nextGame.id)")
+                            navigationState.selectedGame = nextGame
+                            print("🔍 DEBUG: Set selectedGame to: \(nextGame.id)")
+                        } else {
+                            print("🔍 DEBUG: No games left, going back to main board")
+                            // No games left, go back to main board
+                            navigationState.selectedGame = nil
+                        }
                         
                         print("🔍 DEBUG: After - selectedGame: \(navigationState.selectedGame?.id ?? "nil")")
                         print("🔍 DEBUG: After - userGames count: \(navigationState.userGames.count)")
@@ -102,11 +121,14 @@ struct YourBoardTabView: View {
                         // Force view refresh by triggering objectWillChange
                         navigationState.objectWillChange.send()
                         
-                        // Force view reset
-                        forceViewReset = true
-                        
-                        // Then refresh from backend to ensure consistency
-                        Task { await navigationState.refreshUserGames() }
+                        // Don't set forceViewReset or refresh from backend immediately
+                        // This prevents race conditions that might interfere with the game switching
+                        print("🔍 DEBUG: Game deletion callback completed - view should stay in ScoreboardView")
+                    } onKeyboardStateChanged: { isKeyboardActive in
+                        // Update navigation state to hide/show floating tab bar
+                        print("🔍 DEBUG: YourBoardTabView (latest) received keyboard state: \(isKeyboardActive)")
+                        navigationState.isKeyboardActive = isKeyboardActive
+                        print("🔍 DEBUG: navigationState.isKeyboardActive set to: \(navigationState.isKeyboardActive)")
                     }
                     .id(latestGame.id) // Prevent recreation when switching tabs
                     .onAppear {
@@ -136,28 +158,18 @@ struct YourBoardTabView: View {
                                 // 2 Player Quick Game Card
                                 QuickGameCard(playerCount: 2) { game in
                                     print("🔍 DEBUG: ===== 2 PLAYER QUICK GAME CREATED =====")
-                                    print("🔍 DEBUG: Quick game created with ID: \(game.id)")
                                     
-                                    // Update navigation state to show the new game
-                                    navigationState.selectedGame = game
-                                    
-                                    // Add to user games list
-                                    navigationState.userGames.append(game)
+                                    // Use standardized callback handling
+                                    GameCreationUtils.handleGameCreated(
+                                        game: game,
+                                        navigationState: navigationState
+                                    )
                                     
                                     // Reset force view reset flag
                                     forceViewReset = false
                                     
-                                    // Force view refresh by triggering objectWillChange
-                                    navigationState.objectWillChange.send()
-                                    
                                     // Increment refresh counter to force view update
                                     viewRefreshCounter += 1
-                                    
-                                    // Add a small delay to ensure UI updates
-                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                                        // Force another refresh to ensure view updates
-                                        viewRefreshCounter += 1
-                                    }
                                     
                                     print("🔍 DEBUG: After 2-player creation - selectedGame: \(navigationState.selectedGame?.id ?? "nil")")
                                     print("🔍 DEBUG: After 2-player creation - userGames count: \(navigationState.userGames.count)")
@@ -169,28 +181,18 @@ struct YourBoardTabView: View {
                                 // 4 Player Quick Game Card
                                 QuickGameCard(playerCount: 4) { game in
                                     print("🔍 DEBUG: ===== 4 PLAYER QUICK GAME CREATED =====")
-                                    print("🔍 DEBUG: Quick game created with ID: \(game.id)")
                                     
-                                    // Update navigation state to show the new game
-                                    navigationState.selectedGame = game
-                                    
-                                    // Add to user games list
-                                    navigationState.userGames.append(game)
+                                    // Use standardized callback handling
+                                    GameCreationUtils.handleGameCreated(
+                                        game: game,
+                                        navigationState: navigationState
+                                    )
                                     
                                     // Reset force view reset flag
                                     forceViewReset = false
                                     
-                                    // Force view refresh by triggering objectWillChange
-                                    navigationState.objectWillChange.send()
-                                    
                                     // Increment refresh counter to force view update
                                     viewRefreshCounter += 1
-                                    
-                                    // Add a small delay to ensure UI updates
-                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                                        // Force another refresh to ensure view updates
-                                        viewRefreshCounter += 1
-                                    }
                                     
                                     print("🔍 DEBUG: After 4-player creation - selectedGame: \(navigationState.selectedGame?.id ?? "nil")")
                                     print("🔍 DEBUG: After 4-player creation - userGames count: \(navigationState.userGames.count)")

@@ -25,13 +25,12 @@ struct CreateScoreboardTabView: View {
                 showCreateGame: $showCreateGame,
                 mode: .create,
                 onGameCreated: { game in
-                    print("🔍 DEBUG: ===== CREATE GAME CALLBACK IN CREATE SCOREBOARD TAB =====")
-                    print("🔍 DEBUG: Game created with ID: \(game.id)")
-                    print("🔍 DEBUG: Setting selectedGame to: \(game.id)")
-                    navigationState.selectedGame = game
-                    print("🔍 DEBUG: Setting selectedTab to: 2 (Your Board)")
-                    selectedTab = 2
-                    print("🔍 DEBUG: ===== CREATE GAME CALLBACK END =====")
+                    // Use standardized callback handling
+                    GameCreationUtils.handleGameCreated(
+                        game: game,
+                        navigationState: navigationState,
+                        selectedTab: $selectedTab
+                    )
                 },
                 onGameUpdated: nil
             )

@@ -102,20 +102,8 @@ struct QuickGameCard: View {
             do {
                 print("🔍 DEBUG: Starting quick game creation...")
                 
-                // Check if we're in guest mode (same logic as CreateGameView)
-                let isGuestUser = UserDefaults.standard.bool(forKey: "is_guest_user")
-                let currentUserId: String
-                
-                if isGuestUser {
-                    // For guest users, get the stored guest user ID
-                    currentUserId = UserDefaults.standard.string(forKey: "current_guest_user_id") ?? ""
-                    print("🔍 DEBUG: Guest user ID: \(currentUserId)")
-                } else {
-                    // For regular users, get from Amplify Auth
-                    let user = try await Amplify.Auth.getCurrentUser()
-                    currentUserId = user.userId
-                    print("🔍 DEBUG: Current user ID: \(currentUserId)")
-                }
+                // Use shared user ID handling
+                let currentUserId = try await GameCreationUtils.getCurrentUserId()
                 
                 // Create anonymous player IDs (using names instead of IDs for anonymous players)
                 var playerIDs: [String] = []
@@ -125,43 +113,25 @@ struct QuickGameCard: View {
                 
                 print("🔍 DEBUG: Player IDs: \(playerIDs)")
                 
-                // Create the game (same pattern as CreateGameView)
-                let game = Game(
+                // Use shared game object creation
+                let game = GameCreationUtils.createGameObject(
                     gameName: nil, // No custom name for quick games
                     hostUserID: currentUserId,
                     playerIDs: playerIDs,
-                    rounds: 1, // Start with 1 round for dynamic rounds
-                    customRules: nil,
-                    finalScores: [],
-                    gameStatus: .active,
-                    createdAt: Temporal.DateTime.now(),
-                    updatedAt: Temporal.DateTime.now()
+                    customRules: nil // No custom rules for quick games
                 )
                 
-                print("🔍 DEBUG: Creating quick game with data: hostUserID=\(game.hostUserID), playerIDs=\(game.playerIDs), rounds=\(game.rounds)")
+                // Use shared database creation
+                let createdGame = try await GameCreationUtils.saveGameToDatabase(game)
                 
-                // Save to backend
-                let result = try await Amplify.API.mutate(request: .create(game))
+                print("🔍 DEBUG: Quick game created successfully with ID: \(createdGame.id)")
                 
-                switch result {
-                case .success(let createdGame):
-                    print("🔍 DEBUG: Quick game created successfully with ID: \(createdGame.id)")
-                    
-                    // Don't create initial scores - let users enter them as needed
-                    // await createInitialScores(for: createdGame, playerNames: playerIDs)
-                    
-                    await MainActor.run {
-                        isCreating = false
-                        onQuickGameCreated(createdGame)
-                    }
-                    
-                case .failure(let error):
-                    print("🔍 DEBUG: Failed to create quick game: \(error)")
-                    await MainActor.run {
-                        isCreating = false
-                        errorMessage = "Failed to create game: \(error.localizedDescription)"
-                        showError = true
-                    }
+                // Don't create initial scores - let users enter them as needed
+                // await createInitialScores(for: createdGame, playerNames: playerIDs)
+                
+                await MainActor.run {
+                    isCreating = false
+                    onQuickGameCreated(createdGame)
                 }
                 
             } catch {

@@ -327,32 +327,29 @@ struct CreateGameView: View {
     func createGame() {
         print("🔍 DEBUG: createGame() called")
         let totalPlayers = getTotalPlayerCount()
-        guard totalPlayers >= 2 else {
-            print("🔍 DEBUG: Not enough players found, showing alert")
-            alertMessage = "Please add at least two players to the game."
+        
+        // Use shared validation
+        let validation = GameCreationUtils.validateGameCreation(
+            playerCount: players.count,
+            hostJoinAsPlayer: hostJoinAsPlayer
+        )
+        
+        guard validation.isValid else {
+            print("🔍 DEBUG: Validation failed: \(validation.message ?? "Unknown error")")
+            alertMessage = validation.message ?? "Please add at least two players to the game."
             showAlert = true
             return
         }
+        
         print("🔍 DEBUG: Setting isLoading to true")
         isLoading = true
+        
         Task {
             do {
                 print("🔍 DEBUG: Starting game creation...")
                 
-                // Check if we're in guest mode
-                let isGuestUser = UserDefaults.standard.bool(forKey: "is_guest_user")
-                let currentUserId: String
-                
-                if isGuestUser {
-                    // For guest users, get the stored guest user ID
-                    currentUserId = UserDefaults.standard.string(forKey: "current_guest_user_id") ?? ""
-                    print("🔍 DEBUG: Guest user ID: \(currentUserId)")
-                } else {
-                    // For regular users, get from Amplify Auth
-                    let user = try await Amplify.Auth.getCurrentUser()
-                    currentUserId = user.userId
-                    print("🔍 DEBUG: Current user ID: \(currentUserId)")
-                }
+                // Use shared user ID handling
+                let currentUserId = try await GameCreationUtils.getCurrentUserId()
                 
                 var playerIDs = players.map { $0.userId ?? $0.name } // Use user ID if registered, name if anonymous
                 print("🔍 DEBUG: Player IDs: \(playerIDs)")
@@ -390,41 +387,30 @@ struct CreateGameView: View {
                 // Convert custom rules array to JSON string for storage
                 let customRulesJSON = CustomRulesManager.shared.rulesToJSON(customRules)
                 
-                let game = Game(
-                    gameName: gameName.isEmpty ? nil : gameName,
+                // Use shared game object creation
+                let game = GameCreationUtils.createGameObject(
+                    gameName: gameName,
                     hostUserID: currentUserId,
                     playerIDs: playerIDs,
-                    rounds: 1, // Start with 1 round for dynamic rounds
                     customRules: customRulesJSON,
-                    finalScores: [],
-                    gameStatus: .active,
                     winCondition: winCondition,
                     maxScore: maxScore,
-                    maxRounds: maxRounds,
-                    createdAt: Temporal.DateTime.now(),
-                    updatedAt: Temporal.DateTime.now()
+                    maxRounds: maxRounds
                 )
                 print("🔍 DEBUG: Game object created successfully")
-                print("🔍 DEBUG: Creating game with data: hostUserID=\(game.hostUserID), playerIDs=\(game.playerIDs), rounds=\(game.rounds)")
                 
-                let result = try await Amplify.API.mutate(request: .create(game))
+                // Use shared database creation
+                let createdGame = try await GameCreationUtils.saveGameToDatabase(game)
                 await MainActor.run {
                     isLoading = false
-                    switch result {
-                    case .success(let createdGame):
-                        print("🔍 DEBUG: Game created successfully with ID: \(createdGame.id)")
-                        
-                        // Save current settings for next time
-                        saveCurrentGameSettings()
-                        
-                        print("🔍 DEBUG: Calling onGameCreated callback")
-                        onGameCreated(createdGame)
-                        print("🔍 DEBUG: onGameCreated callback completed")
-                    case .failure(let error):
-                        print("🔍 DEBUG: Game creation failed with error: \(error)")
-                        alertMessage = "Failed to create game: \(error.localizedDescription)"
-                        showAlert = true
-                    }
+                    print("🔍 DEBUG: Game created successfully with ID: \(createdGame.id)")
+                    
+                    // Save current settings for next time
+                    saveCurrentGameSettings()
+                    
+                    print("🔍 DEBUG: Calling onGameCreated callback")
+                    onGameCreated(createdGame)
+                    print("🔍 DEBUG: onGameCreated callback completed")
                 }
             } catch {
                 print("🔍 DEBUG: Error in game creation: \(error)")
@@ -1103,7 +1089,7 @@ struct CreateGameContentView: View {
                             }
                         )))
                         .frame(width: 80)
-                        .keyboardType(.numberPad)
+                        .keyboardType(.numbersAndPunctuation)
                     
                     Button(action: addCustomRule) {
                         Image(systemName: "plus.circle.fill")

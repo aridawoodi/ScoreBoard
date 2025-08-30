@@ -14,12 +14,14 @@ class NavigationState: ObservableObject {
     @Published var userGames: [Game] = []
     @Published var isLoading = false
     @Published var shouldShowMainBoard = false
+    @Published var isKeyboardActive = false
     
     func clear() {
         selectedGame = nil
         userGames = []
         isLoading = false
         shouldShowMainBoard = false
+        isKeyboardActive = false
     }
     
     var hasGames: Bool {

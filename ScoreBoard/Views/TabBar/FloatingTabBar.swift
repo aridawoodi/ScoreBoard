@@ -12,6 +12,7 @@ struct FloatingTabBar: View {
     @Binding var selectedTab: Int
     var namespace: Namespace.ID
     @ObservedObject var navigationState: NavigationState
+    var isHidden: Bool = false
 
     @State private var isPulsing = false
 
@@ -37,7 +38,11 @@ struct FloatingTabBar: View {
     private var edgePadding: CGFloat { isIPad ? 16 : 8 }
 
     var body: some View {
-        GeometryReader { geometry in
+        let _ = print("🔍 DEBUG: FloatingTabBar - isHidden: \(isHidden), navigationState.isKeyboardActive: \(navigationState.isKeyboardActive)")
+        if isHidden || navigationState.isKeyboardActive {
+            EmptyView()
+        } else {
+            GeometryReader { geometry in
             HStack(spacing: 0) {
                 ForEach(0..<tabs.count, id: \.self) { idx in
                     let tab = tabs[idx]
@@ -122,6 +127,7 @@ struct FloatingTabBar: View {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                 isPulsing = true
             }
+        }
         }
     }
     

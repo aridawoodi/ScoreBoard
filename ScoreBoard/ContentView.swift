@@ -130,10 +130,21 @@ struct ContentView: View {
                 // Floating Tab Bar - Restored original behavior
                 VStack {
                     Spacer()
-                    FloatingTabBar(selectedTab: $selectedTab, namespace: tabBarNamespace, navigationState: navigationState)
+                    FloatingTabBar(selectedTab: $selectedTab, namespace: tabBarNamespace, navigationState: navigationState, isHidden: navigationState.isKeyboardActive)
                         .padding(.bottom, UIDevice.current.userInterfaceIdiom == .pad ? 12 : 8)
+                        .onChange(of: navigationState.isKeyboardActive) { _, isActive in
+                            print("🔍 DEBUG: ContentView - FloatingTabBar isHidden changed to: \(isActive)")
+                        }
                 }
                 .ignoresSafeArea(.keyboard)
+                .onReceive(navigationState.$isKeyboardActive) { isActive in
+                    print("🔍 DEBUG: ContentView - Received keyboard state change: \(isActive)")
+                }
+                .onChange(of: navigationState.isKeyboardActive) { _, isActive in
+                    print("🔍 DEBUG: ContentView - onChange triggered for isKeyboardActive: \(isActive)")
+                }
+                
+
                 
                 // Floating Tab Bar - hide when side navigation is open - Commented out for future use
                 // if !isSideNavigationOpen {
@@ -153,42 +164,14 @@ struct ContentView: View {
             .sheet(isPresented: $showJoinGame) {
                 JoinGameView(showJoinGame: $showJoinGame) { game in
                     print("🔍 DEBUG: ===== JOIN GAME CALLBACK START =====")
-                    print("🔍 DEBUG: Game joined with ID: \(game.id)")
-                    print("🔍 DEBUG: Setting selectedGame to: \(game.id)")
-                    navigationState.selectedGame = game
-                    print("🔍 DEBUG: Setting selectedTab to: 2 (Your Board)")
-                    selectedTab = 2 // Switch to Your Board
-                    print("🔍 DEBUG: Current selectedTab value: \(selectedTab)")
-                    print("🔍 DEBUG: Current navigationState.selectedGame: \(navigationState.selectedGame?.id ?? "nil")")
                     
-                    // For spectator joins, we need to ensure the game is in userGames
-                    // so it can be displayed in YourBoardTabView
-                    if !navigationState.userGames.contains(where: { $0.id == game.id }) {
-                        print("🔍 DEBUG: Adding joined game to userGames for spectator access")
-                        navigationState.userGames.append(game)
-                    }
+                    // Use standardized callback handling
+                    GameCreationUtils.handleGameCreated(
+                        game: game,
+                        navigationState: navigationState,
+                        selectedTab: $selectedTab
+                    )
                     
-                    // Force navigation state to refresh
-                    navigationState.objectWillChange.send()
-                    
-                    // Add a small delay to ensure UI updates and force YourBoardTabView refresh
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                        // Force another refresh to ensure view updates
-                        navigationState.objectWillChange.send()
-                    }
-                    
-                    // Reload user games to update the latestGame
-                    print("🔍 DEBUG: Calling loadUserGames() to refresh user games")
-                    loadUserGames()
-                    
-                    // Ensure selectedGame persists after loadUserGames
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                        if navigationState.selectedGame?.id != game.id {
-                            print("🔍 DEBUG: Restoring selectedGame after loadUserGames")
-                            navigationState.selectedGame = game
-                            navigationState.objectWillChange.send()
-                        }
-                    }
                     print("🔍 DEBUG: ===== JOIN GAME CALLBACK END =====")
                 }
             }
@@ -210,20 +193,12 @@ struct ContentView: View {
                     showCreateGame: $showCreateGame,
                     mode: .create,
                     onGameCreated: { game in
-                        print("🔍 DEBUG: ===== CREATE GAME CALLBACK START =====")
-                        print("🔍 DEBUG: Game created with ID: \(game.id)")
-                        print("🔍 DEBUG: Game playerIDs: \(game.playerIDs)")
-                        print("🔍 DEBUG: Setting selectedGame to: \(game.id)")
-                        navigationState.selectedGame = game
-                        print("🔍 DEBUG: Setting selectedTab to: 2 (Your Board)")
-                        selectedTab = 2 // Switch to Your Board
-                        print("🔍 DEBUG: Current selectedTab value: \(selectedTab)")
-                        print("🔍 DEBUG: Current navigationState.selectedGame: \(navigationState.selectedGame?.id ?? "nil")")
-                        
-                        // Reload user games to update the latestGame
-                        print("🔍 DEBUG: Calling loadUserGames() to refresh user games")
-                        loadUserGames()
-                        print("🔍 DEBUG: ===== CREATE GAME CALLBACK END =====")
+                        // Use standardized callback handling
+                        GameCreationUtils.handleGameCreated(
+                            game: game,
+                            navigationState: navigationState,
+                            selectedTab: $selectedTab
+                        )
                     },
                     onGameUpdated: nil
                 )

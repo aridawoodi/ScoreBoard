@@ -57,9 +57,35 @@ struct ScoreCell: View {
             .scaleEffect(x: 1.0, y: isFocused ? 1.02 : 1.0, anchor: .center)
             .shadow(color: shadowColor, radius: shadowRadius, x: 0, y: shadowOffset)
             .zIndex(isFocused ? 10 : 0)
+            .overlay(
+                // Active cell indicator when keyboard is open
+                Group {
+                    if isFocused {
+                        RoundedRectangle(cornerRadius: 6)
+                            .stroke(Color("LightGreen"), lineWidth: 3)
+                            .shadow(color: Color("LightGreen").opacity(0.5), radius: 8, x: 0, y: 0)
+                    }
+                }
+            )
         }
         .buttonStyle(PlainButtonStyle())
         .animation(.spring(response: 0.2, dampingFraction: 0.8), value: isFocused)
+        .overlay(
+            // Pulsing animation for active cell
+            Group {
+                if isFocused {
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(Color("LightGreen").opacity(0.3), lineWidth: 1)
+                        .scaleEffect(1.1)
+                        .opacity(0.6)
+                        .animation(
+                            Animation.easeInOut(duration: 1.5)
+                                .repeatForever(autoreverses: true),
+                            value: isFocused
+                        )
+                }
+            }
+        )
     }
     
     // Consistent dark theme background color
@@ -163,7 +189,7 @@ struct Scoreboardview: View {
     @State private var showCelebration = false // Show celebration animation
     @State private var winner: TestPlayer? // Winner of the game
     @State private var celebrationMessage = "" // Celebration message
-    @FocusState private var isScoreFieldFocused: Bool // Focus for inline numeric input
+    @State private var isScoreFieldFocused: Bool = false // Show/hide custom number pad
     @State private var scoreInputText: String = "" // Inline score input text
     
     // Floating action button state
@@ -217,17 +243,46 @@ struct Scoreboardview: View {
     
     // Game list sheet state
     @State private var showGameListSheet = false
+    
+    // Keyboard scroll state
+    @State private var shouldScrollToActiveCell = false
+    @State private var keyboardOffset: CGFloat = 0 // Offset when custom keyboard is open
 
     let onGameUpdated: ((Game) -> Void)?
     let onGameDeleted: (() -> Void)?
+    let onKeyboardStateChanged: ((Bool) -> Void)?
     
-    init(game: Binding<Game>, onGameUpdated: ((Game) -> Void)? = nil, onGameDeleted: (() -> Void)? = nil) {
+    init(game: Binding<Game>, onGameUpdated: ((Game) -> Void)? = nil, onGameDeleted: (() -> Void)? = nil, onKeyboardStateChanged: ((Bool) -> Void)? = nil) {
         self._game = game
         self._currentGameId = State(initialValue: game.wrappedValue.id)
         self._lastKnownGameRounds = State(initialValue: game.wrappedValue.rounds)
         self._dynamicRounds = State(initialValue: game.wrappedValue.rounds)
         self.onGameUpdated = onGameUpdated
         self.onGameDeleted = onGameDeleted
+        self.onKeyboardStateChanged = onKeyboardStateChanged
+    }
+    
+    // MARK: - Helper Functions
+    
+    /// Extract the first letter from custom rules (e.g., "A=5" returns "A")
+    private func extractCustomRuleLetter(from customRules: String?) -> String {
+        guard let rules = customRules, !rules.isEmpty else { return "" }
+        
+        // Try to parse as JSON first
+        if let data = rules.data(using: .utf8),
+           let jsonArray = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]],
+           let firstRule = jsonArray.first,
+           let letter = firstRule["letter"] as? String {
+            return String(letter.prefix(1)) // Get just the first letter
+        }
+        
+        // Fallback: try simple "=" format
+        let parts = rules.components(separatedBy: "=")
+        if let firstPart = parts.first, !firstPart.isEmpty {
+            return String(firstPart.prefix(1)) // Get just the first letter
+        }
+        
+        return ""
     }
     
     // MARK: - Game Status Functions
@@ -653,7 +708,8 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
             }
             */
         }
-        // Persistent accessory bar above the keyboard for Cancel/Save
+        // Persistent accessory bar above the keyboard for Cancel/Save - DISABLED: Now using custom number pad
+        /*
         .safeAreaInset(edge: .bottom) {
             if isScoreFieldFocused {
                 ZStack {
@@ -701,6 +757,7 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                 .overlay(Divider(), alignment: .top)
             }
         }
+        */
         // EditBoardView sheet - DISABLED: Users now use gear icon for editing
         /*
         .sheet(isPresented: $showEditBoard) {
@@ -996,6 +1053,36 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
         }
     }
     
+    // Computed property for custom number pad overlay
+    private var customNumberPadOverlay: some View {
+        Group {
+            if isScoreFieldFocused {
+                let customRuleLetter = extractCustomRuleLetter(from: self.game.customRules)
+                //print("🔍 DEBUG: Custom rule letter for game \(self.game.id): '\(customRuleLetter)' (length: \(customRuleLetter.count))")
+                //print("🔍 DEBUG: Game custom rules: \(self.game.customRules ?? "nil")")
+                
+                CustomNumberPadView(
+                    text: $scoreInputText,
+                    isVisible: $isScoreFieldFocused,
+                    editingPlayer: $editingPlayer,
+                    editingRound: $editingRound,
+                    players: players,
+                    updateScore: updateScore,
+                    awaitSaveChangesSilently: awaitSaveChangesSilently,
+                    customRuleLetter: customRuleLetter
+                )
+                .zIndex(1000) // Ensure it's on top
+                .onAppear {
+                    // Trigger scroll to active cell when custom number pad appears
+                    print("🔍 DEBUG: Custom number pad appeared - triggering scroll to round \(editingRound)")
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                        scrollToRound = editingRound
+                    }
+                }
+            }
+        }
+    }
+    
     private func singleGameView(for game: Game) -> some View {
         ZStack {
             VStack(alignment: .leading, spacing: 0) {
@@ -1014,6 +1101,7 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
 
                 Spacer()
             }
+            .offset(y: keyboardOffset) // Apply keyboard offset to make room for number pad
             .id("\(game.id)-\(gameStatusRefreshTrigger)")
             .background(Color.clear)
             .navigationBarTitleDisplayMode(.large)
@@ -1021,14 +1109,6 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
             .onAppear {
                 onAppearAction()
             }
-            
-            // Hidden inline input to trigger the standard iOS number pad
-            TextField("", text: $scoreInputText)
-                .keyboardType(.decimalPad)
-                .focused($isScoreFieldFocused)
-                .opacity(0)
-                .frame(width: 0, height: 0)
-                .allowsHitTesting(false)
             
             // Celebration overlay
             if showCelebration {
@@ -1043,6 +1123,22 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                 )
             }
         }
+        .overlay(
+            // Custom number pad overlay - moved outside ZStack
+            customNumberPadOverlay
+        )
+        .overlay(
+            // Custom number pad overlay - positioned to cover floating tab bar
+            Group {
+                if isScoreFieldFocused {
+                    VStack(spacing: 0) {
+                        Spacer()
+                        customNumberPadOverlay
+                    }
+                    .ignoresSafeArea(.all)
+                }
+            }
+        )
         .onChange(of: gameUpdateCounter) { _, _ in
             print("🔍 DEBUG: Game update counter changed - reloading data")
             print("🔍 DEBUG: showGameSettings: \(showGameSettings), showGameListSheet: \(showGameListSheet)")
@@ -1087,12 +1183,32 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
             gameStatusRefreshTrigger += 1
         }
         .onChange(of: isScoreFieldFocused) { _, isFocused in
+            // Apply keyboard offset when custom number pad appears/disappears
+            withAnimation(.easeInOut(duration: 0.3)) {
+                keyboardOffset = isFocused ? -120 : 0 // Move scoreboard up when keyboard appears
+            }
+            
+            // Update navigation state for keyboard visibility (to hide floating tab bar)
+            print("🔍 DEBUG: Keyboard state changed to: \(isFocused)")
+            print("🔍 DEBUG: onKeyboardStateChanged callback exists: \(onKeyboardStateChanged != nil)")
+            onKeyboardStateChanged?(isFocused)
+            
             // Auto-save when input loses focus
             let shouldAutoSave = !isFocused && editingPlayer != nil && !scoreInputText.isEmpty
             if shouldAutoSave {
-                let currentScore = parseScoreInput(scoreInputText) ?? 0
-                updateScore(playerID: editingPlayer!.playerID, round: editingRound, newScore: currentScore)
-                awaitSaveChangesSilently()
+                if let currentScore = parseScoreInput(scoreInputText) {
+                    updateScore(playerID: editingPlayer!.playerID, round: editingRound, newScore: currentScore)
+                    awaitSaveChangesSilently()
+                }
+                // Don't save anything if parseScoreInput returns nil (empty or invalid input)
+            }
+        }
+        .onChange(of: editingRound) { _, newRound in
+            // Auto-scroll when editing round changes and custom number pad is open
+            if isScoreFieldFocused {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    scrollToRound = newRound
+                }
             }
         }
     }
@@ -1340,6 +1456,7 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                             scoreRows
                             addRoundButton
                         }
+                        .padding(.bottom, 16) // Add bottom padding to ensure add round button is visible
                         .background(Color.black.opacity(0.2))
                         .overlay(
                             RoundedRectangle(cornerRadius: 4)
@@ -1349,7 +1466,7 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                         .shadow(color: Color.black.opacity(0.3), radius: 4, x: 0, y: 2)
                     }
                 }
-                .frame(maxHeight: UIScreen.main.bounds.height * 0.6) // Limit height to 60% of screen
+                .frame(maxHeight: UIScreen.main.bounds.height * 0.55) // Increased height to show more content
                 .refreshable {
                     // Start the refresh operation and ensure it completes
                     // Use Task to prevent cancellation when gesture is released
@@ -1365,15 +1482,63 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                         }
                     }
                 }
+                .onChange(of: isScoreFieldFocused) { _, isFocused in
+                    // Auto-scroll to active cell when keyboard appears
+                    if isFocused && editingPlayer != nil {
+                        print("🔍 DEBUG: Keyboard appeared - scrolling to round \(editingRound)")
+                        shouldScrollToActiveCell = true
+                        
+                        // Immediate scroll to active round
+                        withAnimation(.easeInOut(duration: 0.8)) {
+                            proxy.scrollTo("round-\(editingRound)", anchor: .top)
+                        }
+                        
+                        // Additional scroll after a delay to ensure good positioning
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                            withAnimation(.easeInOut(duration: 0.5)) {
+                                proxy.scrollTo("round-\(editingRound)", anchor: .center)
+                            }
+                        }
+                        
+                        // Ensure add round button is visible
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+                            withAnimation(.easeInOut(duration: 0.3)) {
+                                proxy.scrollTo("add-round-button", anchor: .bottom)
+                            }
+                        }
+                        
+                        shouldScrollToActiveCell = false
+                    }
+                }
                 .onChange(of: scrollToRound) { _, roundToScroll in
                     // Auto-scroll to the specified round when triggered
                     if let round = roundToScroll {
-                        withAnimation(.easeInOut(duration: 0.5)) {
-                            proxy.scrollTo("round-\(round)", anchor: .center)
+                        print("🔍 DEBUG: scrollToRound triggered - scrolling to round \(round)")
+                        withAnimation(.easeInOut(duration: 0.8)) {
+                            proxy.scrollTo("round-\(round)", anchor: .top)
                         }
+                        
+                        // Additional scroll to center after a delay
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                            withAnimation(.easeInOut(duration: 0.5)) {
+                                proxy.scrollTo("round-\(round)", anchor: .center)
+                            }
+                        }
+                        
                         // Clear the trigger after scrolling
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                             scrollToRound = nil
+                        }
+                    }
+                }
+                .onChange(of: dynamicRounds) { _, newRounds in
+                    // Auto-scroll when new round is added and keyboard is open
+                    if isScoreFieldFocused {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                            withAnimation(.easeInOut(duration: 0.5)) {
+                                // Scroll to the new round
+                                proxy.scrollTo("round-\(newRounds)", anchor: .center)
+                            }
                         }
                     }
                 }
@@ -1562,6 +1727,8 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                     .buttonStyle(PlainButtonStyle())
                 }
                 .padding(.top, 2)
+                .padding(.bottom, 8) // Add bottom padding to ensure visibility
+                .id("add-round-button") // Add ID for scrolling
             }
         }
     }
@@ -1642,24 +1809,35 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                     roundIndex: roundIndex,
                     canEdit: canUserEditScores(),
                     onScoreTap: { _ in
-                        // Make sure the hidden text field is ready to receive input
-                        DispatchQueue.main.async {
-                            guard canUserEditScores() else { return }
-                            
-                            // Auto-save current input if we're switching from another cell
-                            if let currentEditingPlayer = editingPlayer, 
-                               (currentEditingPlayer.playerID != player.playerID || editingRound != roundIndex + 1) {
-                                let currentScore = parseScoreInput(scoreInputText) ?? 0
-                                updateScore(playerID: currentEditingPlayer.playerID, round: editingRound, newScore: currentScore)
-                                awaitSaveChangesSilently()
-                            }
-                            
-                            editingPlayer = player
-                            editingRound = roundIndex + 1
-                            // Don't show -1 in the input field, show empty instead
-                            scoreInputText = score == -1 ? "" : getDisplayText(for: score) ?? String(score)
-                            isScoreFieldFocused = true
+                        print("🔍 DEBUG: Score cell tapped for player \(player.name), round \(roundIndex + 1)")
+                        guard canUserEditScores() else { 
+                            print("🔍 DEBUG: User cannot edit scores")
+                            return 
                         }
+                        
+                        // Auto-save current input if we're switching from another cell
+                        if let currentEditingPlayer = editingPlayer, 
+                           (currentEditingPlayer.playerID != player.playerID || editingRound != roundIndex + 1) {
+                            let currentScore = parseScoreInput(scoreInputText) ?? 0
+                            updateScore(playerID: currentEditingPlayer.playerID, round: editingRound, newScore: currentScore)
+                            awaitSaveChangesSilently()
+                        }
+                        
+                        editingPlayer = player
+                        editingRound = roundIndex + 1
+                        // Only show existing score if it has been explicitly entered by user
+                        let hasBeenEntered = hasScoreBeenEntered(for: player.playerID, round: roundIndex + 1)
+                        print("🔍 DEBUG: Cell tap - Player: \(player.name), Round: \(roundIndex + 1), Score: \(score), HasBeenEntered: \(hasBeenEntered)")
+                        
+                        if hasBeenEntered && score != -1 {
+                            scoreInputText = getDisplayText(for: score) ?? String(score)
+                            print("🔍 DEBUG: Setting scoreInputText to: \(scoreInputText)")
+                        } else {
+                            scoreInputText = "" // Show empty for unentered scores
+                            print("🔍 DEBUG: Setting scoreInputText to empty string")
+                        }
+                        isScoreFieldFocused = true
+                        print("🔍 DEBUG: Set isScoreFieldFocused = true")
                     },
                     currentScore: score,
                     backgroundColor: columnColor(colIndex),
@@ -2313,7 +2491,12 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
             editingPlayer = player
             // Show current score (empty for -1) in input field
             let currentScore = (roundIndex < player.scores.count) ? player.scores[roundIndex] : -1
-            scoreInputText = currentScore == -1 ? "" : String(currentScore)
+            // Only show score if it has been explicitly entered by user
+            if hasScoreBeenEntered(for: player.playerID, round: roundIndex + 1) && currentScore != -1 {
+                scoreInputText = getDisplayText(for: currentScore) ?? String(currentScore)
+            } else {
+                scoreInputText = "" // Show empty for unentered scores
+            }
             // Keep same round
             isScoreFieldFocused = true
         } else {
@@ -2401,10 +2584,248 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
             
         } catch {
             print("🔍 DEBUG: Error in loadPlayerUsernames: \(error)")
+            }
+}
+
+// MARK: - Custom Number Pad View
+struct CustomNumberPadView: View {
+    @Binding var text: String
+    @Binding var isVisible: Bool
+    @Binding var editingPlayer: TestPlayer?
+    @Binding var editingRound: Int
+    let players: [TestPlayer]
+    let updateScore: (String, Int, Int) -> Void
+    let awaitSaveChangesSilently: () -> Void
+    let customRuleLetter: String
+    
+    var body: some View {
+        let _ = print("🔍 DEBUG: CustomNumberPadView - customRuleLetter: '\(customRuleLetter)' (length: \(customRuleLetter.count))")
+        
+        VStack(spacing: 0) {
+            Spacer()
+            
+            VStack(spacing: 0) {
+                // Custom toolbar (Cancel, Save, Next)
+                HStack {
+                    Button("Cancel") {
+                        text = ""
+                        isVisible = false
+                    }
+                    .foregroundColor(Color("LightGreen"))
+                    .font(.body)
+                    
+                    Spacer()
+                    
+                    // Show entered number next to Save button
+                    HStack(spacing: 8) {
+                        Text(text.isEmpty ? "0" : text)
+                            .font(.headline)
+                            .fontWeight(.medium)
+                            .foregroundColor(.primary)
+                            .monospacedDigit()
+                            .frame(minWidth: 40)
+                        
+                        Button("Save") {
+                            // Save the current score and dismiss
+                            if let currentScore = Int(text) {
+                                // Trigger auto-save functionality
+                                updateScore(editingPlayer?.playerID ?? "", editingRound, currentScore)
+                                awaitSaveChangesSilently()
+                            }
+                            isVisible = false
+                        }
+                        .foregroundColor(Color("LightGreen"))
+                        .font(.body)
+                        .fontWeight(.semibold)
+                    }
+                    
+                    Spacer()
+                    
+                    Button("Next") {
+                        // Save current score first
+                        if let currentScore = Int(text) {
+                            updateScore(editingPlayer?.playerID ?? "", editingRound, currentScore)
+                            awaitSaveChangesSilently()
+                        }
+                        
+                        // Find next empty cell
+                        if let currentPlayer = editingPlayer, let currentPlayerIndex = players.firstIndex(where: { $0.playerID == currentPlayer.playerID }) {
+                            var nextPlayerIndex = currentPlayerIndex
+                            var nextRound = editingRound
+                            var foundEmpty = false
+                            
+                            // Try to find next empty cell
+                            for roundOffset in 0..<players.count {
+                                for playerOffset in 0..<players.count {
+                                    let testRound = editingRound + roundOffset
+                                    let testPlayerIndex = (currentPlayerIndex + playerOffset) % players.count
+                                    let testPlayer = players[testPlayerIndex]
+                                    
+                                    // Check if this cell is empty (score == -1)
+                                    if testRound <= players[0].scores.count {
+                                        let score = testPlayer.scores[testRound - 1]
+                                        if score == -1 {
+                                            nextPlayerIndex = testPlayerIndex
+                                            nextRound = testRound
+                                            foundEmpty = true
+                                            break
+                                        }
+                                    }
+                                }
+                                if foundEmpty { break }
+                            }
+                            
+                            if foundEmpty {
+                                // Move to next empty cell
+                                editingPlayer = players[nextPlayerIndex]
+                                editingRound = nextRound
+                                text = "" // Clear for next input using binding
+                                // Keep keyboard open by not setting isVisible = false
+                            } else {
+                                // No empty cells found, dismiss keyboard
+                                isVisible = false
+                            }
+                        } else {
+                            isVisible = false
+                        }
+                    }
+                    .foregroundColor(Color("LightGreen"))
+                    .font(.body)
+                    .fontWeight(.semibold)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .background(Color(UIColor.systemGray6))
+                
+                // Number pad
+                VStack(spacing: 1) {
+                    // Row 1: 1, 2, 3
+                    HStack(spacing: 1) {
+                        NumberPadButton(text: "1", action: { appendDigit("1") })
+                        NumberPadButton(text: "2", action: { appendDigit("2") })
+                        NumberPadButton(text: "3", action: { appendDigit("3") })
+                    }
+                    
+                    // Row 2: 4, 5, 6
+                    HStack(spacing: 1) {
+                        NumberPadButton(text: "4", action: { appendDigit("4") })
+                        NumberPadButton(text: "5", action: { appendDigit("5") })
+                        NumberPadButton(text: "6", action: { appendDigit("6") })
+                    }
+                    
+                    // Row 3: 7, 8, 9
+                    HStack(spacing: 1) {
+                        NumberPadButton(text: "7", action: { appendDigit("7") })
+                        NumberPadButton(text: "8", action: { appendDigit("8") })
+                        NumberPadButton(text: "9", action: { appendDigit("9") })
+                    }
+                    
+                    // Row 4: -, 0, .
+                    HStack(spacing: 1) {
+                        NumberPadButton(text: "-", action: { appendMinus() })
+                        NumberPadButton(text: "0", action: { appendDigit("0") })
+                        NumberPadButton(text: ".", action: { appendDecimal() })
+                    }
+                    
+                    // Row 5: Custom rule letter and delete button
+                    HStack(spacing: 1) {
+                        if !customRuleLetter.isEmpty {
+                            // Show custom rule letter if available
+                            NumberPadButton(text: customRuleLetter, action: { appendCustomRuleLetter() })
+                                .frame(maxWidth: .infinity)
+                            
+                            NumberPadButton(text: "⌫", action: { deleteLastCharacter() })
+                                .frame(maxWidth: .infinity)
+                        } else {
+                            // When no custom rule letter, delete button takes full width
+                            NumberPadButton(text: "⌫", action: { deleteLastCharacter() })
+                                .frame(maxWidth: .infinity)
+                        }
+                    }
+                }
+                .background(Color(UIColor.systemGray5))
+            }
+        }
+        .padding(.bottom, 0) // Remove bottom padding to cover floating tab bar
+        .transition(.move(edge: .bottom))
+        .animation(.easeInOut(duration: 0.3), value: isVisible)
+        .gesture(
+            DragGesture()
+                .onEnded { value in
+                    // Dismiss keyboard on swipe down
+                    if value.translation.height > 50 && value.velocity.height > 300 {
+                        isVisible = false
+                    }
+                }
+        )
+    }
+    
+    private func appendDigit(_ digit: String) {
+        // Don't allow leading zeros unless it's just "0"
+        if text == "0" && digit != "0" {
+            text = digit
+        } else if text != "0" || digit != "0" {
+            text += digit
         }
     }
     
-    // MARK: - Toast Message View
+    private func appendMinus() {
+        // Only allow minus at the beginning
+        if text.isEmpty || text == "0" {
+            text = "-"
+        }
+    }
+    
+    private func appendDecimal() {
+        // Only allow one decimal point
+        if !text.contains(".") {
+            if text.isEmpty || text == "-" {
+                text += "0."
+            } else {
+                text += "."
+            }
+        }
+    }
+    
+    private func deleteLastCharacter() {
+        // Remove the last character from the text
+        if !text.isEmpty {
+            text.removeLast()
+        }
+    }
+    
+    private func appendCustomRuleLetter() {
+        // Append the custom rule letter to the text
+        if !customRuleLetter.isEmpty {
+            text += customRuleLetter
+        }
+    }
+}
+
+// MARK: - Number Pad Button
+struct NumberPadButton: View {
+    let text: String
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            Text(text)
+                .font(.title2)
+                .fontWeight(.medium)
+                .foregroundColor(.primary)
+                .frame(maxWidth: .infinity)
+                .frame(height: 50)
+                .background(Color(UIColor.systemBackground))
+                .overlay(
+                    Rectangle()
+                        .stroke(Color(UIColor.systemGray4), lineWidth: 0.5)
+                )
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+}
+
+// MARK: - Toast Message View
     struct ToastMessageView: View {
         let message: String
         let icon: String
