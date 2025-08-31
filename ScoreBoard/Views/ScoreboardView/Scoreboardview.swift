@@ -2611,7 +2611,7 @@ struct CustomNumberPadView: View {
                         text = ""
                         isVisible = false
                     }
-                    .foregroundColor(Color("LightGreen"))
+                    .foregroundColor(.primary)
                     .font(.body)
                     
                     Spacer()
@@ -2634,7 +2634,7 @@ struct CustomNumberPadView: View {
                             }
                             isVisible = false
                         }
-                        .foregroundColor(Color("LightGreen"))
+                        .foregroundColor(.primary)
                         .font(.body)
                         .fontWeight(.semibold)
                     }
@@ -2689,7 +2689,7 @@ struct CustomNumberPadView: View {
                             isVisible = false
                         }
                     }
-                    .foregroundColor(Color("LightGreen"))
+                    .foregroundColor(.primary)
                     .font(.body)
                     .fontWeight(.semibold)
                 }
@@ -2698,37 +2698,37 @@ struct CustomNumberPadView: View {
                 .background(Color(UIColor.systemGray6))
                 
                 // Number pad
-                VStack(spacing: 1) {
+                VStack(spacing: 2) {
                     // Row 1: 1, 2, 3
-                    HStack(spacing: 1) {
+                    HStack(spacing: 2) {
                         NumberPadButton(text: "1", action: { appendDigit("1") })
                         NumberPadButton(text: "2", action: { appendDigit("2") })
                         NumberPadButton(text: "3", action: { appendDigit("3") })
                     }
                     
                     // Row 2: 4, 5, 6
-                    HStack(spacing: 1) {
+                    HStack(spacing: 2) {
                         NumberPadButton(text: "4", action: { appendDigit("4") })
                         NumberPadButton(text: "5", action: { appendDigit("5") })
                         NumberPadButton(text: "6", action: { appendDigit("6") })
                     }
                     
                     // Row 3: 7, 8, 9
-                    HStack(spacing: 1) {
+                    HStack(spacing: 2) {
                         NumberPadButton(text: "7", action: { appendDigit("7") })
                         NumberPadButton(text: "8", action: { appendDigit("8") })
                         NumberPadButton(text: "9", action: { appendDigit("9") })
                     }
                     
                     // Row 4: -, 0, .
-                    HStack(spacing: 1) {
+                    HStack(spacing: 2) {
                         NumberPadButton(text: "-", action: { appendMinus() })
                         NumberPadButton(text: "0", action: { appendDigit("0") })
                         NumberPadButton(text: ".", action: { appendDecimal() })
                     }
                     
                     // Row 5: Custom rule letter and delete button
-                    HStack(spacing: 1) {
+                    HStack(spacing: 2) {
                         if !customRuleLetter.isEmpty {
                             // Show custom rule letter if available
                             NumberPadButton(text: customRuleLetter, action: { appendCustomRuleLetter() })
@@ -2743,6 +2743,8 @@ struct CustomNumberPadView: View {
                         }
                     }
                 }
+                .padding(.horizontal, 4)
+                .padding(.vertical, 4)
                 .background(Color(UIColor.systemGray5))
             }
         }

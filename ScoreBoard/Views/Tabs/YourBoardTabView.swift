@@ -178,9 +178,9 @@ struct YourBoardTabView: View {
                                     print("🔍 DEBUG: ===== 2 PLAYER QUICK GAME CREATED END =====")
                                 }
                                 
-                                // 4 Player Quick Game Card
-                                QuickGameCard(playerCount: 4) { game in
-                                    print("🔍 DEBUG: ===== 4 PLAYER QUICK GAME CREATED =====")
+                                // 3 Player Quick Game Card
+                                QuickGameCard(playerCount: 3) { game in
+                                    print("🔍 DEBUG: ===== 3 PLAYER QUICK GAME CREATED =====")
                                     
                                     // Use standardized callback handling
                                     GameCreationUtils.handleGameCreated(
@@ -194,11 +194,11 @@ struct YourBoardTabView: View {
                                     // Increment refresh counter to force view update
                                     viewRefreshCounter += 1
                                     
-                                    print("🔍 DEBUG: After 4-player creation - selectedGame: \(navigationState.selectedGame?.id ?? "nil")")
-                                    print("🔍 DEBUG: After 4-player creation - userGames count: \(navigationState.userGames.count)")
-                                    print("🔍 DEBUG: After 4-player creation - forceViewReset: \(forceViewReset)")
+                                    print("🔍 DEBUG: After 3-player creation - selectedGame: \(navigationState.selectedGame?.id ?? "nil")")
+                                    print("🔍 DEBUG: After 3-player creation - userGames count: \(navigationState.userGames.count)")
+                                    print("🔍 DEBUG: After 3-player creation - forceViewReset: \(forceViewReset)")
                                     
-                                    print("🔍 DEBUG: ===== 4 PLAYER QUICK GAME CREATED END =====")
+                                    print("🔍 DEBUG: ===== 3 PLAYER QUICK GAME CREATED END =====")
                                 }
                             }
                             .padding(.horizontal, 20)

@@ -29,7 +29,7 @@ struct QuickGameCard: View {
                         .fontWeight(.bold)
                         .foregroundColor(.white)
                     
-                    Text("\(playerCount) Players • Instant Setup")
+                    Text("\(playerCount == 2 ? "2 Teams" : "\(playerCount) Players") • Instant Setup")
                         .font(.caption)
                         .foregroundColor(.white.opacity(0.7))
                 }
@@ -66,10 +66,10 @@ struct QuickGameCard: View {
             // Card Details
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
-                    Image(systemName: playerCount == 2 ? "person.2.fill" : "person.3.fill")
+                    Image(systemName: playerCount == 2 ? "person.2.fill" : playerCount == 3 ? "person.3.fill" : "person.3.fill")
                         .foregroundColor(.green)
                         .font(.caption)
-                    Text("\(playerCount) Anonymous Players")
+                    Text(playerCount == 2 ? "Team 1 & Team 2" : "\(playerCount) Anonymous Players")
                         .font(.caption)
                         .foregroundColor(.white.opacity(0.7))
                 }
@@ -108,7 +108,11 @@ struct QuickGameCard: View {
                 // Create anonymous player IDs (using names instead of IDs for anonymous players)
                 var playerIDs: [String] = []
                 for i in 1...playerCount {
-                    playerIDs.append("Player \(i)")
+                    if playerCount == 2 {
+                        playerIDs.append("Team \(i)")
+                    } else {
+                        playerIDs.append("Player \(i)")
+                    }
                 }
                 
                 print("🔍 DEBUG: Player IDs: \(playerIDs)")
@@ -192,8 +196,8 @@ struct QuickGameCard_Previews: PreviewProvider {
                 print("Preview: 2-player quick game created with ID: \(game.id)")
             }
             
-            QuickGameCard(playerCount: 4) { game in
-                print("Preview: 4-player quick game created with ID: \(game.id)")
+            QuickGameCard(playerCount: 3) { game in
+                print("Preview: 3-player quick game created with ID: \(game.id)")
             }
         }
         .padding()
