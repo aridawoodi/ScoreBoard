@@ -194,59 +194,143 @@ struct PlayerManagementView: View {
     let addRegisteredPlayer: (User) -> Void
     let removePlayer: (Player) -> Void
     
+    // Add host join state to calculate total player count
+    let hostJoinAsPlayer: Bool
+    
+    // Add current user to check if host is already in player list
+    let currentUser: AuthUser?
+    
+    // Add callback to notify when host is removed
+    let onHostRemoved: (() -> Void)?
+    
     @State private var showSearchSheet = false
+    
+    /// Get players to display in the UI, filtering out host when toggle is OFF
+    private func getDisplayPlayers() -> [Player] {
+        guard !hostJoinAsPlayer, let currentUser = currentUser else {
+            // If toggle is ON or no current user, show all players
+            return players
+        }
+        
+        // Filter out the host from the display
+        return players.filter { player in
+            if let playerUserId = player.userId {
+                return playerUserId != currentUser.userId
+            }
+            return true
+        }
+    }
+    
+    /// Calculate total player count, accounting for host already being in the list
+    private func getTotalPlayerCount() -> Int {
+        // Use the display players count to get the real-time count
+        let displayCount = getDisplayPlayers().count
+        
+        // If host is joining as player, check if they're already in the display
+        if hostJoinAsPlayer {
+            // If host is already in the display players, don't add +1
+            // If host is not in the display players, add +1
+            if let currentUser = currentUser {
+                let isHostInDisplay = getDisplayPlayers().contains { player in
+                    if let playerUserId = player.userId {
+                        return playerUserId == currentUser.userId
+                    }
+                    return false
+                }
+                return isHostInDisplay ? displayCount : displayCount + 1
+            } else {
+                // For anonymous hosts, add +1 as fallback
+                return displayCount + 1
+            }
+        } else {
+            // If host is not joining, just return the display count (which already excludes the host)
+            return displayCount
+        }
+    }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            // Player List
+            // Player List - Compact Horizontal Layout
             if !players.isEmpty {
-                VStack(spacing: 8) {
-                    ForEach(players) { player in
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(player.name)
-                                    .font(.body)
-                                    .fontWeight(.medium)
-                                    .foregroundColor(.white)
-                                HStack {
-                                    if player.isRegistered {
-                                        Image(systemName: "person.circle.fill")
-                                            .foregroundColor(.green)
-                                        Text("Registered")
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Current Players")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundColor(.white.opacity(0.8))
+                    
+                    // Horizontal scrolling player list
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(getDisplayPlayers()) { player in
+                                HStack(spacing: 6) {
+                                    // Player icon
+                                    Image(systemName: player.isRegistered ? "person.circle.fill" : "person.circle")
+                                        .foregroundColor(player.isRegistered ? .green : .orange)
+                                        .font(.caption)
+                                    
+                                    // Player name
+                                    Text(player.name)
+                                        .font(.caption)
+                                        .fontWeight(.medium)
+                                        .foregroundColor(.white)
+                                        .lineLimit(1)
+                                    
+                                    // Remove button
+                                    Button(action: { 
+                                        removePlayer(player)
+                                        
+                                        // Check if the removed player is the host
+                                        if let currentUser = currentUser,
+                                           let playerUserId = player.userId,
+                                           playerUserId == currentUser.userId {
+                                            // Host was removed, notify parent to turn off toggle
+                                            onHostRemoved?()
+                                        }
+                                    }) {
+                                        Image(systemName: "xmark.circle.fill")
+                                            .foregroundColor(.red)
                                             .font(.caption)
-                                            .foregroundColor(.green)
-                                    } else {
-                                        Image(systemName: "person.circle")
-                                            .foregroundColor(.orange)
-                                        Text("Anonymous")
-                                            .font(.caption)
-                                            .foregroundColor(.orange)
                                     }
                                 }
-                            }
-                            Spacer()
-                            Button(action: { removePlayer(player) }) {
-                                Image(systemName: "minus.circle.fill")
-                                    .foregroundColor(.red)
-                                    .font(.title2)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 6)
+                                .background(Color.black.opacity(0.5))
+                                .cornerRadius(6)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 6)
+                                        .stroke(Color.white.opacity(0.3), lineWidth: 0.5)
+                                )
                             }
                         }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .background(Color.black.opacity(0.5))
-                        .cornerRadius(8)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8)
-                                .stroke(Color.white.opacity(0.3), lineWidth: 1)
-                        )
+                        .padding(.horizontal, 4)
                     }
                 }
             }
             
             // Add Player Section
             VStack(alignment: .leading, spacing: 12) {
-                Text("Add Players").font(.headline)
-                    .foregroundColor(.white)
+                HStack {
+                    Text("Add Players")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                    
+                    Spacer()
+                    
+                    // Player Count Display (same style as custom rules in ScoreboardView)
+                    HStack(spacing: 4) {
+                        Image(systemName: "person.2.fill")
+                            .font(.caption)
+                            .foregroundColor(.white.opacity(0.7))
+                        Text("\(getTotalPlayerCount())")
+                            .font(.caption)
+                            .fontWeight(.medium)
+                            .foregroundColor(.white.opacity(0.7))
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.black.opacity(0.2))
+                    .cornerRadius(6)
+                }
                 
                 // Add Anonymous Player
                 HStack {
@@ -385,7 +469,14 @@ struct PlayerManagementFunctions {
     }
     
     static func removePlayer(_ player: Player, players: Binding<[Player]>) {
-        players.wrappedValue.removeAll { $0.id == player.id }
+        // Remove player by userId if registered, or by name if anonymous
+        if let playerUserId = player.userId {
+            // For registered players, remove by userId
+            players.wrappedValue.removeAll { $0.userId == playerUserId }
+        } else {
+            // For anonymous players, remove by name
+            players.wrappedValue.removeAll { $0.name == player.name }
+        }
     }
 }
 
@@ -420,7 +511,10 @@ struct PlayerManagementFunctions {
                 },
                 removePlayer: { player in
                     print("Removing player: \(player.name)")
-                }
+                },
+                hostJoinAsPlayer: true,
+                currentUser: nil,
+                onHostRemoved: nil
             )
             .padding()
         }

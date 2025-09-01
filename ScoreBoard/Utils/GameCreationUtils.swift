@@ -71,7 +71,7 @@ class GameCreationUtils {
     // MARK: - Game Creation Validation
     static func validateGameCreation(
         playerCount: Int,
-        hostJoinAsPlayer: Bool = false
+        hostJoinAsPlayer: Bool = true
     ) -> (isValid: Bool, message: String?) {
         let totalPlayers = playerCount + (hostJoinAsPlayer ? 1 : 0)
         
@@ -90,7 +90,7 @@ class GameCreationUtils {
         customRules: String? = nil,
         winCondition: WinCondition = .highestScore,
         maxScore: Int = 100,
-        maxRounds: Int = 10
+        maxRounds: Int = 8
     ) -> Game {
         return Game(
             gameName: gameName?.isEmpty == true ? nil : gameName,

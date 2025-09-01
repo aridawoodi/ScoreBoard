@@ -21,7 +21,7 @@ struct CreateGameView: View {
     
     @State private var gameName = ""
     @State private var rounds = 3
-    @State private var hostJoinAsPlayer = false
+    @State private var hostJoinAsPlayer = true
     @State private var hostPlayerName = ""
     @State private var newPlayerName = ""
     @State private var searchText = ""
@@ -65,7 +65,7 @@ struct CreateGameView: View {
     @State private var showAdvancedSettings = false
     @State private var winCondition: WinCondition = .highestScore
     @State private var maxScore: Int = 100
-    @State private var maxRounds: Int = 10
+    @State private var maxRounds: Int = 8
     
     // Custom Rules
     @State private var customRules: [CustomRule] = []
@@ -197,7 +197,7 @@ struct CreateGameView: View {
         gameName = ""
         customRules = []
         rounds = 3
-        hostJoinAsPlayer = false
+        hostJoinAsPlayer = true
         hostPlayerName = ""
         newPlayerName = ""
         searchText = ""
@@ -217,7 +217,7 @@ struct CreateGameView: View {
         showAdvancedSettings = false
         winCondition = .highestScore
         maxScore = 100
-        maxRounds = 10
+        maxRounds = 8
     }
     
     private func getTotalPlayerCount() -> Int {
@@ -465,8 +465,9 @@ struct CreateGameView: View {
                 var playerIDs = players.map { $0.userId ?? $0.name }
                 print("🔍 DEBUG: Player IDs: \(playerIDs)")
                 
-                // Add host as player if option is enabled
+                // Handle host participation based on toggle state
                 if hostJoinAsPlayer {
+                    // Add host as player if option is enabled
                     if let currentUser = currentUser {
                         // Check if host is already in the players array before adding
                         if !isUserAlreadyInPlayers(userId: currentUser.userId, players: players) {
@@ -485,6 +486,18 @@ struct CreateGameView: View {
                             } else {
                                 print("🔍 DEBUG: Host name is already in players array, skipping duplicate addition")
                             }
+                        }
+                    }
+                } else {
+                    // Remove host from player list if option is disabled
+                    if let currentUser = currentUser {
+                        playerIDs.removeAll { $0 == currentUser.userId }
+                        print("🔍 DEBUG: Removed host from player list: \(currentUser.userId)")
+                    } else {
+                        let hostName = hostPlayerName.trimmingCharacters(in: .whitespacesAndNewlines)
+                        if !hostName.isEmpty {
+                            playerIDs.removeAll { $0 == hostName }
+                            print("🔍 DEBUG: Removed host from player list: \(hostName)")
                         }
                     }
                 }
@@ -615,7 +628,7 @@ struct CreateGameView: View {
         rounds = game.rounds
         winCondition = game.winCondition ?? .highestScore
         maxScore = game.maxScore ?? 100
-        maxRounds = game.maxRounds ?? 10
+        maxRounds = game.maxRounds ?? 8
         
         // Load custom rules from JSON
         customRules = CustomRulesManager.shared.jsonToRules(game.customRules)
@@ -627,22 +640,30 @@ struct CreateGameView: View {
         print("🔍 DEBUG: Starting player loading task...")
         Task {
             await loadPlayersWithUsernames(from: game.playerIDs)
+            
+            // Wait for current user to be loaded before determining host join status
+            print("🔍 DEBUG: Waiting for current user to be loaded...")
+            var attempts = 0
+            while currentUser == nil && attempts < 10 {
+                try? await Task.sleep(nanoseconds: 100_000_000) // Wait 0.1 seconds
+                attempts += 1
+            }
+            
+            // Determine if host is joining as player
+            print("🔍 DEBUG: Determining host join status...")
+            // This is a bit tricky since we need to check if the current user is in the playerIDs
+            if let currentUser = currentUser {
+                hostJoinAsPlayer = game.playerIDs.contains(currentUser.userId)
+                print("🔍 DEBUG: Current user found, hostJoinAsPlayer: \(hostJoinAsPlayer)")
+            } else {
+                // For guest users, we'll assume they're joining if they have a display name
+                hostJoinAsPlayer = !hostPlayerName.isEmpty
+                print("🔍 DEBUG: No current user, using hostPlayerName check: \(hostJoinAsPlayer)")
+            }
+            
+            print("🔍 DEBUG: Host joining as player: \(hostJoinAsPlayer)")
+            print("🔍 DEBUG: loadGameDataForEdit() completed")
         }
-        
-        // Determine if host is joining as player
-        print("🔍 DEBUG: Determining host join status...")
-        // This is a bit tricky since we need to check if the current user is in the playerIDs
-        if let currentUser = currentUser {
-            hostJoinAsPlayer = game.playerIDs.contains(currentUser.userId)
-            print("🔍 DEBUG: Current user found, hostJoinAsPlayer: \(hostJoinAsPlayer)")
-        } else {
-            // For guest users, we'll assume they're joining if they have a display name
-            hostJoinAsPlayer = !hostPlayerName.isEmpty
-            print("🔍 DEBUG: No current user, using hostPlayerName check: \(hostJoinAsPlayer)")
-        }
-        
-        print("🔍 DEBUG: Host joining as player: \(hostJoinAsPlayer)")
-        print("🔍 DEBUG: loadGameDataForEdit() completed")
     }
     
     private func loadPlayersWithUsernames(from playerIDs: [String]) async {
@@ -1190,9 +1211,7 @@ struct CreateGameContentView: View {
                     .foregroundColor(.white)
                     .font(bodyFont)
                 Spacer()
-                Stepper("", value: $maxScore, in: 10...1000, step: 10)
-                    .labelsHidden()
-                    .accentColor(Color("LightGreen"))
+                CustomStepperView(value: $maxScore, in: 10...1000, step: 10)
             }
             .padding()
             .background(Color.black.opacity(0.5))
@@ -1214,9 +1233,7 @@ struct CreateGameContentView: View {
                     .foregroundColor(.white)
                     .font(bodyFont)
                 Spacer()
-                Stepper("", value: $maxRounds, in: 1...50)
-                    .labelsHidden()
-                    .accentColor(Color("LightGreen"))
+                CustomStepperView(value: $maxRounds, in: 1...8, step: 1)
             }
             .padding()
             .background(Color.black.opacity(0.5))
@@ -1276,7 +1293,13 @@ struct CreateGameContentView: View {
                 addPlayer: addPlayer,
                 searchUsers: searchUsers,
                 addRegisteredPlayer: addRegisteredPlayer,
-                removePlayer: removePlayer
+                removePlayer: removePlayer,
+                hostJoinAsPlayer: hostJoinAsPlayer,
+                currentUser: currentUser,
+                onHostRemoved: {
+                    // Turn off the toggle when host is removed
+                    hostJoinAsPlayer = false
+                }
             )
             
             // Advanced Settings
@@ -1346,5 +1369,54 @@ struct CreateGameView_Previews: PreviewProvider {
         }
         .previewDevice(PreviewDevice(rawValue: "iPad Pro (11-inch)"))
         .previewDisplayName("Create Game View - iPad")
+    }
+}
+
+// MARK: - Custom Stepper Style
+struct CustomStepperView: View {
+    @Binding var value: Int
+    let range: ClosedRange<Int>
+    let step: Int
+    
+    init(value: Binding<Int>, in range: ClosedRange<Int>, step: Int = 1) {
+        self._value = value
+        self.range = range
+        self.step = step
+    }
+    
+    var body: some View {
+        HStack(spacing: 4) {
+            // Minus button
+            Button(action: {
+                let newValue = value - step
+                if range.contains(newValue) {
+                    value = newValue
+                }
+            }) {
+                Image(systemName: "minus")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(.white)
+                    .frame(width: 32, height: 32)
+                    .background(Color.black.opacity(0.3))
+                    .cornerRadius(6)
+            }
+            .disabled(value - step < range.lowerBound)
+            
+            // Plus button
+            Button(action: {
+                let newValue = value + step
+                if range.contains(newValue) {
+                    value = newValue
+                }
+            }) {
+                Image(systemName: "plus")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(.white)
+                    .frame(width: 32, height: 32)
+                    .background(Color.black.opacity(0.3))
+                    .cornerRadius(6)
+            }
+            .disabled(value + step > range.upperBound)
+        }
     }
 }

@@ -27,7 +27,7 @@ struct GameSettings: Codable {
         maxRounds: Int = 10,
         customRules: String = "",
         playerNames: [String] = [],
-        hostJoinAsPlayer: Bool = false,
+        hostJoinAsPlayer: Bool = true,
         hostPlayerName: String = ""
     ) {
         self.gameName = gameName

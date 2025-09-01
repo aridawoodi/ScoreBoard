@@ -1235,6 +1235,21 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                         .multilineTextAlignment(.leading)
                 }
                 
+                // Round Count Information
+                HStack(spacing: 4) {
+                    Image(systemName: "number.circle.fill")
+                        .font(.caption)
+                        .foregroundColor(.white.opacity(0.7))
+                    Text("\(dynamicRounds)/\(game.maxRounds ?? 8)")
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .foregroundColor(.white.opacity(0.7))
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color.black.opacity(0.2))
+                .cornerRadius(6)
+                
                 // Custom Rules Hint (only show if there are custom rules)
                 if !customRules.isEmpty {
                     HStack(spacing: 8) {
@@ -1692,7 +1707,8 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
     
     private var addRoundButton: some View {
         Group {
-            if canUserEditGame() && canUserEditScores() {
+            if canUserEditGame() && canUserEditScores() && canAddRound() {
+                // Show add round button when rounds can be added
                 HStack(spacing: 0) {
                     // Empty space for round number column alignment
                     Rectangle()
@@ -1729,6 +1745,41 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                 .padding(.top, 2)
                 .padding(.bottom, 8) // Add bottom padding to ensure visibility
                 .id("add-round-button") // Add ID for scrolling
+            } else if canUserEditGame() && !canAddRound() {
+                // Show max rounds reached message
+                HStack(spacing: 0) {
+                    // Empty space for round number column alignment
+                    Rectangle()
+                        .fill(Color.clear)
+                        .frame(width: effectiveDeleteMode ? 40 : 30, height: 44)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 6)
+                                .stroke(Color.gray.opacity(0.3), lineWidth: 0.5)
+                        )
+                    
+                    // Max rounds reached message
+                    HStack {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(.orange)
+                        Text("Max Rounds (\(game.maxRounds ?? 8)) Reached")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(.orange)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 44)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(Color.orange.opacity(0.1))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6)
+                            .stroke(Color.orange.opacity(0.3), lineWidth: 1)
+                    )
+                }
+                .padding(.top, 2)
+                .padding(.bottom, 8)
+                .id("max-rounds-reached")
             }
         }
     }
@@ -2871,8 +2922,20 @@ struct NumberPadButton: View {
     
     // MARK: - Dynamic Rounds Management
     
+    private func canAddRound() -> Bool {
+        let maxRounds = game.maxRounds ?? 8
+        let canAdd = dynamicRounds < maxRounds
+        print("🔍 DEBUG: canAddRound() - current: \(dynamicRounds), max: \(maxRounds), canAdd: \(canAdd)")
+        return canAdd
+    }
+    
     func addRound() {
         guard canUserEditGame() else { return }
+        guard canAddRound() else { 
+            print("🔍 DEBUG: Cannot add round - max rounds (\(game.maxRounds ?? 8)) reached")
+            showToastMessage(message: "Max rounds (\(game.maxRounds ?? 8)) reached", icon: "exclamationmark.triangle.fill")
+            return 
+        }
         
         print("🔍 DEBUG: ===== ADD ROUND START =====")
         print("🔍 DEBUG: Current dynamicRounds: \(dynamicRounds)")
