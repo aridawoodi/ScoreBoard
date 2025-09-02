@@ -249,6 +249,12 @@ struct Scoreboardview: View {
     @State private var keyboardOffset: CGFloat = 0 // Offset when custom keyboard is open
     @FocusState private var isScoreFieldFocused: Bool
     @State private var showSystemKeyboard = false // Track system keyboard visibility
+    
+    // Player name editing state
+    @State private var editingPlayerName = ""
+    @State private var editingPlayerIndex: Int? = nil
+    @State private var showPlayerNameEditor = false
+    @State private var originalPlayerNames: [String] = [] // For undo functionality
 
     let onGameUpdated: ((Game) -> Void)?
     let onGameDeleted: (() -> Void)?
@@ -440,6 +446,133 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
         } else {
             print("🔍 DEBUG: Unable to get current user information")
         }
+    }
+    
+    // MARK: - Player Name Editing Functions
+    
+    /// Check if current user can edit player names
+    func canEditPlayerNames() -> Bool {
+        return canUserEditGame() && game.gameStatus == .active
+    }
+    
+    /// Check if a specific player's name can be edited
+    func canEditSpecificPlayerName(_ player: TestPlayer) -> Bool {
+        // Only allow editing if:
+        // 1. User can edit player names in general
+        // 2. Player is NOT a guest user (anonymous players and registered users can be edited)
+        return canEditPlayerNames() && !player.playerID.hasPrefix("guest_")
+    }
+    
+    /// Start editing a player name
+    func startEditingPlayerName(_ player: TestPlayer, at index: Int) {
+        // Double-check that this specific player can be edited
+        guard canEditSpecificPlayerName(player) else {
+            print("🔍 DEBUG: Attempted to edit non-editable player: \(player.name)")
+            return
+        }
+        
+        print("🔍 DEBUG: Starting to edit player at index \(index): '\(player.name)' (playerID: '\(player.playerID)')")
+        print("🔍 DEBUG: Current game.playerIDs: \(game.playerIDs)")
+        print("🔍 DEBUG: Current players array: \(players.map { "\($0.name) (ID: \($0.playerID))" })")
+        
+        editingPlayerName = player.name
+        editingPlayerIndex = index
+        showPlayerNameEditor = true
+        
+        // Store original names for undo functionality
+        if originalPlayerNames.isEmpty {
+            originalPlayerNames = players.map { $0.name }
+        }
+        
+
+    }
+    
+    /// Save the edited player name
+    func savePlayerName() async {
+        guard let index = editingPlayerIndex,
+              index < players.count,
+              !editingPlayerName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return
+        }
+        
+        let trimmedName = editingPlayerName.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // Update the player name in the local players array
+        players[index] = TestPlayer(
+            name: trimmedName,
+            scores: players[index].scores,
+            playerID: players[index].playerID
+        )
+        
+        // Update the game's playerIDs array to persist the change
+        var updatedGame = game
+        if index < updatedGame.playerIDs.count {
+            print("🔍 DEBUG: Updating playerIDs[\(index)] from '\(updatedGame.playerIDs[index])' to '\(trimmedName)'")
+            updatedGame.playerIDs[index] = trimmedName
+            print("🔍 DEBUG: Updated game.playerIDs: \(updatedGame.playerIDs)")
+        } else {
+            print("🔍 DEBUG: ERROR: Index \(index) is out of bounds for playerIDs array (count: \(updatedGame.playerIDs.count))")
+        }
+        
+        // Save to backend
+        do {
+            let updatedGameResult = try await Amplify.API.mutate(request: .update(updatedGame))
+            switch updatedGameResult {
+            case .success(let savedGame):
+                await MainActor.run {
+                    game = savedGame
+                    // Update the callback to refresh other views
+                    onGameUpdated?(savedGame)
+                }
+                print("🔍 DEBUG: Player name updated successfully: \(trimmedName)")
+            case .failure(let error):
+                print("🔍 DEBUG: Failed to update player name: \(error)")
+                // Revert the change on failure
+                await revertPlayerNameChange()
+            }
+        } catch {
+            print("🔍 DEBUG: Error updating player name: \(error)")
+            await revertPlayerNameChange()
+        }
+        
+        // Reset editing state
+        editingPlayerIndex = nil
+        editingPlayerName = ""
+        showPlayerNameEditor = false
+    }
+    
+    /// Revert player name changes (undo functionality)
+    func revertPlayerNameChange() async {
+        guard !originalPlayerNames.isEmpty else { return }
+        
+        await MainActor.run {
+            // Restore original names
+            for (index, originalName) in originalPlayerNames.enumerated() {
+                if index < players.count {
+                    players[index] = TestPlayer(
+                        name: originalName,
+                        scores: players[index].scores,
+                        playerID: players[index].playerID
+                    )
+                }
+            }
+            
+            // Reset editing state
+            editingPlayerIndex = nil
+            editingPlayerName = ""
+            showPlayerNameEditor = false
+            originalPlayerNames = []
+            
+            // Show undo success toast
+            showToastMessage(message: "Player names reverted to original", icon: "arrow.uturn.backward.circle")
+        }
+    }
+    
+    /// Cancel player name editing
+    func cancelPlayerNameEditing() {
+        editingPlayerIndex = nil
+        editingPlayerName = ""
+        showPlayerNameEditor = false
     }
     
     /// Check and mark game as complete if all scores are filled - temporarily disabled
@@ -845,6 +978,19 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                     print("🔍 DEBUG: Game selected in list sheet: \(index)")
                     currentGameIndex = index
                     showGameListSheet = false
+                }
+            )
+        }
+        .sheet(isPresented: $showPlayerNameEditor) {
+            PlayerNameEditorSheet(
+                playerName: $editingPlayerName,
+                onSave: {
+                    Task {
+                        await savePlayerName()
+                    }
+                },
+                onCancel: {
+                    cancelPlayerNameEditing()
                 }
             )
         }
@@ -1388,6 +1534,21 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                     }
                 }
                 
+                // Undo Player Name Changes button (only when there are original names to revert to)
+                /*
+                if canEditPlayerNames() && !originalPlayerNames.isEmpty {
+                    Button(action: {
+                        Task {
+                            await revertPlayerNameChange()
+                        }
+                    }) {
+                        Image(systemName: "arrow.uturn.backward.circle")
+                            .font(.system(size: 24, weight: .medium))
+                            .foregroundColor(.orange)
+                    }
+                }
+                */
+                
                 // Refresh button
                 Button(action: {
                     Task {
@@ -1682,12 +1843,30 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
             ForEach(Array(players.enumerated()), id: \.offset) { index, player in
                 VStack(spacing: 0) {
                     HStack {
-                        Text(player.name)
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(.white)
-                            .lineLimit(1)
-                            .truncationMode(.tail)
-                            .frame(maxWidth: .infinity)
+                        // Player name - tappable for editing
+                        Button(action: {
+                            if canEditSpecificPlayerName(player) {
+                                startEditingPlayerName(player, at: index)
+                            }
+                        }) {
+                            HStack(spacing: 4) {
+                                Text(player.name)
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundColor(.white)
+                                    .lineLimit(1)
+                                    .truncationMode(.tail)
+                                
+                                // Edit indicator
+                                if canEditSpecificPlayerName(player) {
+                                    Image(systemName: "pencil.circle")
+                                        .font(.system(size: 12))
+                                        .foregroundColor(.white.opacity(0.6))
+                                }
+                            }
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        .frame(maxWidth: .infinity)
+                        .scaleEffect(canEditSpecificPlayerName(player) ? 1.02 : 1.0)
                         
                         // Delete player icon (only in delete mode)
                         if effectiveDeleteMode {
@@ -2105,9 +2284,17 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                         var playerData: [String: (name: String, scores: [Int])] = [:]
                         
                         // Initialize scores for all players in the game
-                        for playerID in game.playerIDs {
-                            // Use the improved getPlayerName function that checks cache
-                            let playerName = getPlayerName(for: playerID)
+                        for (index, playerID) in game.playerIDs.enumerated() {
+                            // For anonymous players (display names), use the playerID directly as the name
+                            // For registered users, use the cached username or fallback
+                            let playerName: String
+                            if playerID.hasPrefix("guest_") {
+                                // Registered user - use cached username or fallback
+                                playerName = getPlayerName(for: playerID)
+                            } else {
+                                // Anonymous player - use the playerID directly (this is the display name)
+                                playerName = playerID
+                            }
                             playerData[playerID] = (name: playerName, scores: Array(repeating: -1, count: dynamicRounds))
                         }
                         
@@ -3873,6 +4060,124 @@ struct GameListItemView: View {
             )
         }
         .buttonStyle(PlainButtonStyle())
+    }
+}
+
+// MARK: - Player Name Editor Sheet
+struct PlayerNameEditorSheet: View {
+    @Binding var playerName: String
+    let onSave: () -> Void
+    let onCancel: () -> Void
+    @FocusState private var isTextFieldFocused: Bool
+    
+    var body: some View {
+        NavigationView {
+            ZStack {
+                // Gradient background for the entire sheet content
+                GradientBackgroundView()
+                
+                VStack(spacing: 24) {
+                    // Header
+                    VStack(spacing: 12) {
+                        Image(systemName: "person.text.rectangle")
+                            .font(.system(size: 48))
+                            .foregroundColor(.blue)
+                        
+                        Text("Edit Player Name")
+                            .font(.title2)
+                            .fontWeight(.bold)
+                            .foregroundColor(.white)
+                        
+                        Text("Enter a new name for this player")
+                            .font(.body)
+                            .foregroundColor(.white.opacity(0.7))
+                            .multilineTextAlignment(.center)
+                    }
+                    .padding(.top, 20)
+                    
+                    // Name input field
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Player Name")
+                            .font(.headline)
+                            .foregroundColor(.white)
+                        
+                        ZStack(alignment: .leading) {
+                            if playerName.isEmpty {
+                                Text("Enter player name")
+                                    .foregroundColor(.white.opacity(0.5))
+                                    .padding(.leading, 16)
+                            }
+                            TextField("", text: $playerName)
+                                .font(.body)
+                                .foregroundColor(.white)
+                                .padding()
+                                .background(Color.white.opacity(0.1))
+                                .cornerRadius(8)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                                )
+                                .focused($isTextFieldFocused)
+                                .onSubmit {
+                                    if !playerName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                        onSave()
+                                    }
+                                }
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                    
+                    // Action buttons
+                    VStack(spacing: 12) {
+                        Button(action: onSave) {
+                            HStack {
+                                Image(systemName: "checkmark.circle.fill")
+                                Text("Save Changes")
+                            }
+                            .font(.headline)
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .fill(Color("LightGreen"))
+                            )
+                        }
+                        .disabled(playerName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        
+                        Button(action: onCancel) {
+                            HStack {
+                                Image(systemName: "xmark.circle.fill")
+                                Text("Cancel")
+                            }
+                            .font(.headline)
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .fill(Color.red.opacity(0.8))
+                            )
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                    
+                    Spacer()
+                }
+                .navigationTitle("Edit Player Name")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbarColorScheme(.dark, for: .navigationBar)
+                .toolbarBackground(.visible, for: .navigationBar)
+                .toolbarBackground(Color.clear, for: .navigationBar)
+                .navigationBarItems(
+                    leading: Button("Cancel") { onCancel() }
+                        .foregroundColor(.white)
+                )
+            }
+        }
+        .onAppear {
+            isTextFieldFocused = true
+        }
     }
 }
 
