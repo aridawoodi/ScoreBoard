@@ -21,11 +21,6 @@ struct SearchRegisteredUsersSheet: View {
             VStack(spacing: 20) {
                 // Header
                 VStack(spacing: 8) {
-                    Text("Search Registered Users")
-                        .font(.title2)
-                        .fontWeight(.bold)
-                        .foregroundColor(.white)
-                    
                     Text("Find and add registered users to your game")
                         .font(.subheadline)
                         .foregroundColor(.white.opacity(0.7))

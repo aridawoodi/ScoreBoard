@@ -12,7 +12,6 @@ struct PlayerLeaderboardEntry: Identifiable {
     let winRate: Double
     let highestScoreWins: Int
     let lowestScoreWins: Int
-    let averageScore: Double
     let gamesWon: [GameWinDetail]
 }
 
@@ -210,9 +209,7 @@ class DataManager: ObservableObject {
                 playerStats[playerID]!.gamesPlayed.insert(score.gameID)
             }
             
-            // Calculate average score
-            playerStats[playerID]!.totalScore += score.score
-            playerStats[playerID]!.scoreCount += 1
+
         }
         
         // Create leaderboard entries
@@ -221,7 +218,6 @@ class DataManager: ObservableObject {
         for (playerID, stats) in playerStats {
             let totalGames = stats.gamesPlayed.count
             let winRate = totalGames > 0 ? Double(stats.totalWins) / Double(totalGames) : 0.0
-            let averageScore = stats.scoreCount > 0 ? Double(stats.totalScore) / Double(stats.scoreCount) : 0.0
             
             // Get player nickname
             let nickname: String
@@ -239,7 +235,6 @@ class DataManager: ObservableObject {
                 winRate: winRate,
                 highestScoreWins: stats.highestScoreWins,
                 lowestScoreWins: stats.lowestScoreWins,
-                averageScore: averageScore,
                 gamesWon: stats.gamesWon
             ))
         }
@@ -262,8 +257,6 @@ class DataManager: ObservableObject {
     private struct PlayerStats {
         let playerID: String
         var totalWins: Int = 0
-        var totalScore: Int = 0
-        var scoreCount: Int = 0
         var highestScoreWins: Int = 0
         var lowestScoreWins: Int = 0
         var gamesPlayed: Set<String> = []

@@ -32,22 +32,17 @@ class AnalyticsService: ObservableObject {
             
             print("🔍 DEBUG: Loading analytics for user: \(userId), isGuest: \(isGuest)")
             
-            // Fetch all games where the user is a player
+            // Fetch all games where the user is actually a player (not just the host)
             let gamesResult = try await Amplify.API.query(request: .list(Game.self))
             
             switch gamesResult {
             case .success(let allGames):
                 let userGames = allGames.filter { game in
-                    // Check if user is the host
-                    if game.hostUserID == userId {
-                        return true
-                    }
-                    
-                    // Check if user is a player using improved detection
+                    // Only include games where the user is actually a player (not just the host)
                     return isUserInGame(userId: userId, playerIDs: game.playerIDs)
                 }
                 
-                print("🔍 DEBUG: Found \(userGames.count) games for user")
+                print("🔍 DEBUG: Found \(userGames.count) games where user is a player")
                 
                 // Fetch scores for user's games only (server-side filtering)
                 var allUserScores: [Score] = []
@@ -59,7 +54,11 @@ class AnalyticsService: ObservableObject {
                     
                     switch scoresResult {
                     case .success(let gameScores):
-                        allUserScores.append(contentsOf: gameScores)
+                        // Filter to only include scores for the current user
+                        let userGameScores = gameScores.filter { score in
+                            score.playerID == userId
+                        }
+                        allUserScores.append(contentsOf: userGameScores)
                     case .failure(let error):
                         print("🔍 DEBUG: Failed to fetch scores for game \(game.id): \(error)")
                     }
@@ -68,9 +67,17 @@ class AnalyticsService: ObservableObject {
                 let userScores = allUserScores
                     
                 print("🔍 DEBUG: Found \(userScores.count) scores for user's games")
+                print("🔍 DEBUG: User scores details: \(userScores.map { "Player: \($0.playerID), Score: \($0.score), Round: \($0.roundNumber)" })")
                 
                 // Create real analytics from backend data
-                let realStats = PlayerStats.from(games: userGames, scores: userScores, userId: userId)
+                guard let realStats = PlayerStats.from(games: userGames, scores: userScores, userId: userId) else {
+                    // No data available, return nil to show sample analytics
+                    print("🔍 DEBUG: No games/scores found - returning nil for sample analytics")
+                    await MainActor.run {
+                        self.isLoading = false
+                    }
+                    return nil
+                }
                 
                 await MainActor.run {
                     self.isLoading = false

@@ -28,11 +28,6 @@ struct ProfileEditView: View {
                         .font(.system(size: 48))
                         .foregroundColor(.blue)
                     
-                    Text("Edit Your Profile")
-                        .font(.title)
-                        .fontWeight(.bold)
-                        .foregroundColor(.white)
-                    
                     Text("Update your profile information to personalize your experience")
                         .font(.subheadline)
                         .foregroundColor(.white.opacity(0.7))
@@ -138,31 +133,25 @@ struct ProfileEditView: View {
             }
             .padding()
 
+            .navigationTitle("Edit Profile")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbarBackground(Color.clear, for: .navigationBar)
+            .navigationBarItems(
+                leading: Button("Cancel") {
+                    dismiss()
+                }
+                .foregroundColor(.white)
+            )
             .alert("Profile Update", isPresented: $showAlert) {
                 Button("OK") { }
             } message: {
                 Text(alertMessage)
             }
             .overlay(
-                ZStack {
-                    // Cancel button at the top
-                    VStack {
-                        HStack {
-                            Button("Cancel") {
-                                dismiss()
-                            }
-                            .foregroundColor(.white)
-                            .padding()
-                            .background(Color.black.opacity(0.3))
-                            .cornerRadius(8)
-                            
-                            Spacer()
-                        }
-                        .padding()
-                        Spacer()
-                    }
-                    
-                    // Success message overlay that doesn't affect Cancel button
+                // Success message overlay
+                Group {
                     if isProfileUpdated {
                         VStack {
                             Spacer()

@@ -62,7 +62,7 @@ struct CreateGameView: View {
     @State private var useLastGameSettings = false
     
     // Advanced Settings
-    @State private var showAdvancedSettings = false
+    @State private var showAdvancedSettingsSheet = false
     @State private var winCondition: WinCondition = .highestScore
     @State private var maxScore: Int = 100
     @State private var maxRounds: Int = 8
@@ -71,7 +71,6 @@ struct CreateGameView: View {
     @State private var customRules: [CustomRule] = []
     @State private var newRuleLetter: String = ""
     @State private var newRuleValue: Int = 0
-    @State private var showCustomRulesSection = false
     
     private var isIPad: Bool {
         UIDevice.current.userInterfaceIdiom == .pad
@@ -108,11 +107,10 @@ struct CreateGameView: View {
                     currentUserProfile: $currentUserProfile,
     
                     useLastGameSettings: $useLastGameSettings,
-                    showAdvancedSettings: $showAdvancedSettings,
+                    showAdvancedSettingsSheet: $showAdvancedSettingsSheet,
                     winCondition: $winCondition,
                     maxScore: $maxScore,
                     maxRounds: $maxRounds,
-                    showCustomRulesSection: $showCustomRulesSection,
                     newRuleLetter: $newRuleLetter,
                     newRuleValue: $newRuleValue,
                     isIPad: isIPad,
@@ -172,6 +170,17 @@ struct CreateGameView: View {
             } message: {
                 Text("Please add at least two players to the game before creating it.")
             }
+            .sheet(isPresented: $showAdvancedSettingsSheet) {
+                AdvancedSettingsSheet(
+                    winCondition: $winCondition,
+                    maxScore: $maxScore,
+                    maxRounds: $maxRounds,
+                    customRules: $customRules,
+                    newRuleLetter: $newRuleLetter,
+                    newRuleValue: $newRuleValue,
+                    addCustomRule: addCustomRule
+                )
+            }
 
             .onAppear {
                 print("🔍 DEBUG: CreateGameView onAppear - Mode: \(isEditMode ? "edit" : "create")")
@@ -214,7 +223,7 @@ struct CreateGameView: View {
         useLastGameSettings = false
         
         // Reset Advanced Settings
-        showAdvancedSettings = false
+        showAdvancedSettingsSheet = false
         winCondition = .highestScore
         maxScore = 100
         maxRounds = 8
@@ -824,11 +833,10 @@ struct CreateGameContentView: View {
     @Binding var currentUserProfile: User?
 
     @Binding var useLastGameSettings: Bool
-    @Binding var showAdvancedSettings: Bool
+    @Binding var showAdvancedSettingsSheet: Bool
     @Binding var winCondition: WinCondition
     @Binding var maxScore: Int
     @Binding var maxRounds: Int
-    @Binding var showCustomRulesSection: Bool
     @Binding var newRuleLetter: String
     @Binding var newRuleValue: Int
     
@@ -992,278 +1000,27 @@ struct CreateGameContentView: View {
         .cornerRadius(hostJoinCornerRadius)
         
         let advancedSettingsButton = Button(action: {
-            withAnimation(.easeInOut(duration: 0.3)) {
-                showAdvancedSettings.toggle()
-            }
+            showAdvancedSettingsSheet = true
         }) {
             HStack {
+                Image(systemName: "gearshape")
+                    .foregroundColor(.white)
                 Text("Advanced Settings")
-                    .font(bodyFont)
+                    .foregroundColor(.white)
                     .fontWeight(.medium)
-                    .foregroundColor(.white)
                 Spacer()
-                Image(systemName: showAdvancedSettings ? "chevron.up" : "chevron.down")
-                    .foregroundColor(.white)
-                    .font(.system(size: isIPad ? 16 : 14))
             }
+            .padding()
+            .background(Color("LightGreen"))
+            .cornerRadius(8)
+            .shadow(color: Color.black.opacity(0.3), radius: 4, x: 0, y: 2)
         }
         .buttonStyle(PlainButtonStyle())
         
-        let customRulesButton = Button(action: {
-            withAnimation(.easeInOut(duration: 0.3)) {
-                showCustomRulesSection.toggle()
-            }
-        }) {
-            HStack {
-                Text("Custom Score Rules (Optional)")
-                    .font(bodyFont)
-                    .fontWeight(.medium)
-                    .foregroundColor(.white)
-                Spacer()
-                Image(systemName: showCustomRulesSection ? "chevron.up" : "chevron.down")
-                    .foregroundColor(.white)
-                    .font(.system(size: isIPad ? 16 : 14))
-            }
-        }
-        .buttonStyle(PlainButtonStyle())
-        
-        let customRulesDescription = Text("Define custom letters that represent specific scores (e.g., X=0, D=100)")
-            .font(.caption)
-            .foregroundColor(.white.opacity(0.7))
-        
-        let customRulesList = VStack(alignment: .leading, spacing: 8) {
-            Text("Current Rules:")
-                .font(.caption)
-                .fontWeight(.medium)
-                .foregroundColor(.white)
-            
-            ForEach(customRules) { rule in
-                HStack {
-                    Text("\(rule.letter) = \(rule.value)")
-                        .font(.caption)
-                        .foregroundColor(.white)
-                    Spacer()
-                    Button(action: {
-                        customRules.removeAll { $0.id == rule.id }
-                    }) {
-                        Image(systemName: "trash")
-                            .foregroundColor(.red)
-                            .font(.caption)
-                    }
-                }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(Color.black.opacity(0.3))
-                .cornerRadius(4)
-            }
-        }
-        
-        let addNewRuleSection = VStack(alignment: .leading, spacing: 8) {
-            Text("Add New Rule:")
-                .font(.caption)
-                .fontWeight(.medium)
-                .foregroundColor(.white)
-            
-            // Check if feature is locked (user already has one rule)
-            if customRules.count >= 1 {
-                // Show locked state
-                HStack(spacing: 8) {
-                    Image(systemName: "lock.fill")
-                        .foregroundColor(.orange)
-                        .font(.caption)
-                    
-                    Text("Feature Locked - Free version limited to 1 custom rule")
-                        .font(.caption)
-                        .foregroundColor(.orange)
-                    
-                    Spacer()
-                }
-                .padding(8)
-                .background(Color.orange.opacity(0.1))
-                .cornerRadius(4)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 4)
-                        .stroke(Color.orange.opacity(0.3), lineWidth: 1)
-                )
-            } else {
-                // Show normal input fields
-                HStack(spacing: 8) {
-                    TextField("", text: $newRuleLetter)
-                        .modifier(AppTextFieldStyle(placeholder: "Letter", text: $newRuleLetter))
-                        .frame(width: 60)
-                        .textInputAutocapitalization(.characters)
-                        .onChange(of: newRuleLetter) { _, newValue in
-                            newRuleLetter = newValue.uppercased()
-                        }
-                    
-                    Text("=")
-                        .font(.caption)
-                        .foregroundColor(.white)
-                    
-                    TextField("", value: $newRuleValue, format: .number)
-                        .modifier(AppTextFieldStyle(placeholder: "Value", text: Binding(
-                            get: { String(newRuleValue) },
-                            set: { newValue in
-                                if let intValue = Int(newValue) {
-                                    newRuleValue = intValue
-                                }
-                            }
-                        )))
-                        .frame(width: 80)
-                        .keyboardType(.numbersAndPunctuation)
-                    
-                    Button(action: addCustomRule) {
-                        Image(systemName: "plus.circle.fill")
-                            .foregroundColor(Color("LightGreen"))
-                            .font(.system(size: 20))
-                    }
-                    .disabled(newRuleLetter.isEmpty || newRuleLetter.count != 1)
-                }
-            }
-        }
-        
-        let customRulesContent = VStack(alignment: .leading, spacing: 12) {
-            customRulesDescription
-            
-            // Existing rules list
-            if !customRules.isEmpty {
-                customRulesList
-            }
-            
-            // Add new rule
-            addNewRuleSection
-        }
-        .padding()
-        .background(Color.black.opacity(0.2))
-        .cornerRadius(8)
-        
-        let customRulesSection = VStack(alignment: .leading, spacing: 8) {
-            customRulesButton
-            
-            if showCustomRulesSection {
-                customRulesContent
-            }
-        }
-        
-        let winConditionSection = VStack(alignment: .leading, spacing: 8) {
-            Text("Win Condition")
-                .font(bodyFont)
-                .fontWeight(.medium)
-                .foregroundColor(.white)
-            
-            GeometryReader { geometry in
-                ZStack {
-                    // Background container
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(Color.black.opacity(0.3))
-                    
-                    // Sliding background
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(Color("LightGreen"))
-                        .frame(width: geometry.size.width / 2 - 2)
-                        .offset(x: winCondition == .highestScore ? -geometry.size.width / 4 + 1 : geometry.size.width / 4 - 1)
-                        .animation(.easeInOut(duration: 0.3), value: winCondition)
-                    
-                    // Buttons
-                    HStack(spacing: 0) {
-                        // Highest Score Wins option
-                        Button(action: {
-                            winCondition = .highestScore
-                        }) {
-                            Text("Highest Score Wins")
-                                .font(.caption2)
-                                .fontWeight(.medium)
-                                .foregroundColor(winCondition == .highestScore ? .white : .white.opacity(0.7))
-                                .frame(maxWidth: .infinity)
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 6)
-                        }
-                        .buttonStyle(PlainButtonStyle())
-                        
-                        // Lowest Score Wins option
-                        Button(action: {
-                            winCondition = .lowestScore
-                        }) {
-                            Text("Lowest Score Wins")
-                                .font(.caption2)
-                                .fontWeight(.medium)
-                                .foregroundColor(winCondition == .lowestScore ? .white : .white.opacity(0.7))
-                                .frame(maxWidth: .infinity)
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 6)
-                        }
-                        .buttonStyle(PlainButtonStyle())
-                    }
-                    .padding(2)
-                }
-            }
-            .frame(height: 32)
-        }
-        
-        let maxScoreSection = VStack(alignment: .leading, spacing: 8) {
-            Text("Max Score (Optional)")
-                .font(bodyFont)
-                .fontWeight(.medium)
-                .foregroundColor(.white)
-            
-            HStack {
-                Text("\(maxScore)")
-                    .foregroundColor(.white)
-                    .font(bodyFont)
-                Spacer()
-                CustomStepperView(value: $maxScore, in: 10...1000, step: 10)
-            }
-            .padding()
-            .background(Color.black.opacity(0.5))
-            .cornerRadius(8)
-            .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(Color.white.opacity(0.3), lineWidth: 1)
-            )
-        }
-        
-        let maxRoundsSection = VStack(alignment: .leading, spacing: 8) {
-            Text("Max Rounds (Optional)")
-                .font(bodyFont)
-                .fontWeight(.medium)
-                .foregroundColor(.white)
-            
-            HStack {
-                Text("\(maxRounds)")
-                    .foregroundColor(.white)
-                    .font(bodyFont)
-                Spacer()
-                CustomStepperView(value: $maxRounds, in: 1...8, step: 1)
-            }
-            .padding()
-            .background(Color.black.opacity(0.5))
-            .cornerRadius(8)
-            .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(Color.white.opacity(0.3), lineWidth: 1)
-            )
-        }
-        
-        let advancedSettingsContent = VStack(alignment: .leading, spacing: advancedSettingsInnerSpacing) {
-            // Custom Score Rules
-            customRulesSection
-            
-            // Win Condition
-            winConditionSection
-            
-            // Max Score
-            maxScoreSection
-            
-            // Max Rounds
-            maxRoundsSection
-        }
+
         
         let advancedSettingsSection = VStack(alignment: .leading, spacing: advancedSettingsSpacing) {
             advancedSettingsButton
-            
-            if showAdvancedSettings {
-                advancedSettingsContent
-            }
         }
         .padding(advancedSettingsPadding)
         .background(Color.black.opacity(0.3))
@@ -1372,7 +1129,7 @@ struct CreateGameView_Previews: PreviewProvider {
     }
 }
 
-// MARK: - Custom Stepper Style
+// MARK: - Custom Stepper View
 struct CustomStepperView: View {
     @Binding var value: Int
     let range: ClosedRange<Int>
@@ -1417,6 +1174,261 @@ struct CustomStepperView: View {
                     .cornerRadius(6)
             }
             .disabled(value + step > range.upperBound)
+        }
+    }
+}
+
+// MARK: - Advanced Settings Sheet
+struct AdvancedSettingsSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Binding var winCondition: WinCondition
+    @Binding var maxScore: Int
+    @Binding var maxRounds: Int
+    @Binding var customRules: [CustomRule]
+    @Binding var newRuleLetter: String
+    @Binding var newRuleValue: Int
+    let addCustomRule: () -> Void
+    
+    var body: some View {
+        NavigationView {
+            ScrollView {
+                VStack(spacing: 24) {
+                    // Header
+                    VStack(spacing: 8) {
+                        Text("Configure game rules and scoring options")
+                            .font(.subheadline)
+                            .foregroundColor(.white.opacity(0.7))
+                            .multilineTextAlignment(.center)
+                    }
+                    .padding(.top, 20)
+                    
+                    // Custom Score Rules
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("Custom Score Rules")
+                            .font(.headline)
+                            .fontWeight(.medium)
+                            .foregroundColor(.white)
+                        
+                        Text("Define custom letters that represent specific scores (e.g., X=0, D=100)")
+                            .font(.caption)
+                            .foregroundColor(.white.opacity(0.7))
+                        
+                        // Existing rules list
+                        if !customRules.isEmpty {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Current Rules:")
+                                    .font(.caption)
+                                    .fontWeight(.medium)
+                                    .foregroundColor(.white)
+                                
+                                ForEach(customRules) { rule in
+                                    HStack {
+                                        Text("\(rule.letter) = \(rule.value)")
+                                            .font(.caption)
+                                            .foregroundColor(.white)
+                                        Spacer()
+                                        Button(action: {
+                                            customRules.removeAll { $0.id == rule.id }
+                                        }) {
+                                            Image(systemName: "trash")
+                                                .foregroundColor(.red)
+                                                .font(.caption)
+                                        }
+                                    }
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(Color.black.opacity(0.3))
+                                    .cornerRadius(4)
+                                }
+                            }
+                        }
+                        
+                        // Add new rule
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Add New Rule:")
+                                .font(.caption)
+                                .fontWeight(.medium)
+                                .foregroundColor(.white)
+                            
+                            // Check if feature is locked (user already has one rule)
+                            if customRules.count >= 1 {
+                                // Show locked state
+                                HStack(spacing: 8) {
+                                    Image(systemName: "lock.fill")
+                                        .foregroundColor(.orange)
+                                        .font(.caption)
+                                    
+                                    Text("Feature Locked - Free version limited to 1 custom rule")
+                                        .font(.caption)
+                                        .foregroundColor(.orange)
+                                    
+                                    Spacer()
+                                }
+                                .padding(8)
+                                .background(Color.orange.opacity(0.1))
+                                .cornerRadius(4)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 4)
+                                        .stroke(Color.orange.opacity(0.3), lineWidth: 1)
+                                )
+                            } else {
+                                // Show normal input fields
+                                HStack(spacing: 8) {
+                                    TextField("", text: $newRuleLetter)
+                                        .modifier(AppTextFieldStyle(placeholder: "Letter", text: $newRuleLetter))
+                                        .frame(width: 60)
+                                        .textInputAutocapitalization(.characters)
+                                        .onChange(of: newRuleLetter) { _, newValue in
+                                            newRuleLetter = newValue.uppercased()
+                                        }
+                                    
+                                    Text("=")
+                                        .font(.caption)
+                                        .foregroundColor(.white)
+                                    
+                                    TextField("", value: $newRuleValue, format: .number)
+                                        .modifier(AppTextFieldStyle(placeholder: "Value", text: Binding(
+                                            get: { String(newRuleValue) },
+                                            set: { newValue in
+                                                if let intValue = Int(newValue) {
+                                                    newRuleValue = intValue
+                                                }
+                                            }
+                                        )))
+                                        .frame(width: 80)
+                                        .keyboardType(.numbersAndPunctuation)
+                                    
+                                    Button(action: addCustomRule) {
+                                        Image(systemName: "plus.circle.fill")
+                                            .foregroundColor(Color("LightGreen"))
+                                            .font(.system(size: 20))
+                                    }
+                                    .disabled(newRuleLetter.isEmpty || newRuleLetter.count != 1)
+                                }
+                            }
+                        }
+                    }
+                    .padding()
+                    .background(Color.black.opacity(0.2))
+                    .cornerRadius(8)
+                    
+                    // Win Condition
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Win Condition")
+                            .font(.headline)
+                            .fontWeight(.medium)
+                            .foregroundColor(.white)
+                        
+                        GeometryReader { geometry in
+                            ZStack {
+                                // Background container
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(Color.black.opacity(0.3))
+                                
+                                // Sliding background
+                                RoundedRectangle(cornerRadius: 6)
+                                    .fill(Color("LightGreen"))
+                                    .frame(width: geometry.size.width / 2 - 2)
+                                    .offset(x: winCondition == .highestScore ? -geometry.size.width / 4 + 1 : geometry.size.width / 4 - 1)
+                                    .animation(.easeInOut(duration: 0.3), value: winCondition)
+                                
+                                // Buttons
+                                HStack(spacing: 0) {
+                                    // Highest Score Wins option
+                                    Button(action: {
+                                        winCondition = .highestScore
+                                    }) {
+                                        Text("Highest Score Wins")
+                                            .font(.caption2)
+                                            .fontWeight(.medium)
+                                            .foregroundColor(winCondition == .highestScore ? .white : .white.opacity(0.7))
+                                            .frame(maxWidth: .infinity)
+                                            .padding(.horizontal, 12)
+                                            .padding(.vertical, 6)
+                                    }
+                                    .buttonStyle(PlainButtonStyle())
+                                    
+                                    // Lowest Score Wins option
+                                    Button(action: {
+                                        winCondition = .lowestScore
+                                    }) {
+                                        Text("Lowest Score Wins")
+                                            .font(.caption2)
+                                            .fontWeight(.medium)
+                                            .foregroundColor(winCondition == .lowestScore ? .white : .white.opacity(0.7))
+                                            .frame(maxWidth: .infinity)
+                                            .padding(.horizontal, 12)
+                                            .padding(.vertical, 6)
+                                    }
+                                    .buttonStyle(PlainButtonStyle())
+                                }
+                                .padding(2)
+                            }
+                        }
+                        .frame(height: 32)
+                    }
+                    
+                    // Max Score
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Max Score (Optional)")
+                            .font(.headline)
+                            .fontWeight(.medium)
+                            .foregroundColor(.white)
+                        
+                        HStack {
+                            Text("\(maxScore)")
+                                .foregroundColor(.white)
+                                .font(.body)
+                            Spacer()
+                            CustomStepperView(value: $maxScore, in: 10...1000, step: 10)
+                        }
+                        .padding()
+                        .background(Color.black.opacity(0.5))
+                        .cornerRadius(8)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                        )
+                    }
+                    
+                    // Max Rounds
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Max Rounds (Optional)")
+                            .font(.headline)
+                            .fontWeight(.medium)
+                            .foregroundColor(.white)
+                        
+                        HStack {
+                            Text("\(maxRounds)")
+                                .foregroundColor(.white)
+                                .font(.body)
+                            Spacer()
+                            CustomStepperView(value: $maxRounds, in: 1...8, step: 1)
+                        }
+                        .padding()
+                        .background(Color.black.opacity(0.5))
+                        .cornerRadius(8)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                        )
+                    }
+                }
+                .padding(.horizontal)
+                .padding(.bottom, 100)
+            }
+            .navigationTitle("Advanced Settings")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbarBackground(Color.clear, for: .navigationBar)
+            .navigationBarItems(
+                leading: Button("Cancel") {
+                    dismiss()
+                }
+                .foregroundColor(.white)
+            )
+            .gradientBackground()
         }
     }
 }

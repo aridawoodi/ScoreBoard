@@ -189,7 +189,7 @@ struct Scoreboardview: View {
     @State private var showCelebration = false // Show celebration animation
     @State private var winner: TestPlayer? // Winner of the game
     @State private var celebrationMessage = "" // Celebration message
-    @State private var isScoreFieldFocused: Bool = false // Show/hide custom number pad
+
     @State private var scoreInputText: String = "" // Inline score input text
     
     // Floating action button state
@@ -247,6 +247,8 @@ struct Scoreboardview: View {
     // Keyboard scroll state
     @State private var shouldScrollToActiveCell = false
     @State private var keyboardOffset: CGFloat = 0 // Offset when custom keyboard is open
+    @FocusState private var isScoreFieldFocused: Bool
+    @State private var showSystemKeyboard = false // Track system keyboard visibility
 
     let onGameUpdated: ((Game) -> Void)?
     let onGameDeleted: (() -> Void)?
@@ -273,13 +275,15 @@ struct Scoreboardview: View {
            let jsonArray = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]],
            let firstRule = jsonArray.first,
            let letter = firstRule["letter"] as? String {
-            return String(letter.prefix(1)) // Get just the first letter
+            let extracted = String(letter.prefix(1))
+            return extracted.trimmingCharacters(in: .whitespacesAndNewlines)
         }
         
         // Fallback: try simple "=" format
         let parts = rules.components(separatedBy: "=")
         if let firstPart = parts.first, !firstPart.isEmpty {
-            return String(firstPart.prefix(1)) // Get just the first letter
+            let extracted = String(firstPart.prefix(1))
+            return extracted.trimmingCharacters(in: .whitespacesAndNewlines)
         }
         
         return ""
@@ -708,7 +712,7 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
             }
             */
         }
-        // Persistent accessory bar above the keyboard for Cancel/Save - DISABLED: Now using custom number pad
+        // Persistent accessory bar above the keyboard for Cancel/Save - DISABLED: Now using system keyboard with enhanced toolbar
         /*
         .safeAreaInset(edge: .bottom) {
             if isScoreFieldFocused {
@@ -1056,14 +1060,12 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
     // Computed property for custom number pad overlay
     private var customNumberPadOverlay: some View {
         Group {
-            if isScoreFieldFocused {
+            if showSystemKeyboard {
                 let customRuleLetter = extractCustomRuleLetter(from: self.game.customRules)
-                //print("🔍 DEBUG: Custom rule letter for game \(self.game.id): '\(customRuleLetter)' (length: \(customRuleLetter.count))")
-                //print("🔍 DEBUG: Game custom rules: \(self.game.customRules ?? "nil")")
                 
-                CustomNumberPadView(
+                SystemKeyboardView(
                     text: $scoreInputText,
-                    isVisible: $isScoreFieldFocused,
+                    isVisible: $showSystemKeyboard,
                     editingPlayer: $editingPlayer,
                     editingRound: $editingRound,
                     players: players,
@@ -1073,12 +1075,36 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                 )
                 .zIndex(1000) // Ensure it's on top
                 .onAppear {
-                    // Trigger scroll to active cell when custom number pad appears
-                    print("🔍 DEBUG: Custom number pad appeared - triggering scroll to round \(editingRound)")
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                        scrollToRound = editingRound
-                    }
+                    // Trigger scroll to active cell when system keyboard appears
+                    print("🔍 DEBUG: System keyboard appeared - triggering scroll to round \(editingRound)")
+                    print("🔍 DEBUG: Custom rule letter: '\(customRuleLetter)' (length: \(customRuleLetter.count), isEmpty: \(customRuleLetter.isEmpty))")
+                    print("🔍 DEBUG: Game custom rules: \(self.game.customRules ?? "nil")")
+                    // Immediate scroll without delay
+                    scrollToRound = editingRound
                 }
+                
+                // Hidden TextField to trigger system keyboard
+                TextField("", text: $scoreInputText)
+                    .keyboardType(.numbersAndPunctuation)
+                    .autocorrectionDisabled(true)
+                    .textInputAutocapitalization(.never)
+                    .disableAutocorrection(true)
+                    .opacity(0)
+                    .frame(width: 0, height: 0)
+                    .focused($isScoreFieldFocused)
+                    .onChange(of: isScoreFieldFocused) { _, newValue in
+                        showSystemKeyboard = newValue
+                    }
+                    .onSubmit {
+                        // Auto-save on Enter
+                        if let currentScore = Int(scoreInputText) {
+                            updateScore(playerID: editingPlayer?.playerID ?? "", round: editingRound, newScore: currentScore)
+                            awaitSaveChangesSilently()
+                        }
+                        // Dismiss keyboard immediately
+                        isScoreFieldFocused = false
+                        showSystemKeyboard = false
+                    }
             }
         }
     }
@@ -1126,6 +1152,7 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
         .overlay(
             // Custom number pad overlay - moved outside ZStack
             customNumberPadOverlay
+                .animation(showSystemKeyboard ? .easeInOut(duration: 0.3) : nil, value: showSystemKeyboard)
         )
         .overlay(
             // Custom number pad overlay - positioned to cover floating tab bar
@@ -1184,8 +1211,13 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
         }
         .onChange(of: isScoreFieldFocused) { _, isFocused in
             // Apply keyboard offset when custom number pad appears/disappears
-            withAnimation(.easeInOut(duration: 0.3)) {
-                keyboardOffset = isFocused ? -120 : 0 // Move scoreboard up when keyboard appears
+            if isFocused {
+                withAnimation(.easeInOut(duration: 0.3)) {
+                    keyboardOffset = -120 // Move scoreboard up when keyboard appears
+                }
+            } else {
+                // No animation when dismissing - immediate reset
+                keyboardOffset = 0
             }
             
             // Update navigation state for keyboard visibility (to hide floating tab bar)
@@ -1562,7 +1594,8 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
             // Save and Undo buttons below the table
             if hasUnsavedChanges {
                 HStack(spacing: 12) {
-                    // Undo button
+                    // Undo button - COMMENTED OUT
+                    /*
                     Button(action: {
                         undoChanges()
                     }) {
@@ -1577,6 +1610,7 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                         .foregroundColor(.white)
                         .cornerRadius(8)
                     }
+                    */
                     
                     Spacer()
                 }
@@ -1888,6 +1922,7 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                             print("🔍 DEBUG: Setting scoreInputText to empty string")
                         }
                         isScoreFieldFocused = true
+                        showSystemKeyboard = true
                         print("🔍 DEBUG: Set isScoreFieldFocused = true")
                     },
                     currentScore: score,
@@ -2638,8 +2673,8 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
             }
 }
 
-// MARK: - Custom Number Pad View
-struct CustomNumberPadView: View {
+// MARK: - System Keyboard with Enhanced Toolbar
+struct SystemKeyboardView: View {
     @Binding var text: String
     @Binding var isVisible: Bool
     @Binding var editingPlayer: TestPlayer?
@@ -2650,55 +2685,104 @@ struct CustomNumberPadView: View {
     let customRuleLetter: String
     
     var body: some View {
-        let _ = print("🔍 DEBUG: CustomNumberPadView - customRuleLetter: '\(customRuleLetter)' (length: \(customRuleLetter.count))")
-        
         VStack(spacing: 0) {
             Spacer()
             
-            VStack(spacing: 0) {
-                // Custom toolbar (Cancel, Save, Next)
-                HStack {
+            // Gap between keyboard and toolbar
+            Rectangle()
+                .fill(Color.clear)
+                .frame(height: 32)
+            
+            // Enhanced toolbar (Cancel, Save, CustomLetter, Next)
+            enhancedToolbarView
+                .background(Color(UIColor.systemBackground))
+                .shadow(radius: 8)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .animation(isVisible ? .easeInOut(duration: 0.15) : nil, value: isVisible)
+        }
+        .onTapGesture {
+            // Dismiss keyboard when tapping outside
+            if isVisible {
+                isVisible = false
+            }
+        }
+    }
+    
+    private var enhancedToolbarView: some View {
+        HStack(spacing: 16) {
+            // Cancel
                     Button("Cancel") {
                         text = ""
                         isVisible = false
                     }
-                    .foregroundColor(.primary)
+            .foregroundColor(.red)
                     .font(.body)
+            .fontWeight(.medium)
                     
                     Spacer()
                     
-                    // Show entered number next to Save button
+            // Save button (live preview commented out)
                     HStack(spacing: 8) {
+                        // Live preview commented out
+                        /*
                         Text(text.isEmpty ? "0" : text)
                             .font(.headline)
                             .fontWeight(.medium)
                             .foregroundColor(.primary)
                             .monospacedDigit()
                             .frame(minWidth: 40)
+                        */
                         
                         Button("Save") {
-                            // Save the current score and dismiss
-                            if let currentScore = Int(text) {
-                                // Trigger auto-save functionality
-                                updateScore(editingPlayer?.playerID ?? "", editingRound, currentScore)
-                                awaitSaveChangesSilently()
-                            }
+                    saveCurrentScore()
                             isVisible = false
                         }
-                        .foregroundColor(.primary)
+                .foregroundColor(.blue)
                         .font(.body)
                         .fontWeight(.semibold)
                     }
                     
                     Spacer()
                     
+            // Custom Letter (if available) - Between Save and Next
+            let trimmedLetter = customRuleLetter.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmedLetter.isEmpty && trimmedLetter.count > 0 && trimmedLetter != "" && trimmedLetter.rangeOfCharacter(from: .letters) != nil {
+                Button(trimmedLetter) {
+                    text += trimmedLetter
+                }
+                .foregroundColor(.green)
+                .font(.body)
+                .fontWeight(.semibold)
+                .frame(width: 40, height: 32)
+                .background(Color.green.opacity(0.2))
+                .cornerRadius(8)
+            }
+            
+            Spacer()
+            
+            // Next
                     Button("Next") {
-                        // Save current score first
-                        if let currentScore = Int(text) {
-                            updateScore(editingPlayer?.playerID ?? "", editingRound, currentScore)
-                            awaitSaveChangesSilently()
-                        }
+                saveCurrentScore()
+                moveToNextEmptyCell()
+                // Keep keyboard open
+            }
+            .foregroundColor(.blue)
+            .font(.body)
+            .fontWeight(.semibold)
+        }
+        .padding(.vertical, 16)
+        .padding(.horizontal, 20)
+        .background(Color(UIColor.systemGray6))
+    }
+    
+    private func saveCurrentScore() {
+        if let currentScore = Int(text) {
+            updateScore(editingPlayer?.playerID ?? "", editingRound, currentScore)
+            awaitSaveChangesSilently()
+        }
+    }
                         
+    private func moveToNextEmptyCell() {
                         // Find next empty cell
                         if let currentPlayer = editingPlayer, let currentPlayerIndex = players.firstIndex(where: { $0.playerID == currentPlayer.playerID }) {
                             var nextPlayerIndex = currentPlayerIndex
@@ -2730,7 +2814,7 @@ struct CustomNumberPadView: View {
                                 // Move to next empty cell
                                 editingPlayer = players[nextPlayerIndex]
                                 editingRound = nextRound
-                                text = "" // Clear for next input using binding
+                text = "" // Clear for next input
                                 // Keep keyboard open by not setting isVisible = false
                             } else {
                                 // No empty cells found, dismiss keyboard
@@ -2740,143 +2824,11 @@ struct CustomNumberPadView: View {
                             isVisible = false
                         }
                     }
-                    .foregroundColor(.primary)
-                    .font(.body)
-                    .fontWeight(.semibold)
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-                .background(Color(UIColor.systemGray6))
-                
-                // Number pad
-                VStack(spacing: 2) {
-                    // Row 1: 1, 2, 3
-                    HStack(spacing: 2) {
-                        NumberPadButton(text: "1", action: { appendDigit("1") })
-                        NumberPadButton(text: "2", action: { appendDigit("2") })
-                        NumberPadButton(text: "3", action: { appendDigit("3") })
-                    }
-                    
-                    // Row 2: 4, 5, 6
-                    HStack(spacing: 2) {
-                        NumberPadButton(text: "4", action: { appendDigit("4") })
-                        NumberPadButton(text: "5", action: { appendDigit("5") })
-                        NumberPadButton(text: "6", action: { appendDigit("6") })
-                    }
-                    
-                    // Row 3: 7, 8, 9
-                    HStack(spacing: 2) {
-                        NumberPadButton(text: "7", action: { appendDigit("7") })
-                        NumberPadButton(text: "8", action: { appendDigit("8") })
-                        NumberPadButton(text: "9", action: { appendDigit("9") })
-                    }
-                    
-                    // Row 4: -, 0, .
-                    HStack(spacing: 2) {
-                        NumberPadButton(text: "-", action: { appendMinus() })
-                        NumberPadButton(text: "0", action: { appendDigit("0") })
-                        NumberPadButton(text: ".", action: { appendDecimal() })
-                    }
-                    
-                    // Row 5: Custom rule letter and delete button
-                    HStack(spacing: 2) {
-                        if !customRuleLetter.isEmpty {
-                            // Show custom rule letter if available
-                            NumberPadButton(text: customRuleLetter, action: { appendCustomRuleLetter() })
-                                .frame(maxWidth: .infinity)
-                            
-                            NumberPadButton(text: "⌫", action: { deleteLastCharacter() })
-                                .frame(maxWidth: .infinity)
-                        } else {
-                            // When no custom rule letter, delete button takes full width
-                            NumberPadButton(text: "⌫", action: { deleteLastCharacter() })
-                                .frame(maxWidth: .infinity)
-                        }
-                    }
-                }
-                .padding(.horizontal, 4)
-                .padding(.vertical, 4)
-                .background(Color(UIColor.systemGray5))
-            }
-        }
-        .padding(.bottom, 0) // Remove bottom padding to cover floating tab bar
-        .transition(.move(edge: .bottom))
-        .animation(.easeInOut(duration: 0.3), value: isVisible)
-        .gesture(
-            DragGesture()
-                .onEnded { value in
-                    // Dismiss keyboard on swipe down
-                    if value.translation.height > 50 && value.velocity.height > 300 {
-                        isVisible = false
-                    }
-                }
-        )
-    }
     
-    private func appendDigit(_ digit: String) {
-        // Don't allow leading zeros unless it's just "0"
-        if text == "0" && digit != "0" {
-            text = digit
-        } else if text != "0" || digit != "0" {
-            text += digit
-        }
-    }
-    
-    private func appendMinus() {
-        // Only allow minus at the beginning
-        if text.isEmpty || text == "0" {
-            text = "-"
-        }
-    }
-    
-    private func appendDecimal() {
-        // Only allow one decimal point
-        if !text.contains(".") {
-            if text.isEmpty || text == "-" {
-                text += "0."
-            } else {
-                text += "."
-            }
-        }
-    }
-    
-    private func deleteLastCharacter() {
-        // Remove the last character from the text
-        if !text.isEmpty {
-            text.removeLast()
-        }
-    }
-    
-    private func appendCustomRuleLetter() {
-        // Append the custom rule letter to the text
-        if !customRuleLetter.isEmpty {
-            text += customRuleLetter
-        }
-    }
+
 }
 
-// MARK: - Number Pad Button
-struct NumberPadButton: View {
-    let text: String
-    let action: () -> Void
-    
-    var body: some View {
-        Button(action: action) {
-            Text(text)
-                .font(.title2)
-                .fontWeight(.medium)
-                .foregroundColor(.primary)
-                .frame(maxWidth: .infinity)
-                .frame(height: 50)
-                .background(Color(UIColor.systemBackground))
-                .overlay(
-                    Rectangle()
-                        .stroke(Color(UIColor.systemGray4), lineWidth: 0.5)
-                )
-        }
-        .buttonStyle(PlainButtonStyle())
-    }
-}
+
 
 // MARK: - Toast Message View
     struct ToastMessageView: View {
@@ -3923,3 +3875,4 @@ struct GameListItemView: View {
         .buttonStyle(PlainButtonStyle())
     }
 }
+

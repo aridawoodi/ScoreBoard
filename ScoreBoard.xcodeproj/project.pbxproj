@@ -728,6 +728,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 5;
 				DEVELOPMENT_ASSET_PATHS = "\"ScoreBoard/Preview Content\"";
+				DEVELOPMENT_TEAM = X3A599X78B;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "This app does not use speech recognition. This permission is required by third-party libraries used for app functionality.";
@@ -762,6 +763,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 5;
 				DEVELOPMENT_ASSET_PATHS = "\"ScoreBoard/Preview Content\"";
+				DEVELOPMENT_TEAM = X3A599X78B;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "This app does not use speech recognition. This permission is required by third-party libraries used for app functionality.";

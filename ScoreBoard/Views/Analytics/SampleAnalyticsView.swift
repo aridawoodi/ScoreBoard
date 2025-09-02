@@ -43,8 +43,10 @@ struct SampleAnalyticsView: View {
         return [
             ("First Win", "Win your first game", "trophy.fill", .yellow, true),
             ("Streak Master", "Win 5 games in a row", "flame.fill", .orange, true),
-            ("High Scorer", "Score 150+ points", "star.fill", .purple, false),
-            ("Perfect Game", "Win with max score", "crown.fill", .purple, false)
+            ("High Scorer", "Score 150+ points in any game", "star.fill", .purple, false),
+            ("Highest Score Master", "Win 10 highest-score games", "arrow.up.circle.fill", .green, false),
+            ("Lowest Score Master", "Win 10 lowest-score games", "arrow.down.circle.fill", .blue, false),
+            ("Versatile Player", "Win both highest and lowest score games", "arrow.up.arrow.down.circle.fill", .purple, true)
         ]
     }
     
@@ -81,6 +83,54 @@ struct SampleAnalyticsView: View {
                     isSampleData: true,
                     onTap: { showingWinLossInfo = true }
                 )
+                
+                // Sample Win Condition Breakdown
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Win Condition Breakdown")
+                        .font(.headline)
+                        .fontWeight(.medium)
+                        .foregroundColor(.white)
+                    
+                    HStack(spacing: 16) {
+                        // Highest Score Wins
+                        VStack(spacing: 4) {
+                            HStack {
+                                Image(systemName: "arrow.up.circle.fill")
+                                    .foregroundColor(.green)
+                                Text("Highest Score Wins")
+                                    .font(.caption)
+                                    .foregroundColor(.white.opacity(0.7))
+                            }
+                            Text("6")
+                                .font(.title2)
+                                .fontWeight(.bold)
+                                .foregroundColor(.green)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.black.opacity(0.3))
+                        .cornerRadius(8)
+                        
+                        // Lowest Score Wins
+                        VStack(spacing: 4) {
+                            HStack {
+                                Image(systemName: "arrow.down.circle.fill")
+                                    .foregroundColor(.blue)
+                                Text("Lowest Score Wins")
+                                    .font(.caption)
+                                    .foregroundColor(.white.opacity(0.7))
+                            }
+                            Text("3")
+                                .font(.title2)
+                                .fontWeight(.bold)
+                                .foregroundColor(.blue)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.black.opacity(0.3))
+                        .cornerRadius(8)
+                    }
+                }
                 
                 SharedPerformanceTrendsView(
                     averageScore: 85.2,

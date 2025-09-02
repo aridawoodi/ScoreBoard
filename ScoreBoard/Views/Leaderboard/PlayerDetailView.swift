@@ -53,13 +53,6 @@ struct PlayerDetailView: View {
                                 icon: "arrow.down.circle.fill",
                                 color: .blue
                             )
-                            
-                            BreakdownCard(
-                                title: "Average Score",
-                                value: "\(Int(player.averageScore))",
-                                icon: "chart.bar.fill",
-                                color: .orange
-                            )
                         }
                     }
                     .padding()
@@ -223,7 +216,6 @@ struct GameWonCard: View {
         winRate: 0.75,
         highestScoreWins: 10,
         lowestScoreWins: 5,
-        averageScore: 132.5,
         gamesWon: [
             GameWinDetail(
                 gameID: "1",
