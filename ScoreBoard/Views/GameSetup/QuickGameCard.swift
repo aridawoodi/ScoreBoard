@@ -117,12 +117,18 @@ struct QuickGameCard: View {
                 
                 print("🔍 DEBUG: Player IDs: \(playerIDs)")
                 
-                // Use shared game object creation
+                // Load default settings for quick games
+                let defaultSettings = DefaultGameSettingsStorage.shared.loadDefaultGameSettings()
+                
+                // Use shared game object creation with default settings
                 let game = GameCreationUtils.createGameObject(
                     gameName: nil, // No custom name for quick games
                     hostUserID: currentUserId,
                     playerIDs: playerIDs,
-                    customRules: nil // No custom rules for quick games
+                    customRules: defaultSettings?.useAsDefault == true ? defaultSettings?.customRules : nil,
+                    winCondition: defaultSettings?.useAsDefault == true ? defaultSettings?.winCondition : nil,
+                    maxScore: defaultSettings?.useAsDefault == true ? defaultSettings?.maxScore : nil,
+                    maxRounds: defaultSettings?.useAsDefault == true ? defaultSettings?.maxRounds : nil
                 )
                 
                 // Use shared database creation

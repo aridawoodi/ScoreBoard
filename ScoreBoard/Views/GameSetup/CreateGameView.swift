@@ -72,6 +72,10 @@ struct CreateGameView: View {
     @State private var newRuleLetter: String = ""
     @State private var newRuleValue: Int = 0
     
+    // Default Settings
+    @State private var saveAsDefault: Bool = false
+    @State private var hasManuallyLoadedLastSettings: Bool = false
+    
     private var isIPad: Bool {
         UIDevice.current.userInterfaceIdiom == .pad
     }
@@ -178,7 +182,13 @@ struct CreateGameView: View {
                     customRules: $customRules,
                     newRuleLetter: $newRuleLetter,
                     newRuleValue: $newRuleValue,
-                    addCustomRule: addCustomRule
+                    addCustomRule: addCustomRule,
+                    isEditMode: isEditMode,
+                    hasManuallyLoadedLastSettings: hasManuallyLoadedLastSettings,
+                    onSaveAsDefault: {
+                        print("🔍 DEBUG: onSaveAsDefault callback called - setting saveAsDefault to true")
+                        saveAsDefault = true
+                    }
                 )
             }
 
@@ -186,6 +196,12 @@ struct CreateGameView: View {
                 print("🔍 DEBUG: CreateGameView onAppear - Mode: \(isEditMode ? "edit" : "create")")
                 print("🔍 DEBUG: CreateGameView onAppear - currentUserProfile: \(currentUserProfile?.username ?? "nil")")
                 print("🔍 DEBUG: CreateGameView onAppear - currentUser: \(currentUser?.userId ?? "nil")")
+                
+                // Reset manual last settings flag for create mode
+                if !isEditMode {
+                    hasManuallyLoadedLastSettings = false
+                    loadDefaultSettings()
+                }
                 
                 // Delay all asynchronous operations to allow sheet presentation animation to complete
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
@@ -599,6 +615,9 @@ struct CreateGameView: View {
         
         print("🔍 DEBUG: Loading last game settings: \(lastSettings.gameName)")
         
+        // Set flag to indicate user manually loaded last settings
+        hasManuallyLoadedLastSettings = true
+        
         // Load all settings
         gameName = lastSettings.gameName
         rounds = lastSettings.rounds
@@ -619,6 +638,36 @@ struct CreateGameView: View {
         }
         
         print("🔍 DEBUG: Loaded \(players.count) players from last settings")
+        print("🔍 DEBUG: Set hasManuallyLoadedLastSettings to true")
+    }
+    
+    private func loadDefaultSettings() {
+        print("🔍 DEBUG: loadDefaultSettings() called")
+        
+        guard let defaultSettings = DefaultGameSettingsStorage.shared.loadDefaultGameSettings() else {
+            print("🔍 DEBUG: No default game settings found")
+            return
+        }
+        
+        print("🔍 DEBUG: Found default settings - useAsDefault: \(defaultSettings.useAsDefault)")
+        
+        guard defaultSettings.useAsDefault else {
+            print("🔍 DEBUG: Default settings found but useAsDefault is false")
+            return
+        }
+        
+        print("🔍 DEBUG: Loading default settings - winCondition: \(defaultSettings.winCondition), maxScore: \(defaultSettings.maxScore)")
+        
+        // Load default settings into current form
+        winCondition = defaultSettings.winCondition
+        maxScore = defaultSettings.maxScore
+        maxRounds = defaultSettings.maxRounds
+        customRules = CustomRulesManager.shared.jsonToRules(defaultSettings.customRules)
+        hostJoinAsPlayer = defaultSettings.hostJoinAsPlayer
+        
+        print("🔍 DEBUG: Loaded \(customRules.count) custom rules from default settings")
+        print("🔍 DEBUG: Default settings applied successfully to CreateGameView")
+        print("🔍 DEBUG: Final values - winCondition: \(winCondition), maxScore: \(maxScore), maxRounds: \(maxRounds)")
     }
     
     private func loadGameDataForEdit() {
@@ -814,6 +863,26 @@ struct CreateGameView: View {
         )
         
         GameSettingsStorage.shared.saveLastGameSettings(settings)
+        
+        // Save as default settings if user has enabled it
+        print("🔍 DEBUG: saveCurrentGameSettings() - saveAsDefault: \(saveAsDefault)")
+        if saveAsDefault {
+            let defaultSettings = DefaultGameSettings(
+                winCondition: winCondition,
+                maxScore: maxScore,
+                maxRounds: maxRounds,
+                customRules: customRulesJSON,
+                hostJoinAsPlayer: hostJoinAsPlayer,
+                useAsDefault: true,
+                lastUpdated: Date()
+            )
+            
+            DefaultGameSettingsStorage.shared.saveDefaultGameSettings(defaultSettings)
+            print("🔍 DEBUG: Saved current game settings as default settings")
+            print("🔍 DEBUG: Default settings - winCondition: \(winCondition), maxScore: \(maxScore), maxRounds: \(maxRounds)")
+        } else {
+            print("🔍 DEBUG: saveAsDefault is false - not saving default settings")
+        }
     }
 }
 
@@ -1188,6 +1257,16 @@ struct AdvancedSettingsSheet: View {
     @Binding var newRuleLetter: String
     @Binding var newRuleValue: Int
     let addCustomRule: () -> Void
+    let isEditMode: Bool
+    let hasManuallyLoadedLastSettings: Bool
+    let onSaveAsDefault: (() -> Void)?
+    
+    // Default settings state
+    @State private var useAsDefault: Bool = false
+    @State private var hasExistingDefaults: Bool = false
+    @State private var showDefaultOverrideAlert: Bool = false
+    @State private var showDefaultsLoadedMessage: Bool = false
+    @State private var defaultsLoaded: Bool = false
     
     var body: some View {
         NavigationView {
@@ -1413,6 +1492,74 @@ struct AdvancedSettingsSheet: View {
                                 .stroke(Color.white.opacity(0.3), lineWidth: 1)
                         )
                     }
+                    
+                    // Default Settings
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Default Settings")
+                            .font(.headline)
+                            .fontWeight(.medium)
+                            .foregroundColor(.white)
+                        
+                        // Show existing defaults indicator
+                        if hasExistingDefaults {
+                            HStack {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(.green)
+                                    .font(.caption)
+                                Text("You have default settings saved")
+                                    .font(.caption)
+                                    .foregroundColor(.green)
+                            }
+                            .padding(.bottom, 8)
+                        }
+                        
+                        // Show when defaults have been loaded
+                        if defaultsLoaded {
+                            HStack {
+                                Image(systemName: "arrow.down.circle.fill")
+                                    .foregroundColor(.blue)
+                                    .font(.caption)
+                                Text("Default settings loaded")
+                                    .font(.caption)
+                                    .foregroundColor(.blue)
+                            }
+                            .padding(.bottom, 8)
+                        }
+                        
+                        // Default settings toggle
+                        Toggle("Save current settings as default", isOn: $useAsDefault)
+                            .toggleStyle(SwitchToggleStyle(tint: Color("LightGreen")))
+                            .onChange(of: useAsDefault) { _, newValue in
+                                print("🔍 DEBUG: AdvancedSettingsSheet - useAsDefault changed to: \(newValue)")
+                                if newValue {
+                                    if hasExistingDefaults {
+                                        showDefaultOverrideAlert = true
+                                    } else {
+                                        // No existing defaults, save immediately
+                                        print("🔍 DEBUG: AdvancedSettingsSheet - No existing defaults, saving immediately")
+                                        saveCurrentGameAsDefaults()
+                                    }
+                                }
+                            }
+                        
+                        // Warning message when overriding existing defaults
+                        if useAsDefault && hasExistingDefaults {
+                            Text("⚠️ This will replace your existing default settings")
+                                .font(.caption)
+                                .foregroundColor(.orange)
+                                .padding(8)
+                                .background(Color.orange.opacity(0.1))
+                                .cornerRadius(6)
+                        }
+                        
+                        // Help text
+                        Text("When enabled, these settings will be automatically applied to new games you create")
+                            .font(.caption)
+                            .foregroundColor(.white.opacity(0.7))
+                    }
+                    .padding()
+                    .background(Color.black.opacity(0.2))
+                    .cornerRadius(8)
                 }
                 .padding(.horizontal)
                 .padding(.bottom, 100)
@@ -1429,6 +1576,77 @@ struct AdvancedSettingsSheet: View {
                 .foregroundColor(.white)
             )
             .gradientBackground()
+            .onAppear {
+                loadDefaultSettingsInfo()
+            }
+            .alert("Update Default Settings", isPresented: $showDefaultOverrideAlert) {
+                Button("Update Defaults") {
+                    saveCurrentGameAsDefaults()
+                }
+                Button("Cancel", role: .cancel) {
+                    useAsDefault = false
+                }
+            } message: {
+                Text("This will replace your current default settings with this game's settings. This action cannot be undone.")
+            }
         }
+    }
+    
+    // MARK: - Default Settings Functions
+    
+    private func loadDefaultSettingsInfo() {
+        hasExistingDefaults = DefaultGameSettingsStorage.shared.hasDefaultGameSettings()
+        print("🔍 DEBUG: AdvancedSettingsSheet - hasExistingDefaults: \(hasExistingDefaults)")
+        print("🔍 DEBUG: AdvancedSettingsSheet - isEditMode: \(isEditMode)")
+        print("🔍 DEBUG: AdvancedSettingsSheet - hasManuallyLoadedLastSettings: \(hasManuallyLoadedLastSettings)")
+        
+        // Only load default settings if we're NOT in edit mode AND user hasn't manually loaded last settings
+        if !isEditMode && !hasManuallyLoadedLastSettings {
+            // Load existing default settings into the current form
+            if let defaultSettings = DefaultGameSettingsStorage.shared.loadDefaultGameSettings(),
+               defaultSettings.useAsDefault {
+                print("🔍 DEBUG: AdvancedSettingsSheet - Loading existing default settings (create mode)")
+                
+                // Load the default settings into the current form
+                winCondition = defaultSettings.winCondition
+                maxScore = defaultSettings.maxScore
+                maxRounds = defaultSettings.maxRounds
+                customRules = CustomRulesManager.shared.jsonToRules(defaultSettings.customRules)
+                
+                defaultsLoaded = true
+                
+                print("🔍 DEBUG: AdvancedSettingsSheet - Loaded defaults: winCondition=\(winCondition), maxScore=\(maxScore), maxRounds=\(maxRounds)")
+            }
+        } else {
+            if isEditMode {
+                print("🔍 DEBUG: AdvancedSettingsSheet - In edit mode, not loading default settings")
+            } else if hasManuallyLoadedLastSettings {
+                print("🔍 DEBUG: AdvancedSettingsSheet - User manually loaded last settings, not loading default settings")
+            }
+        }
+    }
+    
+    private func saveCurrentGameAsDefaults() {
+        print("🔍 DEBUG: AdvancedSettingsSheet - saveCurrentGameAsDefaults() called")
+        let customRulesJSON = CustomRulesManager.shared.rulesToJSON(customRules) ?? ""
+        
+        let defaultSettings = DefaultGameSettings(
+            winCondition: winCondition,
+            maxScore: maxScore,
+            maxRounds: maxRounds,
+            customRules: customRulesJSON,
+            hostJoinAsPlayer: true, // We don't have access to this in AdvancedSettingsSheet
+            useAsDefault: true,
+            lastUpdated: Date()
+        )
+        
+        DefaultGameSettingsStorage.shared.saveDefaultGameSettings(defaultSettings)
+        hasExistingDefaults = true
+        
+        // Notify parent that settings should be saved as default
+        print("🔍 DEBUG: AdvancedSettingsSheet - Calling onSaveAsDefault callback")
+        onSaveAsDefault?()
+        
+        print("🔍 DEBUG: AdvancedSettingsSheet - Saved current settings as defaults")
     }
 }

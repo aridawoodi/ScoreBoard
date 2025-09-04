@@ -88,10 +88,15 @@ class GameCreationUtils {
         hostUserID: String,
         playerIDs: [String],
         customRules: String? = nil,
-        winCondition: WinCondition = .highestScore,
-        maxScore: Int = 100,
-        maxRounds: Int = 8
+        winCondition: WinCondition? = nil,
+        maxScore: Int? = nil,
+        maxRounds: Int? = nil
     ) -> Game {
+        // Use provided values or fall back to defaults
+        let finalWinCondition = winCondition ?? .highestScore
+        let finalMaxScore = maxScore ?? 100
+        let finalMaxRounds = maxRounds ?? 8
+        
         return Game(
             gameName: gameName?.isEmpty == true ? nil : gameName,
             hostUserID: hostUserID,
@@ -100,9 +105,9 @@ class GameCreationUtils {
             customRules: customRules,
             finalScores: [],
             gameStatus: .active,
-            winCondition: winCondition,
-            maxScore: maxScore,
-            maxRounds: maxRounds,
+            winCondition: finalWinCondition,
+            maxScore: finalMaxScore,
+            maxRounds: finalMaxRounds,
             createdAt: Temporal.DateTime.now(),
             updatedAt: Temporal.DateTime.now()
         )

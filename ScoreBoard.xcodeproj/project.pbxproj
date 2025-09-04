@@ -71,6 +71,7 @@
 		5E737DA82CDB411D00F407D3 /* Helpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E737DA72CDB411D00F407D3 /* Helpers.swift */; };
 		5E737DAA2CDB413F00F407D3 /* NotificationsManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E737DA92CDB413F00F407D3 /* NotificationsManager.swift */; };
 		5E74D9A12E54326E00FE2074 /* FloatingActionButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E74D9A02E54326E00FE2074 /* FloatingActionButton.swift */; };
+		5E7A696E2E69131D0025D861 /* DefaultGameSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E7A696D2E69131D0025D861 /* DefaultGameSettings.swift */; };
 		5E7E10D72E5AD499000439A7 /* Scoreboardview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E7E10D52E5AD499000439A7 /* Scoreboardview.swift */; };
 		5E7E10D82E5AD499000439A7 /* BalloonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E7E10D42E5AD499000439A7 /* BalloonView.swift */; };
 		5E7E10DA2E5ADB39000439A7 /* CustomSignInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E7E10D92E5ADB39000439A7 /* CustomSignInView.swift */; };
@@ -145,6 +146,7 @@
 		5E737DA72CDB411D00F407D3 /* Helpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Helpers.swift; sourceTree = "<group>"; };
 		5E737DA92CDB413F00F407D3 /* NotificationsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationsManager.swift; sourceTree = "<group>"; };
 		5E74D9A02E54326E00FE2074 /* FloatingActionButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingActionButton.swift; sourceTree = "<group>"; };
+		5E7A696D2E69131D0025D861 /* DefaultGameSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefaultGameSettings.swift; sourceTree = "<group>"; };
 		5E7E10D42E5AD499000439A7 /* BalloonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BalloonView.swift; sourceTree = "<group>"; };
 		5E7E10D52E5AD499000439A7 /* Scoreboardview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Scoreboardview.swift; sourceTree = "<group>"; };
 		5E7E10D92E5ADB39000439A7 /* CustomSignInView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomSignInView.swift; sourceTree = "<group>"; };
@@ -373,6 +375,7 @@
 				5E737DA72CDB411D00F407D3 /* Helpers.swift */,
 				5E74D9A02E54326E00FE2074 /* FloatingActionButton.swift */,
 				5EFE08D32E558AFD007E207E /* GameSettingsStorage.swift */,
+				5E7A696D2E69131D0025D861 /* DefaultGameSettings.swift */,
 				5E56638F2E6375600084FBBC /* GameCreationUtils.swift */,
 				5E737DA92CDB413F00F407D3 /* NotificationsManager.swift */,
 				5EFE18722E2A0BCE0056C708 /* UserService.swift */,
@@ -575,6 +578,7 @@
 				31CE047D93AEB5B6ED4FC094 /* AmplifyModels.swift in Sources */,
 				8B036DCBCC96A653BF36AD23 /* Game+Schema.swift in Sources */,
 				5C62849ED740AEF038417D39 /* Game.swift in Sources */,
+				5E7A696E2E69131D0025D861 /* DefaultGameSettings.swift in Sources */,
 				43D6F7DBEED01202C6CA8B62 /* Score+Schema.swift in Sources */,
 				61EA0EF05DC894E761DC32F6 /* Score.swift in Sources */,
 				230DDF9429941543510AAA82 /* User+Schema.swift in Sources */,
@@ -726,7 +730,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 6;
 				DEVELOPMENT_ASSET_PATHS = "\"ScoreBoard/Preview Content\"";
 				DEVELOPMENT_TEAM = X3A599X78B;
 				ENABLE_PREVIEWS = YES;
@@ -761,7 +765,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 6;
 				DEVELOPMENT_ASSET_PATHS = "\"ScoreBoard/Preview Content\"";
 				DEVELOPMENT_TEAM = X3A599X78B;
 				ENABLE_PREVIEWS = YES;

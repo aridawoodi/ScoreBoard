@@ -244,6 +244,15 @@ struct Scoreboardview: View {
     // Game list sheet state
     @State private var showGameListSheet = false
     
+    // Game info sheet state
+    @State private var showGameInfoSheet = false
+    
+    // Complete Game button animation state
+    @State private var completeGameButtonPulse = false
+    
+    // Copy tooltip state
+    @State private var showCopyTooltip = false
+    
     // Keyboard scroll state
     @State private var shouldScrollToActiveCell = false
     @State private var keyboardOffset: CGFloat = 0 // Offset when custom keyboard is open
@@ -994,6 +1003,9 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                 }
             )
         }
+        .sheet(isPresented: $showGameInfoSheet) {
+            GameInfoSheet(game: game, players: players, isPresented: $showGameInfoSheet)
+        }
         .onChange(of: showGameListSheet) { _, isPresented in
             print("🔍 DEBUG: showGameListSheet changed to: \(isPresented)")
             if isPresented {
@@ -1456,26 +1468,72 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                 }
                 
                 // Game ID with copy functionality
-                Text("Game: \(String(game.id.prefix(6)))")
-                    .font(.caption)
-                    .foregroundColor(.white.opacity(0.7))
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(Color.black.opacity(0.3))
-                    .cornerRadius(8)
-                    .onLongPressGesture {
-                        // Copy the short ID (the one shown)
-                        UIPasteboard.general.string = String(game.id.prefix(6))
-                        
-                        // Show visual feedback
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            // You can add a temporary state here if needed
+                ZStack {
+                    Text("Game: \(String(game.id.prefix(6)))")
+                        .font(.caption)
+                        .foregroundColor(.white.opacity(0.7))
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Color.black.opacity(0.3))
+                        .cornerRadius(8)
+                        .onLongPressGesture {
+                            // Copy the short ID (the one shown)
+                            UIPasteboard.general.string = String(game.id.prefix(6))
+                            
+                            // Show copy tooltip
+                            withAnimation(.easeInOut(duration: 0.15)) {
+                                showCopyTooltip = true
+                            }
+                            
+                            // Hide tooltip after 0.8 seconds
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    showCopyTooltip = false
+                                }
+                            }
+                            
+                            // Haptic feedback
+                            let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
+                            impactFeedback.impactOccurred()
                         }
-                        
-                        // Haptic feedback
-                        let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
-                        impactFeedback.impactOccurred()
+                    
+                    // Copy Tooltip - positioned above Game ID
+                    if showCopyTooltip {
+                        VStack(spacing: 0) {
+                            // Tooltip bubble
+                            HStack(spacing: 6) {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(.green)
+                                    .font(.system(size: 10))
+                                Text("Copied!")
+                                    .font(.caption2)
+                                    .fontWeight(.medium)
+                                    .foregroundColor(.white)
+                            }
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(Color.black.opacity(0.9))
+                            .cornerRadius(8)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Color.green.opacity(0.6), lineWidth: 1)
+                            )
+                            .shadow(color: .black.opacity(0.4), radius: 6, x: 0, y: 3)
+                            
+                            // Pointing arrow (points downward to Game ID)
+                            Triangle()
+                                .fill(Color.black.opacity(0.9))
+                                .frame(width: 12, height: 6)
+                                .overlay(
+                                    Triangle()
+                                        .stroke(Color.green.opacity(0.6), lineWidth: 1)
+                                )
+                        }
+                        .offset(y: -45)
+                        .transition(.scale.combined(with: .opacity))
+                        .zIndex(9999)
                     }
+                }
             }
             
             // Edit Board and Complete Game buttons
@@ -1493,7 +1551,7 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                             .font(.caption)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 6)
-                            .background(Color.green)
+                            .background(Color.orange)
                             .foregroundColor(.white)
                             .cornerRadius(6)
                         }
@@ -1514,9 +1572,20 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                             .font(.caption)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 6)
-                            .background(Color.purple)
+                            .background(Color.blue.opacity(0.1))
                             .foregroundColor(.white)
                             .cornerRadius(6)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .stroke(Color.blue.opacity(0.3), lineWidth: 1)
+                            )
+                            .scaleEffect(completeGameButtonPulse ? 1.025 : 1.0)
+                            .shadow(color: completeGameButtonPulse ? Color.blue.opacity(0.10) : Color.clear, radius: 4, x: 0, y: 2)
+                        }
+                        .onAppear {
+                            withAnimation(Animation.easeInOut(duration: 1.5).repeatForever(autoreverses: true)) {
+                                completeGameButtonPulse = true
+                            }
                         }
                     }
                 }
@@ -1812,15 +1881,25 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
     
     private var headerRow: some View {
         HStack(spacing: 0) {
-            // Round header (empty space for round numbers)
+            // Round header with info indicator
             VStack(spacing: 0) {
-                Text("")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundColor(.secondary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.horizontal, 4)
-                    .padding(.top, 8)
-                    .padding(.bottom, 4)
+                HStack {
+                    Spacer()
+                    Button(action: {
+                        showGameInfoSheet = true
+                    }) {
+                        Image(systemName: "info.circle.fill")
+                            .foregroundColor(.blue)
+                            .font(.system(size: 12))
+                            .background(Color.white.opacity(0.8))
+                            .clipShape(Circle())
+                            .padding(2)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, 4)
+                .padding(.top, 8)
+                .padding(.bottom, 4)
                 
                 Text("")
                     .frame(maxWidth: .infinity, minHeight: 32)
@@ -4178,6 +4257,227 @@ struct PlayerNameEditorSheet: View {
         .onAppear {
             isTextFieldFocused = true
         }
+    }
+}
+
+// MARK: - Game Info Sheet
+struct GameInfoSheet: View {
+    let game: Game
+    let players: [TestPlayer]
+    @Binding var isPresented: Bool
+    
+    var body: some View {
+        NavigationView {
+            ScrollView {
+                VStack(spacing: 24) {
+                    // Game Header
+                    VStack(spacing: 16) {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Game Information")
+                                    .font(.title)
+                                    .fontWeight(.bold)
+                                    .foregroundColor(.white)
+                                
+                                Text(game.gameName ?? "Untitled Game")
+                                    .font(.title2)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.white.opacity(0.9))
+                            }
+                            Spacer()
+                            
+                            // Game Status Badge
+                            Text(game.gameStatus == .active ? "Active" : "Completed")
+                                .font(.caption)
+                                .fontWeight(.medium)
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(game.gameStatus == .active ? Color.green : Color.orange)
+                                .cornerRadius(8)
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 20)
+                    
+                    // Game Details
+                    VStack(spacing: 16) {
+                        // Basic Info
+                        InfoSection(title: "Basic Information", icon: "gamecontroller.fill") {
+                            InfoRow(title: "Game ID", value: String(game.id.prefix(8)).uppercased())
+                            InfoRow(title: "Rounds", value: "\(game.rounds)")
+                            InfoRow(title: "Created", value: formatDate(game.createdAt.foundationDate ?? Date()))
+                            InfoRow(title: "Last Updated", value: formatDate(game.updatedAt.foundationDate ?? Date()))
+                        }
+                        
+                        // Players
+                        InfoSection(title: "Players", icon: "person.3.fill") {
+                            ForEach(players, id: \.id) { player in
+                                HStack {
+                                    Text("• \(player.name)")
+                                        .foregroundColor(.white)
+                                    Spacer()
+                                    Text("\(player.total) pts")
+                                        .foregroundColor(.white.opacity(0.7))
+                                        .font(.caption)
+                                }
+                                .padding(.vertical, 2)
+                            }
+                        }
+                        
+                        // Game Settings
+                        InfoSection(title: "Game Settings", icon: "gearshape.fill") {
+                            InfoRow(title: "Win Condition", value: game.winCondition == .lowestScore ? "Lowest Score Wins" : "Highest Score Wins")
+                            if let maxScore = game.maxScore {
+                                InfoRow(title: "Max Score", value: "\(maxScore)")
+                            }
+                            if let maxRounds = game.maxRounds {
+                                InfoRow(title: "Max Rounds", value: "\(maxRounds)")
+                            }
+                        }
+                        
+                        // Custom Rules
+                        if let customRules = game.customRules, !customRules.isEmpty {
+                            InfoSection(title: "Custom Rules", icon: "doc.text.fill") {
+                                Text(customRules)
+                                    .foregroundColor(.white.opacity(0.9))
+                                    .font(.body)
+                                    .padding()
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(Color.black.opacity(0.3))
+                                    .cornerRadius(8)
+                            }
+                        }
+                        
+                        // Winner Information (if completed)
+                        if game.gameStatus == .completed {
+                            InfoSection(title: "Winner", icon: "trophy.fill") {
+                                if let winner = determineWinner() {
+                                    HStack {
+                                        Image(systemName: "crown.fill")
+                                            .foregroundColor(.yellow)
+                                        Text(winner.name)
+                                            .font(.headline)
+                                            .foregroundColor(.white)
+                                        Spacer()
+                                        Text("\(winner.total) points")
+                                            .foregroundColor(.white.opacity(0.7))
+                                    }
+                                    .padding()
+                                    .background(Color.yellow.opacity(0.1))
+                                    .cornerRadius(8)
+                                }
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                }
+                .padding(.bottom, 20)
+            }
+            .gradientBackground()
+            .navigationTitle("Game Info")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbarBackground(Color.clear, for: .navigationBar)
+            .navigationBarItems(
+                trailing: Button("Done") { 
+                    isPresented = false
+                }
+                    .foregroundColor(.white)
+            )
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
+        }
+    }
+    
+    private func determineWinner() -> TestPlayer? {
+        let winCondition = game.winCondition ?? .highestScore
+        let sortedPlayers = players.sorted { player1, player2 in
+            switch winCondition {
+            case .highestScore:
+                return player1.total > player2.total
+            case .lowestScore:
+                return player1.total < player2.total
+            }
+        }
+        return sortedPlayers.first
+    }
+    
+    private func formatDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
+    }
+}
+
+// MARK: - Info Section Component
+struct InfoSection<Content: View>: View {
+    let title: String
+    let icon: String
+    let content: Content
+    
+    init(title: String, icon: String, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.icon = icon
+        self.content = content()
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: icon)
+                    .foregroundColor(.blue)
+                    .font(.title3)
+                Text(title)
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.white)
+            }
+            
+            VStack(spacing: 8) {
+                content
+            }
+            .padding()
+            .background(Color.black.opacity(0.2))
+            .cornerRadius(12)
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(Color.white.opacity(0.1), lineWidth: 1)
+            )
+        }
+    }
+}
+
+// MARK: - Info Row Component
+struct InfoRow: View {
+    let title: String
+    let value: String
+    
+    var body: some View {
+        HStack {
+            Text(title)
+                .foregroundColor(.white.opacity(0.7))
+                .font(.body)
+            Spacer()
+            Text(value)
+                .foregroundColor(.white)
+                .font(.body)
+                .fontWeight(.medium)
+        }
+    }
+}
+
+// MARK: - Triangle Shape for Tooltip Arrow
+struct Triangle: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.midX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+        path.closeSubpath()
+        return path
     }
 }
 
