@@ -233,6 +233,35 @@ struct GameWonCard: View {
                 date: Date(),
                 totalPlayers: 3
             )
+        ],
+        gamesPlayed: [
+            GamePlayDetail(
+                gameID: "1",
+                gameName: "Poker Night",
+                winCondition: .highestScore,
+                finalScore: 150,
+                date: Date(),
+                totalPlayers: 4,
+                isWin: true
+            ),
+            GamePlayDetail(
+                gameID: "2",
+                gameName: "Family Game",
+                winCondition: .lowestScore,
+                finalScore: 45,
+                date: Date(),
+                totalPlayers: 3,
+                isWin: true
+            ),
+            GamePlayDetail(
+                gameID: "3",
+                gameName: "Weekly Tournament",
+                winCondition: .highestScore,
+                finalScore: 120,
+                date: Date(),
+                totalPlayers: 6,
+                isWin: false
+            )
         ]
     )
     

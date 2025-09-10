@@ -14,6 +14,7 @@ class UserService: ObservableObject {
     @Published var error: String?
     
     static let shared = UserService()
+    private let usernameCache = UsernameCacheService.shared
     
     private init() {}
     
@@ -342,6 +343,8 @@ class UserService: ObservableObject {
             case .success(let updatedUser):
                 await MainActor.run {
                     self.currentUser = updatedUser
+                    // Cache the updated username
+                    self.usernameCache.updateCurrentUserUsername(updatedUser.username)
                 }
                 return true
                 
@@ -392,9 +395,13 @@ class UserService: ObservableObject {
                     // First try to find by userId
                     if let user = allUsers.first(where: { $0.id == userId }) {
                         self.currentUser = user
+                        // Cache the username when loaded
+                        self.usernameCache.cacheCurrentUserUsername(user.username)
                     } else if !isGuest, let user = allUsers.first(where: { $0.email == email && !email.isEmpty }) {
                         // Fallback to email lookup (only for non-guest users)
                         self.currentUser = user
+                        // Cache the username when loaded
+                        self.usernameCache.cacheCurrentUserUsername(user.username)
                     } else {
                         self.currentUser = nil
                     }

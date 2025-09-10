@@ -110,7 +110,7 @@ struct SearchRegisteredUsersSheet: View {
                             VStack(spacing: 12) {
                                 Image(systemName: "person.2")
                                     .font(.system(size: 40))
-                                    .foregroundColor(.white.opacity(0.5))
+                                    .foregroundColor(Color("LightGreen"))
                                 Text("Search for registered users")
                                     .font(.headline)
                                     .foregroundColor(.white.opacity(0.7))
@@ -315,7 +315,7 @@ struct PlayerManagementView: View {
                     HStack(spacing: 4) {
                         Image(systemName: "person.2.fill")
                             .font(.caption)
-                            .foregroundColor(.white.opacity(0.7))
+                            .foregroundColor(Color("LightGreen"))
                         Text("\(getTotalPlayerCount())")
                             .font(.caption)
                             .fontWeight(.medium)
@@ -355,8 +355,6 @@ struct PlayerManagementView: View {
                     showSearchSheet = true
                 }) {
                     HStack {
-                        Image(systemName: "magnifyingglass")
-                            .foregroundColor(.white)
                         Text("Search Registered Users")
                             .foregroundColor(.white)
                             .fontWeight(.medium)
@@ -441,10 +439,27 @@ struct PlayerManagementFunctions {
     }
     
     static func addRegisteredPlayer(_ user: User, players: Binding<[Player]>, searchText: Binding<String>, searchResults: Binding<[User]>) {
-        // Check if player with this user ID already exists
+        // Check if player with this user ID already exists (including different formats)
         let playerExists = players.wrappedValue.contains { player in
             if let playerUserId = player.userId {
-                return playerUserId == user.id
+                // Check for exact match
+                if playerUserId == user.id {
+                    return true
+                }
+                // Check if existing player has UUID:username format and new user is just UUID
+                if playerUserId.contains(":") {
+                    let uuidPart = String(playerUserId.prefix(36))
+                    if uuidPart == user.id {
+                        return true
+                    }
+                }
+                // Check if existing player is just UUID and new user has UUID:username format
+                if user.id.contains(":") {
+                    let uuidPart = String(user.id.prefix(36))
+                    if playerUserId == uuidPart {
+                        return true
+                    }
+                }
             }
             return false
         }

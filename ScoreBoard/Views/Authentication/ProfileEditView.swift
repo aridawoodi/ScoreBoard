@@ -26,7 +26,7 @@ struct ProfileEditView: View {
                 VStack(spacing: 8) {
                     Image(systemName: "person.circle.fill")
                         .font(.system(size: 48))
-                        .foregroundColor(.blue)
+                        .foregroundColor(Color("LightGreen"))
                     
                     Text("Update your profile information to personalize your experience")
                         .font(.subheadline)
@@ -73,7 +73,7 @@ struct ProfileEditView: View {
                         VStack(spacing: 8) {
                             HStack {
                                 Image(systemName: "person.circle.fill")
-                                    .foregroundColor(.blue)
+                                    .foregroundColor(Color("LightGreen"))
                                 Text("User ID")
                                     .foregroundColor(.white)
                                 Spacer()

@@ -42,45 +42,39 @@ class DefaultGameSettingsStorage {
     
     private let defaultGameSettingsKey = "default_game_settings"
     
-    private init() {}
+    private init() {
+        // Migrate existing data to user-specific storage on first access
+        UserSpecificStorageManager.shared.migrateExistingData()
+    }
     
     // MARK: - Save Default Settings
     
     /// Save default game settings to UserDefaults
     func saveDefaultGameSettings(_ settings: DefaultGameSettings) {
-        do {
-            let data = try JSONEncoder().encode(settings)
-            UserDefaults.standard.set(data, forKey: defaultGameSettingsKey)
-            print("🔍 DEBUG: Saved default game settings - winCondition: \(settings.winCondition), maxScore: \(settings.maxScore), useAsDefault: \(settings.useAsDefault)")
-        } catch {
-            print("🔍 DEBUG: Failed to save default game settings: \(error)")
-        }
+        // Use UserSpecificStorageManager for user-specific storage
+        UserSpecificStorageManager.shared.saveData(settings, forKey: defaultGameSettingsKey)
+        print("🔍 DEBUG: Saved default game settings - winCondition: \(settings.winCondition), maxScore: \(settings.maxScore), useAsDefault: \(settings.useAsDefault)")
     }
     
     // MARK: - Load Default Settings
     
     /// Load default game settings from UserDefaults
     func loadDefaultGameSettings() -> DefaultGameSettings? {
-        guard let data = UserDefaults.standard.data(forKey: defaultGameSettingsKey) else {
-            print("🔍 DEBUG: No default game settings found")
-            return nil
-        }
-        
-        do {
-            let settings = try JSONDecoder().decode(DefaultGameSettings.self, from: data)
+        // Use UserSpecificStorageManager for user-specific storage
+        let settings = UserSpecificStorageManager.shared.loadData(DefaultGameSettings.self, forKey: defaultGameSettingsKey)
+        if let settings = settings {
             print("🔍 DEBUG: Loaded default game settings - winCondition: \(settings.winCondition), maxScore: \(settings.maxScore), useAsDefault: \(settings.useAsDefault)")
-            return settings
-        } catch {
-            print("🔍 DEBUG: Failed to load default game settings: \(error)")
-            return nil
+        } else {
+            print("🔍 DEBUG: No default game settings found")
         }
+        return settings
     }
     
     // MARK: - Check Default Settings
     
     /// Check if there are saved default game settings
     func hasDefaultGameSettings() -> Bool {
-        return UserDefaults.standard.data(forKey: defaultGameSettingsKey) != nil
+        return UserSpecificStorageManager.shared.hasData(forKey: defaultGameSettingsKey)
     }
     
     /// Check if default settings are enabled and available
@@ -93,7 +87,7 @@ class DefaultGameSettingsStorage {
     
     /// Clear the default game settings
     func clearDefaultGameSettings() {
-        UserDefaults.standard.removeObject(forKey: defaultGameSettingsKey)
+        UserSpecificStorageManager.shared.clearData(forKey: defaultGameSettingsKey)
         print("🔍 DEBUG: Cleared default game settings")
     }
     

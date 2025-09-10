@@ -22,7 +22,7 @@ struct JoinOptionsView: View {
                 VStack(spacing: 8) {
                     Image(systemName: "person.2.circle.fill")
                         .font(.system(size: 48))
-                        .foregroundColor(.blue)
+                        .foregroundColor(Color("LightGreen"))
                     
                     Text("Join Game")
                         .font(.title)
@@ -81,7 +81,7 @@ struct JoinOptionsView: View {
                             VStack(alignment: .leading, spacing: 4) {
                                 HStack {
                                     Image(systemName: "eye.fill")
-                                        .foregroundColor(.blue)
+                                        .foregroundColor(Color("LightGreen"))
                                     Text("Join as Spectator")
                                         .font(.headline)
                                         .fontWeight(.semibold)
@@ -94,7 +94,7 @@ struct JoinOptionsView: View {
                             Spacer()
                             if joinMode == .spectator {
                                 Image(systemName: "checkmark.circle.fill")
-                                    .foregroundColor(.blue)
+                                    .foregroundColor(Color("LightGreen"))
                                     .font(.title2)
                             }
                         }
@@ -130,7 +130,7 @@ struct JoinOptionsView: View {
                     VStack(spacing: 4) {
                         HStack {
                             Image(systemName: "info.circle.fill")
-                                .foregroundColor(.blue)
+                                .foregroundColor(Color("LightGreen"))
                                 .font(.caption)
                             Text("Note: You can only join once per game")
                                 .font(.caption)
@@ -149,7 +149,6 @@ struct JoinOptionsView: View {
                     onConfirm()
                 }) {
                     HStack {
-                        Image(systemName: joinMode == .player ? "person.fill" : "eye.fill")
                         Text(joinMode == .player ? "Join as Player" : "Join as Spectator")
                             .font(.headline)
                     }
@@ -157,7 +156,7 @@ struct JoinOptionsView: View {
                 }
                 .foregroundColor(.white)
                 .padding()
-                .background(joinMode == .player ? Color.green : Color.blue)
+                .background(Color("LightGreen"))
                 .cornerRadius(12)
                 .padding(.horizontal)
                 

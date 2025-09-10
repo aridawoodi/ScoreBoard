@@ -21,7 +21,7 @@ struct QuickGameCard: View {
             HStack {
                 Image(systemName: "bolt.fill")
                     .font(.title2)
-                    .foregroundColor(.orange)
+                    .foregroundColor(Color("Orange"))
                 
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Quick Board")
@@ -46,6 +46,7 @@ struct QuickGameCard: View {
                         } else {
                             Image(systemName: "plus.circle.fill")
                                 .font(.system(size: 16, weight: .semibold))
+                                .foregroundColor(Color("LightGreen"))
                         }
                         
                         Text(isCreating ? "Creating..." : "Create")
@@ -57,7 +58,7 @@ struct QuickGameCard: View {
                     .padding(.vertical, 8)
                     .background(
                         RoundedRectangle(cornerRadius: 20)
-                            .fill(isCreating ? Color.gray : Color("LightGreen"))
+                            .fill(isCreating ? Color.gray : Color.black.opacity(0.3))
                     )
                 }
                 .disabled(isCreating)

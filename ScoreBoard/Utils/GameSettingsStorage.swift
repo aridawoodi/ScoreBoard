@@ -49,46 +49,40 @@ class GameSettingsStorage {
     private let lastGameSettingsKey = "last_game_settings"
     private let savedTemplatesKey = "saved_game_templates"
     
-    private init() {}
+    private init() {
+        // Migrate existing data to user-specific storage on first access
+        UserSpecificStorageManager.shared.migrateExistingData()
+    }
     
     // MARK: - Last Game Settings
     
     /// Save the last used game settings
     func saveLastGameSettings(_ settings: GameSettings) {
-        do {
-            let data = try JSONEncoder().encode(settings)
-            UserDefaults.standard.set(data, forKey: lastGameSettingsKey)
-            print("🔍 DEBUG: Saved last game settings: \(settings.gameName)")
-        } catch {
-            print("🔍 DEBUG: Failed to save last game settings: \(error)")
-        }
+        // Use UserSpecificStorageManager for user-specific storage
+        UserSpecificStorageManager.shared.saveData(settings, forKey: lastGameSettingsKey)
+        print("🔍 DEBUG: Saved last game settings: \(settings.gameName)")
     }
     
     /// Load the last used game settings
     func loadLastGameSettings() -> GameSettings? {
-        guard let data = UserDefaults.standard.data(forKey: lastGameSettingsKey) else {
-            print("🔍 DEBUG: No last game settings found")
-            return nil
-        }
-        
-        do {
-            let settings = try JSONDecoder().decode(GameSettings.self, from: data)
+        // Use UserSpecificStorageManager for user-specific storage
+        let settings = UserSpecificStorageManager.shared.loadData(GameSettings.self, forKey: lastGameSettingsKey)
+        if let settings = settings {
             print("🔍 DEBUG: Loaded last game settings: \(settings.gameName)")
-            return settings
-        } catch {
-            print("🔍 DEBUG: Failed to load last game settings: \(error)")
-            return nil
+        } else {
+            print("🔍 DEBUG: No last game settings found")
         }
+        return settings
     }
     
     /// Check if there are saved last game settings
     func hasLastGameSettings() -> Bool {
-        return UserDefaults.standard.data(forKey: lastGameSettingsKey) != nil
+        return UserSpecificStorageManager.shared.hasData(forKey: lastGameSettingsKey)
     }
     
     /// Clear the last game settings
     func clearLastGameSettings() {
-        UserDefaults.standard.removeObject(forKey: lastGameSettingsKey)
+        UserSpecificStorageManager.shared.clearData(forKey: lastGameSettingsKey)
         print("🔍 DEBUG: Cleared last game settings")
     }
     
@@ -99,29 +93,17 @@ class GameSettingsStorage {
         var templates = loadGameTemplates()
         templates[name] = settings
         
-        do {
-            let data = try JSONEncoder().encode(templates)
-            UserDefaults.standard.set(data, forKey: savedTemplatesKey)
-            print("🔍 DEBUG: Saved game template: \(name)")
-        } catch {
-            print("🔍 DEBUG: Failed to save game template: \(error)")
-        }
+        // Use UserSpecificStorageManager for user-specific storage
+        UserSpecificStorageManager.shared.saveData(templates, forKey: savedTemplatesKey)
+        print("🔍 DEBUG: Saved game template: \(name)")
     }
     
     /// Load all game templates
     func loadGameTemplates() -> [String: GameSettings] {
-        guard let data = UserDefaults.standard.data(forKey: savedTemplatesKey) else {
-            return [:]
-        }
-        
-        do {
-            let templates = try JSONDecoder().decode([String: GameSettings].self, from: data)
-            print("🔍 DEBUG: Loaded \(templates.count) game templates")
-            return templates
-        } catch {
-            print("🔍 DEBUG: Failed to load game templates: \(error)")
-            return [:]
-        }
+        // Use UserSpecificStorageManager for user-specific storage
+        let templates = UserSpecificStorageManager.shared.loadData([String: GameSettings].self, forKey: savedTemplatesKey) ?? [:]
+        print("🔍 DEBUG: Loaded \(templates.count) game templates")
+        return templates
     }
     
     /// Delete a game template
@@ -129,13 +111,9 @@ class GameSettingsStorage {
         var templates = loadGameTemplates()
         templates.removeValue(forKey: name)
         
-        do {
-            let data = try JSONEncoder().encode(templates)
-            UserDefaults.standard.set(data, forKey: savedTemplatesKey)
-            print("🔍 DEBUG: Deleted game template: \(name)")
-        } catch {
-            print("🔍 DEBUG: Failed to delete game template: \(error)")
-        }
+        // Use UserSpecificStorageManager for user-specific storage
+        UserSpecificStorageManager.shared.saveData(templates, forKey: savedTemplatesKey)
+        print("🔍 DEBUG: Deleted game template: \(name)")
     }
     
     /// Get template names

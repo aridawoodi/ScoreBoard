@@ -8,6 +8,34 @@
 import SwiftUI
 import Amplify
 
+// MARK: - Color Extension for Hex Support
+extension Color {
+    init(hex: String) {
+        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        var int: UInt64 = 0
+        Scanner(string: hex).scanHexInt64(&int)
+        let a, r, g, b: UInt64
+        switch hex.count {
+        case 3: // RGB (12-bit)
+            (a, r, g, b) = (255, (int >> 8) * 17, (int >> 4 & 0xF) * 17, (int & 0xF) * 17)
+        case 6: // RGB (24-bit)
+            (a, r, g, b) = (255, int >> 16, int >> 8 & 0xFF, int & 0xFF)
+        case 8: // ARGB (32-bit)
+            (a, r, g, b) = (int >> 24, int >> 16 & 0xFF, int >> 8 & 0xFF, int & 0xFF)
+        default:
+            (a, r, g, b) = (1, 1, 1, 0)
+        }
+
+        self.init(
+            .sRGB,
+            red: Double(r) / 255,
+            green: Double(g) / 255,
+            blue:  Double(b) / 255,
+            opacity: Double(a) / 255
+        )
+    }
+}
+
 // ScoreCell view to handle individual score cells
 struct ScoreCell: View {
     let player: TestPlayer
@@ -211,6 +239,7 @@ struct Scoreboardview: View {
     @State private var toastIcon = ""
     @State private var toastOpacity: Double = 0.0 // Add opacity state for animation
     @State private var showCopiedFeedback = false // Show copied feedback
+    
     @State private var isGameDeleted = false // Flag when backend no longer has this game
     
     // Delete mode states
@@ -468,8 +497,43 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
     func canEditSpecificPlayerName(_ player: TestPlayer) -> Bool {
         // Only allow editing if:
         // 1. User can edit player names in general
-        // 2. Player is NOT a guest user (anonymous players and registered users can be edited)
-        return canEditPlayerNames() && !player.playerID.hasPrefix("guest_")
+        // 2. Player is an anonymous player (display name only, not a registered user)
+        //    - Guest users (guest_ prefix) cannot be edited
+        //    - Cognito users (UUID format) cannot be edited
+        //    - Only anonymous players (simple display names) can be edited
+        return canEditPlayerNames() && isAnonymousPlayer(player)
+    }
+    
+    /// Check if a player is an anonymous player (display name only)
+    private func isAnonymousPlayer(_ player: TestPlayer) -> Bool {
+        let playerID = player.playerID
+        
+        // Guest users have "guest_" prefix
+        if playerID.hasPrefix("guest_") {
+            return false
+        }
+        
+        // Cognito users have UUID format (36 characters with dashes)
+        // They can also have format "UUID:username" for registered users
+        if playerID.count == 36 && playerID.contains("-") {
+            return false
+        }
+        
+        // Registered users with format "UUID:username" (Cognito users)
+        if playerID.contains(":") {
+            let uuidPart = String(playerID.prefix(36))
+            if uuidPart.count == 36 && uuidPart.contains("-") {
+                return false
+            }
+        }
+        
+        // Email addresses (for some registered users)
+        if playerID.contains("@") {
+            return false
+        }
+        
+        // If none of the above, it's likely an anonymous player (display name)
+        return true
     }
     
     /// Start editing a player name
@@ -704,6 +768,7 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
         print("🔍 DEBUG: Scoreboardview onAppear - Game ID: \(game.id)")
         print("🔍 DEBUG: Current game rounds: \(game.rounds)")
         print("🔍 DEBUG: Last known rounds: \(lastKnownGameRounds)")
+        
         
         // Initialize dynamic rounds
         dynamicRounds = game.rounds
@@ -1469,18 +1534,45 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                 
                 // Game ID with copy functionality
                 ZStack {
-                    Text("Game: \(String(game.id.prefix(6)))")
-                        .font(.caption)
-                        .foregroundColor(.white.opacity(0.7))
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(Color.black.opacity(0.3))
-                        .cornerRadius(8)
-                        .onLongPressGesture {
-                            // Copy the short ID (the one shown)
-                            UIPasteboard.general.string = String(game.id.prefix(6))
-                            
-                            // Show copy tooltip
+                    HStack(spacing: 6) {
+                        Text("Code: \(String(game.id.prefix(6)))")
+                            .font(.caption)
+                            .foregroundColor(.white.opacity(0.7))
+                        
+                        Image(systemName: "square.and.arrow.up")
+                            .font(.caption)
+                            .foregroundColor(.white.opacity(0.7))
+                            .onTapGesture {
+                                // Show iOS native share sheet
+                                let activityViewController = UIActivityViewController(
+                                    activityItems: [String(game.id.prefix(6))],
+                                    applicationActivities: nil
+                                )
+                                
+                                // For iPad, set the popover source
+                                if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                                   let window = windowScene.windows.first,
+                                   let rootViewController = window.rootViewController {
+                                    
+                                    if let popover = activityViewController.popoverPresentationController {
+                                        popover.sourceView = window
+                                        popover.sourceRect = CGRect(x: window.bounds.midX, y: window.bounds.midY, width: 0, height: 0)
+                                        popover.permittedArrowDirections = []
+                                    }
+                                    
+                                    rootViewController.present(activityViewController, animated: true)
+                                }
+                            }
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(Color.black.opacity(0.3))
+                    .cornerRadius(8)
+                    .onLongPressGesture {
+                        // Copy the short ID (the one shown)
+                        UIPasteboard.general.string = String(game.id.prefix(6))
+                        
+                        // Show copy tooltip
                             withAnimation(.easeInOut(duration: 0.15)) {
                                 showCopyTooltip = true
                             }
@@ -1551,7 +1643,7 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                             .font(.caption)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 6)
-                            .background(Color.orange)
+                            .background(Color("Orange"))
                             .foregroundColor(.white)
                             .cornerRadius(6)
                         }
@@ -1567,18 +1659,15 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                         }) {
                             HStack(spacing: 4) {
                                 Image(systemName: "flag.checkered")
+                                    .foregroundColor(Color("LightGreen"))
                                 Text("Complete Game")
                             }
                             .font(.caption)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 6)
-                            .background(Color.blue.opacity(0.1))
+                            .background(Color("Orange"))
                             .foregroundColor(.white)
                             .cornerRadius(6)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 6)
-                                    .stroke(Color.blue.opacity(0.3), lineWidth: 1)
-                            )
                             .scaleEffect(completeGameButtonPulse ? 1.025 : 1.0)
                             .shadow(color: completeGameButtonPulse ? Color.blue.opacity(0.10) : Color.clear, radius: 4, x: 0, y: 2)
                         }
@@ -1598,8 +1687,13 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                         }
                     }) {
                         Image(systemName: isDeleteMode ? "trash.circle.fill" : "trash.circle")
-                            .font(.system(size: 24, weight: .medium))
-                            .foregroundColor(isDeleteMode ? .red : .white.opacity(0.7))
+                            .font(.title2)
+                            .foregroundColor(isDeleteMode ? .red : Color("LightGreen"))
+                            .frame(width: 24, height: 24)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(Color.white.opacity(0.05))
+                            .cornerRadius(8)
                     }
                 }
                 
@@ -1625,11 +1719,17 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                     }
                 }) {
                     Image(systemName: isRefreshing ? "arrow.clockwise.circle.fill" : "arrow.clockwise.circle")
-                        .font(.system(size: 24, weight: .medium))
-                        .foregroundColor(isRefreshing ? .green : .white.opacity(0.7))
+                        .font(.title2)
+                        .foregroundColor(Color("LightGreen"))
+                        .frame(width: 24, height: 24)
                         .rotationEffect(.degrees(isRefreshing ? 360 : 0))
                         .animation(isRefreshing ? .linear(duration: 1).repeatForever(autoreverses: false) : .default, value: isRefreshing)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(Color.white.opacity(0.05))
+                        .cornerRadius(8)
                 }
+                .buttonStyle(PlainButtonStyle())
                 .disabled(isRefreshing)
                 
                 // Edit Board button - DISABLED: Users now use gear icon for editing
@@ -1667,9 +1767,15 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                         }
                     }) {
                         Image(systemName: "gearshape.circle.fill")
-                            .font(.system(size: 24, weight: .medium))
-                            .foregroundColor(.white.opacity(0.7))
+                            .font(.title2)
+                            .foregroundColor(Color("LightGreen"))
+                            .frame(width: 24, height: 24)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(Color.white.opacity(0.05))
+                            .cornerRadius(8)
                     }
+                    .buttonStyle(PlainButtonStyle())
                 }
             }
         }
@@ -1722,26 +1828,24 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
             ScrollViewReader { proxy in
                 ScrollView {
                     ZStack {
-                        // Glow effect behind table content only
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(Color("LightGreen").opacity(0.3))
-                            .blur(radius: 15)
-                            .scaleEffect(1.05)
-                        
+                        // Table content (background)
                         VStack(spacing: 0) {
                             headerRow
                             scoreRows
                             addRoundButton
                         }
-                        .padding(.bottom, 16) // Add bottom padding to ensure add round button is visible
                         .background(Color.black.opacity(0.2))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 4)
-                                .stroke(Color.green, lineWidth: 2)
-                        )
-                        .cornerRadius(4)
-                        .shadow(color: Color.black.opacity(0.3), radius: 4, x: 0, y: 2)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        
+                        // Static dark green border
+                        RoundedRectangle(cornerRadius: 8)
+                            .strokeBorder(
+                                Color(hex: "4A7C59"),
+                                lineWidth: 4
+                            )
+                            .allowsHitTesting(false) // Allow touches to pass through to the table
                     }
+                    .padding(0) // Remove any default padding
                 }
                 .frame(maxHeight: UIScreen.main.bounds.height * 0.55) // Increased height to show more content
                 .refreshable {
@@ -1889,9 +1993,9 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                         showGameInfoSheet = true
                     }) {
                         Image(systemName: "info.circle.fill")
-                            .foregroundColor(.blue)
+                            .foregroundColor(Color("LightGreen"))
                             .font(.system(size: 12))
-                            .background(Color.white.opacity(0.8))
+                            .background(Color.black.opacity(0.3))
                             .clipShape(Circle())
                             .padding(2)
                     }
@@ -2016,7 +2120,7 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                         HStack {
                             Image(systemName: "plus.circle.fill")
                                 .font(.system(size: 18, weight: .semibold))
-                                .foregroundColor(.white)
+                                .foregroundColor(Color("LightGreen"))
                             Text("Add Round")
                                 .font(.system(size: 14, weight: .medium))
                                 .foregroundColor(.white)
@@ -2025,17 +2129,12 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                         .frame(height: 44)
                         .background(
                             RoundedRectangle(cornerRadius: 6)
-                                .fill(Color.white.opacity(0.1))
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 6)
-                                .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                                .fill(Color.white.opacity(0.05))
                         )
                     }
                     .buttonStyle(PlainButtonStyle())
                 }
                 .padding(.top, 2)
-                .padding(.bottom, 8) // Add bottom padding to ensure visibility
                 .id("add-round-button") // Add ID for scrolling
             } else if canUserEditGame() && !canAddRound() {
                 // Show max rounds reached message
@@ -2364,14 +2463,19 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                         
                         // Initialize scores for all players in the game
                         for (index, playerID) in game.playerIDs.enumerated() {
-                            // For anonymous players (display names), use the playerID directly as the name
-                            // For registered users, use the cached username or fallback
+                            // Determine player name based on playerID format
                             let playerName: String
-                            if playerID.hasPrefix("guest_") {
-                                // Registered user - use cached username or fallback
+                            if playerID.contains(":") {
+                                // Anonymous user with format "userID:displayName" - use display name
+                                playerName = getPlayerName(for: playerID)
+                            } else if playerID.hasPrefix("guest_") {
+                                // Guest user (registered but with guest_ prefix) - use cached username or fallback
+                                playerName = getPlayerName(for: playerID)
+                            } else if playerID.count > 20 && playerID.contains("-") {
+                                // Cognito authenticated user (UUID format) - use cached username or fallback
                                 playerName = getPlayerName(for: playerID)
                             } else {
-                                // Anonymous player - use the playerID directly (this is the display name)
+                                // Simple display name (like "Team 1", "Team 2") - use directly
                                 playerName = playerID
                             }
                             playerData[playerID] = (name: playerName, scores: Array(repeating: -1, count: dynamicRounds))
@@ -2889,8 +2993,11 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
     func loadPlayerUsernames() async {
         print("🔍 DEBUG: Loading usernames for registered users...")
         
-        // Extract registered user IDs (those without ":" format)
-        let registeredUserIDs = game.playerIDs.filter { !$0.contains(":") }
+        // Extract registered user IDs (both guest users and Cognito authenticated users)
+        let registeredUserIDs = game.playerIDs.filter { playerID in
+            // Guest users (guest_ prefix) or Cognito authenticated users (UUID format)
+            (playerID.hasPrefix("guest_") || (playerID.count > 20 && playerID.contains("-"))) && !playerID.contains(":")
+        }
         
         if registeredUserIDs.isEmpty {
             print("🔍 DEBUG: No registered users to look up")
@@ -4160,12 +4267,7 @@ struct PlayerNameEditorSheet: View {
                     VStack(spacing: 12) {
                         Image(systemName: "person.text.rectangle")
                             .font(.system(size: 48))
-                            .foregroundColor(.blue)
-                        
-                        Text("Edit Player Name")
-                            .font(.title2)
-                            .fontWeight(.bold)
-                            .foregroundColor(.white)
+                            .foregroundColor(Color("LightGreen"))
                         
                         Text("Enter a new name for this player")
                             .font(.body)
@@ -4206,38 +4308,20 @@ struct PlayerNameEditorSheet: View {
                     }
                     .padding(.horizontal, 20)
                     
-                    // Action buttons
+                    // Action button
                     VStack(spacing: 12) {
                         Button(action: onSave) {
-                            HStack {
-                                Image(systemName: "checkmark.circle.fill")
-                                Text("Save Changes")
-                            }
-                            .font(.headline)
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .fill(Color("LightGreen"))
-                            )
+                            Text("Save Changes")
+                                .font(.headline)
+                                .foregroundColor(.white)
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .fill(Color("LightGreen"))
+                                )
                         }
                         .disabled(playerName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                        
-                        Button(action: onCancel) {
-                            HStack {
-                                Image(systemName: "xmark.circle.fill")
-                                Text("Cancel")
-                            }
-                            .font(.headline)
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .fill(Color.red.opacity(0.8))
-                            )
-                        }
                     }
                     .padding(.horizontal, 20)
                     
@@ -4428,7 +4512,7 @@ struct InfoSection<Content: View>: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Image(systemName: icon)
-                    .foregroundColor(.blue)
+                    .foregroundColor(Color("LightGreen"))
                     .font(.title3)
                 Text(title)
                     .font(.headline)

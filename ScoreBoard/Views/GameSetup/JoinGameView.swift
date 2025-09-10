@@ -37,7 +37,7 @@ struct JoinGameView: View {
                 VStack(spacing: 8) {
                     Image(systemName: "person.2.fill")
                         .font(.system(size: 48))
-                        .foregroundColor(.blue)
+                        .foregroundColor(Color("LightGreen"))
                     
                     Text("Join a Game")
                         .font(.title)

@@ -757,15 +757,13 @@ struct LeaderboardTimeframeSegmentedPicker: View {
     }
     
     private func getOffset(for selection: PlayerLeaderboardView.Timeframe, in geometry: GeometryProxy) -> CGFloat {
-        let segmentWidth = geometry.size.width / 3
+        let segmentWidth = geometry.size.width / 2
         
         switch selection {
-        case .weekly:
-            return -segmentWidth
-        case .monthly:
-            return 0
         case .allTime:
-            return segmentWidth
+            return -segmentWidth / 2
+        case .thisMonth:
+            return segmentWidth / 2
         }
     }
 }

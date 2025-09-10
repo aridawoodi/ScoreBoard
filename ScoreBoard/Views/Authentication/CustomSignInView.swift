@@ -148,10 +148,51 @@ struct CustomSignInView: View {
         
         Task {
             do {
+                // Check if there's already a user signed in (guest or authenticated)
+                let currentAuthState = try await Amplify.Auth.fetchAuthSession()
+                
+                if currentAuthState.isSignedIn {
+                    print("🔍 DEBUG: User already signed in, signing out first...")
+                    
+                    // Save current user's data before switching
+                    UserSpecificStorageManager.shared.saveCurrentUserData()
+                    
+                    // Sign out the current user
+                    _ = try await Amplify.Auth.signOut()
+                    print("🔍 DEBUG: Successfully signed out current user")
+                    
+                    // Clear guest user flags if they exist
+                    UserDefaults.standard.removeObject(forKey: "current_guest_user_id")
+                    UserDefaults.standard.removeObject(forKey: "is_guest_user")
+                    UserDefaults.standard.removeObject(forKey: "authenticated_user_id")
+                    print("🔍 DEBUG: Cleared user flags")
+                }
+                
+                // Now sign in with email/password
                 let signInResult = try await Amplify.Auth.signIn(
                     username: email,
                     password: password
                 )
+                
+                if signInResult.isSignedIn {
+                    // Set authenticated user flags
+                    UserDefaults.standard.set(false, forKey: "is_guest_user")
+                    print("🔍 DEBUG: Set is_guest_user to false for authenticated user")
+                    
+                    // Store the authenticated user ID
+                    do {
+                        let user = try await Amplify.Auth.getCurrentUser()
+                        let userId = user.userId
+                        UserDefaults.standard.set(userId, forKey: "authenticated_user_id")
+                        print("🔍 DEBUG: Stored authenticated user ID: \(userId)")
+                    } catch {
+                        print("🔍 DEBUG: Failed to fetch user ID after sign-in: \(error)")
+                    }
+                    
+                    // Load the new user's data
+                    UserSpecificStorageManager.shared.loadNewUserData()
+                    print("🔍 DEBUG: Loaded new user's data")
+                }
                 
                 await MainActor.run {
                     isLoading = false
@@ -171,6 +212,29 @@ struct CustomSignInView: View {
     
     private func signInAsGuest() async {
         print("🔍 DEBUG: Starting guest sign-in...")
+        
+        do {
+            // Check if there's already a user signed in (guest or authenticated)
+            let currentAuthState = try await Amplify.Auth.fetchAuthSession()
+            
+            if currentAuthState.isSignedIn {
+                print("🔍 DEBUG: User already signed in, signing out first...")
+                
+                // Save current user's data before switching
+                UserSpecificStorageManager.shared.saveCurrentUserData()
+                
+                // Sign out the current user
+                _ = try await Amplify.Auth.signOut()
+                print("🔍 DEBUG: Successfully signed out current user")
+                
+                // Clear authenticated user flags if they exist
+                UserDefaults.standard.removeObject(forKey: "authenticated_user_id")
+                UserDefaults.standard.removeObject(forKey: "is_guest_user")
+            }
+        } catch {
+            print("🔍 DEBUG: Error checking/signing out current user: \(error)")
+            // Continue with guest sign-in even if there's an error
+        }
         
         // Check if we already have a guest ID stored for this device
         let guestIdKey = "persistent_guest_id"
@@ -193,6 +257,10 @@ struct CustomSignInView: View {
         UserDefaults.standard.set(true, forKey: "is_guest_user")
         
         print("🔍 DEBUG: Guest authentication info stored in UserDefaults")
+        
+        // Load the guest user's data
+        UserSpecificStorageManager.shared.loadNewUserData()
+        print("🔍 DEBUG: Loaded guest user's data")
         
         await MainActor.run {
             print("🔍 DEBUG: Setting authStatus to .signedIn")
@@ -353,7 +421,7 @@ struct CustomSignUpView: View {
                     Button("Cancel") {
                         dismiss()
                     }
-                    .foregroundColor(Color("LightGreen"))
+                    .foregroundColor(.white)
                 }
             }
         }
@@ -499,7 +567,7 @@ struct CustomForgotPasswordView: View {
                     Button("Cancel") {
                         dismiss()
                     }
-                    .foregroundColor(Color("LightGreen"))
+                    .foregroundColor(.white)
                 }
             }
         }

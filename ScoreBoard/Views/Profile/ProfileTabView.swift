@@ -91,58 +91,50 @@ struct ProfileTabView: View {
                 .padding(.bottom, 30)
                 
                 // Settings Options List
-                VStack(spacing: 0) {
+                VStack(spacing: 16) {
                     // Edit Profile Option
                     if let currentUser = userService.currentUser {
                         // Show edit profile for both guest and authenticated users
                         SettingsRow(
                             icon: "pencil.circle.fill",
                             title: "Edit Profile",
+                            subtitle: "Update your profile information",
                             iconColor: Color("LightGreen")
                         ) {
                             showProfileEdit = true
                         }
-                        
-                        Divider()
-                            .padding(.leading, 60)
                         
                         // Show guest mode info for guest users
                         if currentUser.id.hasPrefix("guest_") {
                             SettingsRow(
                                 icon: "info.circle.fill",
                                 title: "Guest Mode Active",
+                                subtitle: "You're using a guest account",
                                 iconColor: Color("LightGreen")
                             ) {
                                 // Show guest info
                             }
-                            
-                            Divider()
-                                .padding(.leading, 60)
                         }
                     } else {
                         SettingsRow(
                             icon: "person.badge.plus",
                             title: "Create Profile",
+                            subtitle: "Set up your account",
                             iconColor: Color("LightGreen")
                         ) {
                             showUserProfile = true
                         }
-                        
-                        Divider()
-                            .padding(.leading, 60)
                     }
                     
                     // Update Password Option (placeholder for future)
                     SettingsRow(
                         icon: "lock.circle.fill",
                         title: "Update Password",
+                        subtitle: "Change your password",
                         iconColor: Color("LightGreen")
                     ) {
                         // Future functionality
                     }
-                    
-                    Divider()
-                        .padding(.leading, 60)
                     
                     // Delete Account Option
                     if let currentUser = userService.currentUser {
@@ -156,8 +148,6 @@ struct ProfileTabView: View {
                                 showDeleteAccountAlert = true
                             }
                             
-                            Divider()
-                                .padding(.leading, 60)
                         }
                     }
                     
@@ -165,19 +155,18 @@ struct ProfileTabView: View {
                     SettingsRow(
                         icon: "arrow.clockwise.circle.fill",
                         title: "Reset Onboarding",
+                        subtitle: "Restart the tutorial",
                         iconColor: Color("LightGreen")
                     ) {
                         OnboardingManager().resetOnboarding()
                         showOnboardingResetToast = true
                     }
                     
-                    Divider()
-                        .padding(.leading, 60)
-                    
                     // Sign Out Option
                     SettingsRow(
                         icon: "rectangle.portrait.and.arrow.right",
                         title: "Sign Out",
+                        subtitle: "Sign out of your account",
                         iconColor: Color("LightGreen")
                     ) {
                         Task {
@@ -185,8 +174,6 @@ struct ProfileTabView: View {
                         }
                     }
                 }
-                .background(Color.black.opacity(0.3))
-                .cornerRadius(12)
                 .padding(.horizontal)
                 
                 Spacer()
@@ -352,7 +339,7 @@ struct SideNavigationMenu: View {
                             }) {
                                 Image(systemName: "chevron.right")
                                     .font(.caption)
-                                    .foregroundColor(.white.opacity(0.7))
+                                    .foregroundColor(Color("LightGreen"))
                             }
                         }
                         .padding(.horizontal, 20)
@@ -675,8 +662,17 @@ struct SideMenuItem: View {
 struct SettingsRow: View {
     let icon: String
     let title: String
+    let subtitle: String?
     let iconColor: Color
     let action: () -> Void
+    
+    init(icon: String, title: String, subtitle: String? = nil, iconColor: Color, action: @escaping () -> Void) {
+        self.icon = icon
+        self.title = title
+        self.subtitle = subtitle
+        self.iconColor = iconColor
+        self.action = action
+    }
     
     var body: some View {
         Button(action: action) {
@@ -686,15 +682,23 @@ struct SettingsRow: View {
                     .foregroundColor(iconColor)
                     .frame(width: 24, height: 24)
                 
-                Text(title)
-                    .font(.body)
-                    .foregroundColor(.white)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.headline)
+                        .foregroundColor(.white)
+                    
+                    if let subtitle = subtitle {
+                        Text(subtitle)
+                            .font(.caption)
+                            .foregroundColor(.white.opacity(0.7))
+                    }
+                }
                 
                 Spacer()
                 
                 Image(systemName: "chevron.right")
                     .font(.caption)
-                    .foregroundColor(.white.opacity(0.7))
+                    .foregroundColor(Color("LightGreen"))
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)

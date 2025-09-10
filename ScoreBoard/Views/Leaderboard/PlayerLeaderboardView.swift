@@ -20,9 +20,8 @@ struct PlayerLeaderboardView: View {
     @StateObject private var dataManager = DataManager.shared
     
     enum Timeframe: String, CaseIterable {
-        case weekly = "Weekly"
-        case monthly = "Monthly"
         case allTime = "All Time"
+        case thisMonth = "This Month"
     }
     
     enum WinConditionFilter: String, CaseIterable {
@@ -34,7 +33,7 @@ struct PlayerLeaderboardView: View {
     enum PlayerTypeFilter: String, CaseIterable {
         case allPlayers = "All Players"
         case registered = "Registered"
-        case guests = "Guests"
+        case anonymous = "Anonymous"
     }
     
     var body: some View {
@@ -181,13 +180,18 @@ struct PlayerLeaderboardView: View {
             }
             .onAppear {
                 Task {
-                    await dataManager.loadAllData()
+                    // Get current user ID and load user-specific leaderboard data
+                    print("🔍 DEBUG: PlayerLeaderboardView onAppear - attempting to load leaderboard")
+                    if let currentUserId = getCurrentUserId() {
+                        print("🔍 DEBUG: PlayerLeaderboardView - found current user ID: \(currentUserId)")
+                        await dataManager.loadUserLeaderboard(for: currentUserId)
+                    } else {
+                        print("🔍 DEBUG: PlayerLeaderboardView - no current user ID found")
+                    }
                 }
             }
             .onChange(of: selectedTimeframe) { _ in
-                Task {
-                    await dataManager.refreshData()
-                }
+                // Filter is applied in computed property, no need to refresh data
             }
             .onChange(of: selectedWinCondition) { _ in
                 // Filter is applied in computed property, no need to refresh data
@@ -205,7 +209,7 @@ struct PlayerLeaderboardView: View {
     }
     
     private var filteredPlayers: [PlayerLeaderboardEntry] {
-        var players = dataManager.leaderboardData
+        var players = dataManager.userLeaderboardData
         
         // Apply search filter
         if !searchText.isEmpty {
@@ -217,9 +221,17 @@ struct PlayerLeaderboardView: View {
         // Apply win condition filter
         switch selectedWinCondition {
         case .highestScore:
-            players = players.filter { $0.highestScoreWins > 0 }
+            players = players.filter { player in
+                player.gamesPlayed.contains { game in
+                    game.winCondition == .highestScore
+                }
+            }
         case .lowestScore:
-            players = players.filter { $0.lowestScoreWins > 0 }
+            players = players.filter { player in
+                player.gamesPlayed.contains { game in
+                    game.winCondition == .lowestScore
+                }
+            }
         case .allGames:
             break // No filtering
         }
@@ -227,12 +239,16 @@ struct PlayerLeaderboardView: View {
         // Apply player type filter
         switch selectedPlayerType {
         case .registered:
+            // Registered players: both guest users (guest_ prefix) and Cognito authenticated users (UUID format)
             players = players.filter { player in
-                dataManager.users.contains { $0.id == player.playerID }
+                player.playerID.hasPrefix("guest_") || 
+                (player.playerID.count > 20 && player.playerID.contains("-"))
             }
-        case .guests:
+        case .anonymous:
+            // Anonymous players: simple display names (like "Team 1", "Team 2") or anonymous users with format "userID:displayName"
             players = players.filter { player in
-                !dataManager.users.contains { $0.id == player.playerID }
+                !player.playerID.hasPrefix("guest_") && 
+                !(player.playerID.count > 20 && player.playerID.contains("-"))
             }
         case .allPlayers:
             break // No filtering
@@ -243,18 +259,12 @@ struct PlayerLeaderboardView: View {
         let now = Date()
         
         switch selectedTimeframe {
-        case .weekly:
-            let weekAgo = calendar.date(byAdding: .day, value: -7, to: now) ?? now
+        case .thisMonth:
+            // Month-to-date: from the first day of current month to now
+            let startOfMonth = calendar.dateInterval(of: .month, for: now)?.start ?? now
             players = players.filter { player in
-                player.gamesWon.contains { game in
-                    game.date >= weekAgo
-                }
-            }
-        case .monthly:
-            let monthAgo = calendar.date(byAdding: .month, value: -1, to: now) ?? now
-            players = players.filter { player in
-                player.gamesWon.contains { game in
-                    game.date >= monthAgo
+                player.gamesPlayed.contains { game in
+                    game.date >= startOfMonth
                 }
             }
         case .allTime:
@@ -262,6 +272,28 @@ struct PlayerLeaderboardView: View {
         }
         
         return players
+    }
+    
+    // Helper function to get current user ID
+    private func getCurrentUserId() -> String? {
+        // Check if we're in guest mode
+        let isGuestUser = UserDefaults.standard.bool(forKey: "is_guest_user")
+        
+        if isGuestUser {
+            // Handle guest user
+            let guestUserId = UserDefaults.standard.string(forKey: "current_guest_user_id") ?? ""
+            print("🔍 DEBUG: getCurrentUserId - found guest user ID: \(guestUserId)")
+            return guestUserId
+        } else {
+            // Handle regular authenticated user
+            let authUserId = UserDefaults.standard.string(forKey: "authenticated_user_id")
+            if let userId = authUserId, !userId.isEmpty {
+                print("🔍 DEBUG: getCurrentUserId - found authenticated user ID: \(userId)")
+                return userId
+            }
+            print("🔍 DEBUG: getCurrentUserId - no authenticated user ID found")
+            return nil
+        }
     }
 }
 

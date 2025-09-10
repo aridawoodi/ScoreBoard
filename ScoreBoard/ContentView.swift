@@ -11,11 +11,13 @@ import Authenticator
 enum AuthStatus {
     case signedIn
     case signedOut
+    case checking
 }
 
 struct ContentView: View {
-    @State private var authStatus: AuthStatus = .signedOut
+    @State private var authStatus: AuthStatus = .checking
     @State private var selectedTab = 2 // Default to 'Your Board' (now tag 2)
+    @State private var hasCheckedSession = false
     
     // Enhanced state management
     @State private var navigationState = NavigationState()
@@ -35,8 +37,64 @@ struct ContentView: View {
     // Track if side navigation is open - Commented out for future use
     // @State private var isSideNavigationOpen = false
     
+    
     var body: some View {
-        if authStatus == .signedOut {
+        let _ = print("🔍 DEBUG: ContentView body computed - authStatus: \(authStatus)")
+        
+        if authStatus == .checking {
+            // Show loading screen while checking for existing session
+            ZStack {
+                // Background gradient covering entire screen
+                LinearGradient(
+                    gradient: Gradient(colors: [
+                        Color("GradientBackground"), // Dark green from asset
+                        Color.black // Very dark gray / almost black
+                    ]),
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .ignoresSafeArea(.all, edges: .all)
+                
+                VStack {
+                    Spacer()
+                    
+                    // App logo
+                    Image("logo")
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 120, height: 120)
+                        .padding(.bottom, 20)
+                    
+                    Text("ScoreBoard")
+                        .font(.largeTitle)
+                        .fontWeight(.bold)
+                        .foregroundColor(.white)
+                        .padding(.bottom, 10)
+                    
+                    Text("Checking session...")
+                        .font(.body)
+                        .foregroundColor(.white.opacity(0.8))
+                        .padding(.bottom, 40)
+                    
+                    // Loading indicator
+                    ProgressView()
+                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                        .scaleEffect(1.2)
+                    
+                    Spacer()
+                }
+            }
+            .onAppear {
+                print("🔍 DEBUG: Loading screen onAppear called")
+                print("🔍 DEBUG: Current authStatus: \(authStatus)")
+                print("🔍 DEBUG: hasCheckedSession: \(hasCheckedSession)")
+                
+                if !hasCheckedSession {
+                    hasCheckedSession = true
+                    checkExistingSession()
+                }
+            }
+        } else if authStatus == .signedOut {
             ZStack {
                 // Background gradient covering entire screen
                 LinearGradient(
@@ -215,18 +273,15 @@ struct ContentView: View {
             .sheet(isPresented: $showProfileEdit) {
                 ProfileEditView()
             }
-            .onAppear {
-                loadUserGames()
-            }
             .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
-                // Force refresh when app comes back to foreground
-                print("🔍 DEBUG: App entering foreground - refreshing user games")
-                loadUserGames()
+                // Check session and refresh when app comes back to foreground
+                print("🔍 DEBUG: App entering foreground - checking session")
+                checkExistingSession()
             }
             .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
-                // Force refresh when app becomes active
-                print("🔍 DEBUG: App became active - refreshing user games")
-                loadUserGames()
+                // Check session and refresh when app becomes active
+                print("🔍 DEBUG: App became active - checking session")
+                checkExistingSession()
             }
         }
     }
@@ -251,6 +306,11 @@ struct ContentView: View {
             do {
                 let result = try await Amplify.Auth.signOut()
                 print("Signed out successfully: \(result)")
+                
+                // Clear authenticated user ID
+                UserDefaults.standard.removeObject(forKey: "authenticated_user_id")
+                UserDefaults.standard.removeObject(forKey: "is_guest_user")
+                
                 await MainActor.run {
                     authStatus = .signedOut
                     navigationState.clear()
@@ -264,10 +324,36 @@ struct ContentView: View {
                 }
             }
         }
+        
+        // Clear username cache on sign out
+        UsernameCacheService.shared.clearCurrentUserUsername()
     }
     
     func signInAsGuest() async {
         print("🔍 DEBUG: Starting guest sign-in...")
+        
+        do {
+            // Check if there's already a user signed in (guest or authenticated)
+            let currentAuthState = try await Amplify.Auth.fetchAuthSession()
+            
+            if currentAuthState.isSignedIn {
+                print("🔍 DEBUG: User already signed in, signing out first...")
+                
+                // Save current user's data before switching
+                UserSpecificStorageManager.shared.saveCurrentUserData()
+                
+                // Sign out the current user
+                _ = try await Amplify.Auth.signOut()
+                print("🔍 DEBUG: Successfully signed out current user")
+                
+                // Clear authenticated user flags if they exist
+                UserDefaults.standard.removeObject(forKey: "authenticated_user_id")
+                UserDefaults.standard.removeObject(forKey: "is_guest_user")
+            }
+        } catch {
+            print("🔍 DEBUG: Error checking/signing out current user: \(error)")
+            // Continue with guest sign-in even if there's an error
+        }
         
         // Check if we already have a guest ID stored for this device
         let guestIdKey = "persistent_guest_id"
@@ -291,6 +377,10 @@ struct ContentView: View {
         
         print("🔍 DEBUG: Guest authentication info stored in UserDefaults")
         
+        // Load the guest user's data
+        UserSpecificStorageManager.shared.loadNewUserData()
+        print("🔍 DEBUG: Loaded guest user's data")
+        
         // Ensure API access for guest users
         await ensureGuestAPIAccess()
         
@@ -303,6 +393,63 @@ struct ContentView: View {
         print("🔍 DEBUG: Ensuring guest user profile exists...")
         await userService.ensureUserProfile()
     }
+    
+    // MARK: - Session Management
+    
+    func checkExistingSession() {
+        print("🔍 DEBUG: ===== CHECK EXISTING SESSION CALLED =====")
+        let startTime = Date()
+        print("🔍 DEBUG: Starting session check at \(startTime)")
+        
+        // Debug: Print all relevant UserDefaults values
+        let isGuestUser = UserDefaults.standard.bool(forKey: "is_guest_user")
+        let guestUserId = UserDefaults.standard.string(forKey: "current_guest_user_id") ?? ""
+        let authUserId = UserDefaults.standard.string(forKey: "authenticated_user_id") ?? ""
+        
+        print("🔍 DEBUG: UserDefaults values:")
+        print("🔍 DEBUG: - is_guest_user: \(isGuestUser)")
+        print("🔍 DEBUG: - current_guest_user_id: '\(guestUserId)'")
+        print("🔍 DEBUG: - authenticated_user_id: '\(authUserId)'")
+        
+        // Check for guest user session (instant, no network)
+        if isGuestUser && !guestUserId.isEmpty {
+            let endTime = Date()
+            let duration = endTime.timeIntervalSince(startTime)
+            print("🔍 DEBUG: Found existing guest session: \(guestUserId) (took \(duration * 1000)ms)")
+            authStatus = .signedIn
+            // Load games in background after session is restored
+            Task {
+                loadUserGames()
+            }
+            return
+        }
+        
+        // Check for stored authenticated user ID (instant, no network)
+        if !authUserId.isEmpty {
+            let endTime = Date()
+            let duration = endTime.timeIntervalSince(startTime)
+            print("🔍 DEBUG: Found stored authenticated user ID: \(authUserId) (took \(duration * 1000)ms)")
+            print("🔍 DEBUG: Restoring session from local storage")
+            
+            // Restore the session from local storage
+            UserDefaults.standard.set(false, forKey: "is_guest_user")
+            authStatus = .signedIn
+            
+            // Load user data and games in background after session is restored
+            Task {
+                UserSpecificStorageManager.shared.loadNewUserData()
+                loadUserGames()
+            }
+            return
+        }
+        
+        // No stored session found, show sign-in screen immediately
+        let endTime = Date()
+        let duration = endTime.timeIntervalSince(startTime)
+        print("🔍 DEBUG: No stored session found, showing sign-in screen (took \(duration * 1000)ms)")
+        authStatus = .signedOut
+    }
+    
 
     func loadUserGames() {
         Task {

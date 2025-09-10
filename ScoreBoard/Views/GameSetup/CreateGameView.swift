@@ -8,6 +8,20 @@
 import SwiftUI
 import Amplify
 
+// MARK: - Mock AuthUser for cached data display
+struct MockAuthUser: AuthUser {
+    let userId: String
+    let username: String
+    let email: String
+    
+    init() {
+        // Use a placeholder ID for cached data display
+        self.userId = "cached_user"
+        self.username = "Cached User"
+        self.email = "cached@example.com"
+    }
+}
+
 enum GameViewMode {
     case create
     case edit(Game)
@@ -212,6 +226,11 @@ struct CreateGameView: View {
                     }
                 }
             }
+            .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ProfileUpdated"))) { _ in
+                print("🔍 DEBUG: CreateGameView - ProfileUpdated notification received, refreshing user data")
+                // Refresh current user data when profile is updated
+                loadCurrentUser()
+            }
             .onDisappear {
                 print("🔍 DEBUG: CreateGameView onDisappear - Mode: \(isEditMode ? "edit" : "create")")
             }
@@ -291,6 +310,10 @@ struct CreateGameView: View {
                             await MainActor.run {
                                 self.currentUserProfile = profile
                                 print("🔍 DEBUG: Updated currentUserProfile to: \(profile?.username ?? "unknown")")
+                                // Cache the username for future use
+                                if let username = profile?.username {
+                                    UsernameCacheService.shared.cacheCurrentUserUsername(username)
+                                }
                             }
                                                   case .failure(let error):
                             print("🔍 DEBUG: Failed to fetch guest user profile: \(error)")
@@ -327,6 +350,10 @@ struct CreateGameView: View {
                             await MainActor.run {
                                 self.currentUserProfile = profile
                                 print("🔍 DEBUG: Updated currentUserProfile to: \(profile?.username ?? "unknown")")
+                                // Cache the username for future use
+                                if let username = profile?.username {
+                                    UsernameCacheService.shared.cacheCurrentUserUsername(username)
+                                }
                             }
                         case .failure(let error):
                             print("🔍 DEBUG: Failed to fetch user profile: \(error)")
@@ -634,7 +661,16 @@ struct CreateGameView: View {
         
         // Load player names
         players = lastSettings.playerNames.map { name in
-            Player(name: name, isRegistered: false, userId: nil, email: nil)
+            // Check if this name matches the current user's username
+            // If so, mark it as a registered user to prevent duplicates
+            if let currentUsername = UsernameCacheService.shared.getCurrentUserUsername(),
+               name == currentUsername {
+                // This is the current user, mark as registered
+                Player(name: name, isRegistered: true, userId: currentUser?.userId, email: nil)
+            } else {
+                // This is an anonymous player
+                Player(name: name, isRegistered: false, userId: nil, email: nil)
+            }
         }
         
         print("🔍 DEBUG: Loaded \(players.count) players from last settings")
@@ -841,7 +877,13 @@ struct CreateGameView: View {
             if let playerUserId = player.userId {
                 return playerUserId == userId
             }
-            // For anonymous players, check if the name matches (though this is less reliable)
+            // For anonymous players, check if the name matches the current user's username
+            // This handles the case where last game settings loaded the user as an anonymous player
+            if let currentUser = currentUser,
+               let currentUsername = UsernameCacheService.shared.getCurrentUserUsername() {
+                return player.name == currentUsername
+            }
+            // Fallback: check if the name matches the userId (for anonymous users)
             return player.name == userId
         }
     }
@@ -921,13 +963,18 @@ struct CreateGameContentView: View {
     let addCustomRule: () -> Void
     
     private func getHostDisplayName(for user: AuthUser) -> String {
-        // Use username if available, otherwise show loading or fallback
-        guard let profile = currentUserProfile else {
-            return "Loading..." // Show loading while profile is being fetched
+        // First try to get username from cache (fastest)
+        if let cachedUsername = UsernameCacheService.shared.getCurrentUserUsername() {
+            return cachedUsername
         }
         
-        // username is non-optional String, so we can use it directly
-        return profile.username
+        // Fallback to current user profile if available
+        if let profile = currentUserProfile {
+            return profile.username
+        }
+        
+        // Last resort: show placeholder that maintains layout
+        return "••••••••" // Use dots to maintain consistent height and prevent UI shift
     }
     
     var body: some View {
@@ -950,8 +997,6 @@ struct CreateGameContentView: View {
             loadLastGameSettings()
         }) {
             HStack {
-                Image(systemName: "clock.arrow.circlepath")
-                    .foregroundColor(.white)
                 Text("Use Last Game Settings")
                     .foregroundColor(.white)
                     .fontWeight(.medium)
@@ -1045,12 +1090,18 @@ struct CreateGameContentView: View {
             .modifier(AppTextFieldStyle(placeholder: "Enter your display name", text: $hostPlayerName))
         
         let hostJoinContent = VStack(alignment: .leading, spacing: hostJoinInnerSpacing) {
-            if let user = currentUser {
+            // Check if we have cached username or current user to determine view type
+            let hasCachedUsername = UsernameCacheService.shared.getCurrentUserUsername() != nil
+            let isUserRegistered = currentUser != nil || hasCachedUsername
+            
+            if isUserRegistered {
+                // Show registered user view with cached or current data
                 RegisteredUserView(
-                    displayName: getHostDisplayName(for: user),
+                    displayName: getHostDisplayName(for: currentUser ?? MockAuthUser()),
                     isIPad: isIPad,
                     currentUserProfile: currentUserProfile,
-                    user: user
+                    user: currentUser ?? MockAuthUser(),
+                    isUsingCachedData: currentUser == nil
                 )
             } else {
                 hostNameTextField
@@ -1072,8 +1123,6 @@ struct CreateGameContentView: View {
             showAdvancedSettingsSheet = true
         }) {
             HStack {
-                Image(systemName: "gearshape")
-                    .foregroundColor(.white)
                 Text("Advanced Settings")
                     .foregroundColor(.white)
                     .fontWeight(.medium)
@@ -1141,6 +1190,7 @@ struct RegisteredUserView: View {
     let isIPad: Bool
     let currentUserProfile: User?
     let user: AuthUser
+    let isUsingCachedData: Bool
     
     var body: some View {
         HStack {
@@ -1153,11 +1203,12 @@ struct RegisteredUserView: View {
             Spacer()
             Text(displayName)
                 .font(isIPad ? .body : .caption)
-                .foregroundColor(.white)
+                .foregroundColor(isUsingCachedData ? .white.opacity(0.8) : .white)
                 .onAppear {
                     print("🔍 DEBUG: RegisteredUserView onAppear - Displaying username: \(displayName)")
                     print("🔍 DEBUG: RegisteredUserView onAppear - currentUserProfile: \(currentUserProfile?.username ?? "nil")")
                     print("🔍 DEBUG: RegisteredUserView onAppear - user ID: \(user.userId)")
+                    print("🔍 DEBUG: RegisteredUserView onAppear - isUsingCachedData: \(isUsingCachedData)")
                 }
         }
         .fixedSize(horizontal: false, vertical: true)
