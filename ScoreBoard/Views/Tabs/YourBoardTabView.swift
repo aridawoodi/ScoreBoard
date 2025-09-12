@@ -24,7 +24,11 @@ struct YourBoardTabView: View {
                     Scoreboardview(game: Binding(
                         get: { navigationState.selectedGame ?? selectedGame },
                         set: { newGame in
+                            print("🔍 DEBUG: YourBoardTabView - Binding setter called. Updated game ID: \(newGame.id), status: \(newGame.gameStatus)")
                             navigationState.selectedGame = newGame
+                            // Also notify DataManager directly
+                            DataManager.shared.onGameUpdated(newGame)
+                            print("🔍 DEBUG: YourBoardTabView - DataManager notified of game update")
                         }
                     )) { updatedGame in
                         print("🔍 DEBUG: ===== GAME UPDATE IN YOUR BOARD TAB ======")
@@ -160,10 +164,12 @@ struct YourBoardTabView: View {
                                     print("🔍 DEBUG: ===== 2 PLAYER QUICK GAME CREATED =====")
                                     
                                     // Use standardized callback handling
-                                    GameCreationUtils.handleGameCreated(
-                                        game: game,
-                                        navigationState: navigationState
-                                    )
+                                    Task {
+                                        await GameCreationUtils.handleGameCreated(
+                                            game: game,
+                                            navigationState: navigationState
+                                        )
+                                    }
                                     
                                     // Reset force view reset flag
                                     forceViewReset = false
@@ -183,10 +189,12 @@ struct YourBoardTabView: View {
                                     print("🔍 DEBUG: ===== 3 PLAYER QUICK GAME CREATED =====")
                                     
                                     // Use standardized callback handling
-                                    GameCreationUtils.handleGameCreated(
-                                        game: game,
-                                        navigationState: navigationState
-                                    )
+                                    Task {
+                                        await GameCreationUtils.handleGameCreated(
+                                            game: game,
+                                            navigationState: navigationState
+                                        )
+                                    }
                                     
                                     // Reset force view reset flag
                                     forceViewReset = false

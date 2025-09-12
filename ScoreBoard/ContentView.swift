@@ -91,7 +91,9 @@ struct ContentView: View {
                 
                 if !hasCheckedSession {
                     hasCheckedSession = true
-                    checkExistingSession()
+                    Task {
+                        await checkExistingSession()
+                    }
                 }
             }
         } else if authStatus == .signedOut {
@@ -110,6 +112,27 @@ struct ContentView: View {
                 // Custom Authentication View with LightGreen theme
                 CustomSignInView {
                     authStatus = .signedIn
+                    // Set current user in DataManager and load games
+                    Task {
+                        // Check if this is a guest user or authenticated user
+                        let isGuestUser = UserDefaults.standard.bool(forKey: "is_guest_user")
+                        let guestUserId = UserDefaults.standard.string(forKey: "current_guest_user_id")
+                        
+                        if isGuestUser, let guestId = guestUserId {
+                            // Guest user sign-in
+                            print("🔍 DEBUG: Guest user sign-in callback - setting current user: \(guestId)")
+                            await DataManager.shared.setCurrentUser(id: guestId)
+                            print("🔍 DEBUG: Calling loadUserGames() after setCurrentUser for guest sign-in")
+                            loadUserGames()
+                        } else {
+                            // Authenticated user sign-in
+                            let currentUser = try await Amplify.Auth.getCurrentUser()
+                            print("🔍 DEBUG: Authenticated user sign-in callback - setting current user: \(currentUser.userId)")
+                            await DataManager.shared.setCurrentUser(id: currentUser.userId)
+                            print("🔍 DEBUG: Calling loadUserGames() after setCurrentUser for authenticated sign-in")
+                            loadUserGames()
+                        }
+                    }
                     // Automatically create user profile when user signs in
                     Task {
                         await userService.ensureUserProfile()
@@ -224,11 +247,13 @@ struct ContentView: View {
                     print("🔍 DEBUG: ===== JOIN GAME CALLBACK START =====")
                     
                     // Use standardized callback handling
-                    GameCreationUtils.handleGameCreated(
-                        game: game,
-                        navigationState: navigationState,
-                        selectedTab: $selectedTab
-                    )
+                    Task {
+                        await GameCreationUtils.handleGameCreated(
+                            game: game,
+                            navigationState: navigationState,
+                            selectedTab: $selectedTab
+                        )
+                    }
                     
                     print("🔍 DEBUG: ===== JOIN GAME CALLBACK END =====")
                 }
@@ -252,11 +277,13 @@ struct ContentView: View {
                     mode: .create,
                     onGameCreated: { game in
                         // Use standardized callback handling
-                        GameCreationUtils.handleGameCreated(
-                            game: game,
-                            navigationState: navigationState,
-                            selectedTab: $selectedTab
-                        )
+                        Task {
+                            await GameCreationUtils.handleGameCreated(
+                                game: game,
+                                navigationState: navigationState,
+                                selectedTab: $selectedTab
+                            )
+                        }
                     },
                     onGameUpdated: nil
                 )
@@ -276,12 +303,16 @@ struct ContentView: View {
             .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
                 // Check session and refresh when app comes back to foreground
                 print("🔍 DEBUG: App entering foreground - checking session")
-                checkExistingSession()
+                Task {
+                    await checkExistingSession()
+                }
             }
             .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
                 // Check session and refresh when app becomes active
                 print("🔍 DEBUG: App became active - checking session")
-                checkExistingSession()
+                Task {
+                    await checkExistingSession()
+                }
             }
         }
     }
@@ -327,6 +358,9 @@ struct ContentView: View {
         
         // Clear username cache on sign out
         UsernameCacheService.shared.clearCurrentUserUsername()
+        
+        // Clear DataManager data for current user
+        await DataManager.shared.setCurrentUser(id: nil)
     }
     
     func signInAsGuest() async {
@@ -389,6 +423,12 @@ struct ContentView: View {
             authStatus = .signedIn
         }
         
+        // Set current user in DataManager
+        await DataManager.shared.setCurrentUser(id: guestId)
+        // Load user games after data is loaded
+        print("🔍 DEBUG: Calling loadUserGames() after setCurrentUser for guest sign-in")
+        loadUserGames()
+        
         // Automatically create user profile for guest user
         print("🔍 DEBUG: Ensuring guest user profile exists...")
         await userService.ensureUserProfile()
@@ -396,7 +436,7 @@ struct ContentView: View {
     
     // MARK: - Session Management
     
-    func checkExistingSession() {
+    func checkExistingSession() async {
         print("🔍 DEBUG: ===== CHECK EXISTING SESSION CALLED =====")
         let startTime = Date()
         print("🔍 DEBUG: Starting session check at \(startTime)")
@@ -417,10 +457,11 @@ struct ContentView: View {
             let duration = endTime.timeIntervalSince(startTime)
             print("🔍 DEBUG: Found existing guest session: \(guestUserId) (took \(duration * 1000)ms)")
             authStatus = .signedIn
-            // Load games in background after session is restored
-            Task {
-                loadUserGames()
-            }
+            // Set current user in DataManager
+            await DataManager.shared.setCurrentUser(id: guestUserId)
+            // Load user games after data is loaded
+            print("🔍 DEBUG: Calling loadUserGames() after setCurrentUser for guest user")
+            loadUserGames()
             return
         }
         
@@ -437,7 +478,9 @@ struct ContentView: View {
             
             // Load user data and games in background after session is restored
             Task {
+                await DataManager.shared.setCurrentUser(id: authUserId)
                 UserSpecificStorageManager.shared.loadNewUserData()
+                print("🔍 DEBUG: Calling loadUserGames() after setCurrentUser for authenticated user")
                 loadUserGames()
             }
             return
@@ -472,11 +515,8 @@ struct ContentView: View {
                     print("🔍 DEBUG: Current user ID: \(currentUserId)")
                 }
                 
-                // Use DataManager to load games efficiently (skipped for guest users)
-                await DataManager.shared.loadGames()
-                
                 await MainActor.run {
-                    // Get user games using DataManager
+                    // Get user games using DataManager (games should already be loaded by setCurrentUser)
                     let userGames = DataManager.shared.getGamesForUser(currentUserId)
                     print("🔍 DEBUG: Successfully fetched \(userGames.count) user games efficiently")
                     

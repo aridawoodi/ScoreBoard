@@ -594,6 +594,8 @@ struct CreateGameView: View {
                         
                         print("🔍 DEBUG: Calling onGameUpdated callback")
                         onGameUpdated?(updatedGame)
+                        // Notify DataManager for reactive leaderboard calculation
+                        DataManager.shared.onGameUpdated(updatedGame)
                         print("🔍 DEBUG: onGameUpdated callback completed")
                         
                         // Close the sheet

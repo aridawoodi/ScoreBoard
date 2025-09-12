@@ -193,8 +193,12 @@ class ScoreboardViewModel: ObservableObject {
                     self.isSaving = false
                 }
                 
-                // Refresh DataManager to update leaderboard and other views
-                await dataManager.refreshScores()
+                // Update DataManager with ALL scores for this game for reactive leaderboard calculation
+                // This ensures the leaderboard has complete data for the game
+                let allGameScores = self.scores.filter { $0.gameID == gameID }
+                await MainActor.run {
+                    self.dataManager.onScoresUpdated(allGameScores)
+                }
                 
             } catch {
                 print("Error saving scores: \(error)")
@@ -284,8 +288,12 @@ class ScoreboardViewModel: ObservableObject {
                 self.originalScores = self.roundScores
                 self.hasChanges = false
                 
+                // Update DataManager with all loaded scores for reactive leaderboard calculation
+                self.dataManager.onScoresUpdated(gameScores)
+                
                 print("🔍 DEBUG: ===== LOAD SCORES FOR GAME END =====")
                 print("🔍 DEBUG: Final roundScores: \(self.roundScores)")
+                print("🔍 DEBUG: Passed \(gameScores.count) scores to DataManager for leaderboard calculation")
             }
         }
     }
@@ -307,6 +315,8 @@ class ScoreboardViewModel: ObservableObject {
                     switch result {
                     case .success(let createdScore):
                         self.scores.append(createdScore)
+                        // Update DataManager for reactive leaderboard calculation
+                        self.dataManager.onScoresUpdated([createdScore])
                     case .failure(let error):
                         print("Error creating score: \(error)")
                     }
@@ -341,6 +351,8 @@ class ScoreboardViewModel: ObservableObject {
                                     if let idx = self.scores.firstIndex(where: { $0.id == updated.id }) {
                                         self.scores[idx] = updated
                                     }
+                                    // Update DataManager for reactive leaderboard calculation
+                                    self.dataManager.onScoresUpdated([updated])
                                 case .failure(let error):
                                     print("Error updating score: \(error)")
                                 }
@@ -366,6 +378,8 @@ class ScoreboardViewModel: ObservableObject {
                                 switch result {
                                 case .success(let createdScore):
                                     self.scores.append(createdScore)
+                                    // Update DataManager for reactive leaderboard calculation
+                                    self.dataManager.onScoresUpdated([createdScore])
                                 case .failure(let error):
                                     print("Error saving score: \(error)")
                                 }

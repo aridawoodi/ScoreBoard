@@ -12,6 +12,7 @@ struct AnalyticsTabView: View {
     @ObservedObject var navigationState: NavigationState
     @Binding var selectedTab: Int
     @StateObject private var analyticsService = AnalyticsService.shared
+    @StateObject private var dataManager = DataManager.shared
     @State private var playerStats: PlayerStats?
     @State private var isLoading = false
     @State private var showSampleData = false

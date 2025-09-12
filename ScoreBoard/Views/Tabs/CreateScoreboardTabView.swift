@@ -26,11 +26,13 @@ struct CreateScoreboardTabView: View {
                 mode: .create,
                 onGameCreated: { game in
                     // Use standardized callback handling
-                    GameCreationUtils.handleGameCreated(
-                        game: game,
-                        navigationState: navigationState,
-                        selectedTab: $selectedTab
-                    )
+                    Task {
+                        await GameCreationUtils.handleGameCreated(
+                            game: game,
+                            navigationState: navigationState,
+                            selectedTab: $selectedTab
+                        )
+                    }
                 },
                 onGameUpdated: nil
             )

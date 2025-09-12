@@ -179,15 +179,12 @@ struct PlayerLeaderboardView: View {
                 }
             }
             .onAppear {
-                Task {
-                    // Get current user ID and load user-specific leaderboard data
-                    print("🔍 DEBUG: PlayerLeaderboardView onAppear - attempting to load leaderboard")
-                    if let currentUserId = getCurrentUserId() {
-                        print("🔍 DEBUG: PlayerLeaderboardView - found current user ID: \(currentUserId)")
-                        await dataManager.loadUserLeaderboard(for: currentUserId)
-                    } else {
-                        print("🔍 DEBUG: PlayerLeaderboardView - no current user ID found")
-                    }
+                // No manual refresh needed - reactive system automatically updates leaderboard
+                // when games or scores change in the background
+                print("🔍 DEBUG: PlayerLeaderboardView onAppear - using reactive leaderboard data")
+                print("🔍 DEBUG: PlayerLeaderboardView onAppear - current leaderboard entries: \(dataManager.reactiveLeaderboardData.count)")
+                for (index, entry) in dataManager.reactiveLeaderboardData.enumerated() {
+                    print("🔍 DEBUG: PlayerLeaderboardView - Entry \(index): \(entry.nickname) with \(entry.totalWins) wins")
                 }
             }
             .onChange(of: selectedTimeframe) { _ in
@@ -209,7 +206,10 @@ struct PlayerLeaderboardView: View {
     }
     
     private var filteredPlayers: [PlayerLeaderboardEntry] {
-        var players = dataManager.userLeaderboardData
+        // Use reactive leaderboard data for real-time updates
+        var players = dataManager.reactiveLeaderboardData
+        print("🔍 DEBUG: PlayerLeaderboardView - filteredPlayers computed with \(players.count) entries")
+        print("🔍 DEBUG: PlayerLeaderboardView - Current leaderboard data: \(players.map { "\($0.nickname): \($0.totalWins) wins" })")
         
         // Apply search filter
         if !searchText.isEmpty {

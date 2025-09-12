@@ -32,18 +32,27 @@ class GameCreationUtils {
         game: Game,
         navigationState: NavigationState,
         selectedTab: Binding<Int>? = nil
-    ) {
+    ) async {
         print("🔍 DEBUG: ===== STANDARDIZED GAME CREATED CALLBACK =====")
         print("🔍 DEBUG: Game created with ID: \(game.id)")
         print("🔍 DEBUG: Setting selectedGame to: \(game.id)")
         
-        // Set the selected game
-        navigationState.selectedGame = game
-        
-        // Add the new game to userGames immediately to ensure UI consistency
-        if !navigationState.userGames.contains(where: { $0.id == game.id }) {
-            print("🔍 DEBUG: Adding new game to userGames immediately")
-            navigationState.userGames.append(game)
+        // Wrap all navigationState updates in MainActor.run to ensure main thread execution
+        await MainActor.run {
+            // Set the selected game
+            navigationState.selectedGame = game
+            
+            // Add the new game to userGames immediately to ensure UI consistency
+            if !navigationState.userGames.contains(where: { $0.id == game.id }) {
+                print("🔍 DEBUG: Adding new game to userGames immediately")
+                navigationState.userGames.append(game)
+            }
+            
+            // Force navigation state to refresh all views
+            navigationState.objectWillChange.send()
+            
+            print("🔍 DEBUG: Current navigationState.selectedGame: \(navigationState.selectedGame?.id ?? "nil")")
+            print("🔍 DEBUG: Current userGames count: \(navigationState.userGames.count)")
         }
         
         // Switch to Your Board tab if provided
@@ -53,11 +62,10 @@ class GameCreationUtils {
             print("🔍 DEBUG: Current selectedTab value: \(selectedTab.wrappedValue)")
         }
         
-        print("🔍 DEBUG: Current navigationState.selectedGame: \(navigationState.selectedGame?.id ?? "nil")")
-        print("🔍 DEBUG: Current userGames count: \(navigationState.userGames.count)")
-        
-        // Force navigation state to refresh all views
-        navigationState.objectWillChange.send()
+        // Notify DataManager for reactive leaderboard calculation
+        await MainActor.run {
+            DataManager.shared.onGameUpdated(game)
+        }
         
         // Delay the database refresh to allow for eventual consistency
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {

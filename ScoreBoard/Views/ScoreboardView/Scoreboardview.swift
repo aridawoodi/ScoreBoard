@@ -847,6 +847,9 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
         // Increment counter to trigger reload
         self.gameUpdateCounter += 1
         
+        // Update DataManager for reactive leaderboard calculation
+        DataManager.shared.onGameUpdated(updatedGame)
+        
         // Call the parent callback
         self.onGameUpdated?(updatedGame)
         
@@ -2558,6 +2561,9 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                             self.enteredScores.insert(scoreKey)
                         }
                         
+                        // Update DataManager with all loaded scores for reactive leaderboard calculation
+                        DataManager.shared.onScoresUpdated(Array(gameScores))
+                        
                         // Check for game completion and winner (only if game is not already completed)
                         // Celebration will only be shown when user explicitly hits "Complete Game" button
                         if !suppressCompletionCelebration && game.gameStatus != .completed {
@@ -2667,9 +2673,25 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                                 updatedAt: Temporal.DateTime.now()
                             )
                             if existing != nil {
-                                let _ = try await Amplify.API.mutate(request: .update(scoreObject))
+                                let result = try await Amplify.API.mutate(request: .update(scoreObject))
+                                switch result {
+                                case .success(let updatedScore):
+                                    await MainActor.run {
+                                        DataManager.shared.onScoresUpdated([updatedScore])
+                                    }
+                                case .failure(let error):
+                                    print("Error updating score: \(error)")
+                                }
                             } else {
-                                let _ = try await Amplify.API.mutate(request: .create(scoreObject))
+                                let result = try await Amplify.API.mutate(request: .create(scoreObject))
+                                switch result {
+                                case .success(let createdScore):
+                                    await MainActor.run {
+                                        DataManager.shared.onScoresUpdated([createdScore])
+                                    }
+                                case .failure(let error):
+                                    print("Error creating score: \(error)")
+                                }
                             }
                         } else {
                             print("🔍 DEBUG: Non-zero unchanged and exists -> skip for player \(playerID) round \(roundNumber)")
@@ -3753,6 +3775,9 @@ struct SystemKeyboardView: View {
                     case .success(let deletedGame):
                         print("🔍 DEBUG: Successfully deleted game: \(deletedGame.id)")
                         await MainActor.run {
+                            // Update DataManager to remove deleted game and scores from reactive system
+                            DataManager.shared.onGameDeleted(deletedGame)
+                            
                             // Notify parent that game was deleted
                             self.onGameDeleted?()
                         }
@@ -3852,9 +3877,25 @@ struct SystemKeyboardView: View {
                                     updatedAt: Temporal.DateTime.now()
                                 )
                                 if existing != nil {
-                                    let _ = try await Amplify.API.mutate(request: .update(scoreObject))
+                                    let result = try await Amplify.API.mutate(request: .update(scoreObject))
+                                    switch result {
+                                    case .success(let updatedScore):
+                                        await MainActor.run {
+                                            DataManager.shared.onScoresUpdated([updatedScore])
+                                        }
+                                    case .failure(let error):
+                                        print("Error updating score: \(error)")
+                                    }
                                 } else {
-                                    let _ = try await Amplify.API.mutate(request: .create(scoreObject))
+                                    let result = try await Amplify.API.mutate(request: .create(scoreObject))
+                                    switch result {
+                                    case .success(let createdScore):
+                                        await MainActor.run {
+                                            DataManager.shared.onScoresUpdated([createdScore])
+                                        }
+                                    case .failure(let error):
+                                        print("Error creating score: \(error)")
+                                    }
                                 }
                             }
                         }
@@ -3879,6 +3920,7 @@ struct SystemKeyboardView: View {
         print("🔍 DEBUG: completeGame() called")
         print("🔍 DEBUG: canUserEditGame(): \(canUserEditGame())")
         print("🔍 DEBUG: isGameComplete(): \(isGameComplete())")
+        print("🔍 DEBUG: completeGame() - Initial game status: \(self.game.gameStatus)")
         guard canUserEditGame() && isGameComplete() else { 
             print("🔍 DEBUG: completeGame() - Guard failed, returning early")
             return 
@@ -3891,12 +3933,13 @@ struct SystemKeyboardView: View {
         var updated = game
         updated.gameStatus = .completed
         updated.updatedAt = Temporal.DateTime.now()
+        print("🔍 DEBUG: completeGame() - 'updated' game status before assignment: \(updated.gameStatus)")
         
         // Update local game state immediately
         self.game = updated
         self.gameUpdateCounter += 1
         
-        print("🔍 DEBUG: completeGame() - Local game status updated to: \(self.game.gameStatus)")
+        print("🔍 DEBUG: completeGame() - Local game status after binding update: \(self.game.gameStatus)")
         
         // Immediately disable delete mode when game is completed
         withAnimation(.easeInOut(duration: 0.3)) {
@@ -3915,9 +3958,14 @@ struct SystemKeyboardView: View {
                 case .success(let saved):
                     await MainActor.run {
                         print("🔍 DEBUG: Game completed successfully on backend")
+                        print("🔍 DEBUG: Backend saved game status: \(saved.gameStatus)")
                         // Update with the saved version from backend to ensure consistency
                         self.game = saved
+                        // Notify DataManager of the game update for reactive leaderboard calculation
+                        DataManager.shared.onGameUpdated(saved)
+                        print("🔍 DEBUG: Local game status after backend update: \(self.game.gameStatus)")
                         self.onGameUpdated?(saved)
+                        print("🔍 DEBUG: DataManager notified with game status: \(saved.gameStatus)")
                         showToastMessage(message: "Game marked complete", icon: "flag.checkered")
                     }
                 case .failure(let error):
@@ -4162,6 +4210,7 @@ struct GameListBottomSheet: View {
 struct GameCardViewBottomSheet: View {
     let game: Game
     let isSelected: Bool
+    @StateObject private var usernameCache = UsernameCacheService.shared
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -4191,6 +4240,32 @@ struct GameCardViewBottomSheet: View {
                     .fill(isSelected ? Color("LightGreen") : Color.white.opacity(0.3))
                     .frame(width: 12, height: 12)
             }
+            
+            // Players list
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Players:")
+                    .font(.caption)
+                    .foregroundColor(.white.opacity(0.7))
+                
+                if usernameCache.isLoading {
+                    HStack {
+                        ProgressView()
+                            .scaleEffect(0.6)
+                        Text("Loading players...")
+                            .font(.caption)
+                            .foregroundColor(.white.opacity(0.7))
+                    }
+                } else {
+                    let playerList = game.playerIDs.map { playerID in
+                        usernameCache.getDisplayName(for: playerID)
+                    }
+                    
+                    Text(playerList.joined(separator: ", "))
+                        .font(.caption)
+                        .foregroundColor(.white)
+                        .lineLimit(2)
+                }
+            }
         }
         .padding(16)
         .background(
@@ -4203,6 +4278,11 @@ struct GameCardViewBottomSheet: View {
         )
         .scaleEffect(isSelected ? 1.05 : 1.0)
         .animation(.easeInOut(duration: 0.2), value: isSelected)
+        .onAppear {
+            Task {
+                await usernameCache.getUsernames(for: game.playerIDs)
+            }
+        }
     }
 }
 
@@ -4211,6 +4291,7 @@ struct GameListItemView: View {
     let game: Game
     let isSelected: Bool
     let onTap: () -> Void
+    @StateObject private var usernameCache = UsernameCacheService.shared
     
     var body: some View {
         Button(action: onTap) {
@@ -4225,9 +4306,22 @@ struct GameListItemView: View {
                         .foregroundColor(.white)
                         .lineLimit(1)
                     
-                    Text("\(game.playerIDs.count) players • \(game.rounds) rounds")
-                        .font(.caption)
-                        .foregroundColor(.white.opacity(0.7))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("\(game.playerIDs.count) players • \(game.rounds) rounds")
+                            .font(.caption)
+                            .foregroundColor(.white.opacity(0.7))
+                        
+                        if !usernameCache.isLoading {
+                            let playerList = game.playerIDs.map { playerID in
+                                usernameCache.getDisplayName(for: playerID)
+                            }
+                            
+                            Text(playerList.joined(separator: ", "))
+                                .font(.caption2)
+                                .foregroundColor(.white.opacity(0.6))
+                                .lineLimit(1)
+                        }
+                    }
                 }
                 
                 Spacer()
@@ -4246,6 +4340,11 @@ struct GameListItemView: View {
             )
         }
         .buttonStyle(PlainButtonStyle())
+        .onAppear {
+            Task {
+                await usernameCache.getUsernames(for: game.playerIDs)
+            }
+        }
     }
 }
 

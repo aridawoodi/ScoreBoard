@@ -44,22 +44,72 @@ class UsernameCacheService: ObservableObject {
     func getDisplayName(for playerID: String) -> String {
         if let cachedName = cachedUsernames[playerID] {
             // If we have a cached username, use it as is
+            print("🔍 DEBUG: UsernameCacheService - Using cached name for \(playerID): \(cachedName)")
             return cachedName
         } else {
-            // For fallback, just use the first 6 characters of the playerID
-            return String(playerID.prefix(6))
+            // Use the same logic as DataManager.getPlayerName for consistency
+            let displayName = getPlayerNameFromID(playerID)
+            print("🔍 DEBUG: UsernameCacheService - Generated display name for \(playerID): \(displayName)")
+            return displayName
         }
     }
     
+    private func getPlayerNameFromID(_ playerID: String) -> String {
+        if playerID.contains(":") {
+            // Anonymous user with format "userID:displayName" - use display name
+            let components = playerID.split(separator: ":", maxSplits: 1)
+            if components.count == 2 {
+                return String(components[1])
+            }
+        }
+        
+        // For registered users, check if we have a cached username
+        if let cachedUsername = cachedUsernames[playerID] {
+            return cachedUsername
+        }
+        
+        // Fallback to short ID if no cached username
+        return String(playerID.prefix(8))
+    }
+    
     private func fetchUsernames(for playerIDs: [String]) async -> [String: String] {
-        // For now, return a simple mapping
-        // In a real app, this would fetch from your backend
         var usernames: [String: String] = [:]
         
+        // Get usernames from DataManager for registered users
+        let dataManager = DataManager.shared
+        
         for playerID in playerIDs {
-            // Just use the first 6 characters of the playerID without any prefix
-            let displayName = String(playerID.prefix(6))
+            let displayName: String
+            
+            if playerID.contains(":") {
+                // Anonymous user with format "userID:displayName" - use display name
+                let components = playerID.split(separator: ":", maxSplits: 1)
+                if components.count == 2 {
+                    displayName = String(components[1])
+                } else {
+                    displayName = String(playerID.prefix(8))
+                }
+            } else if playerID.hasPrefix("guest_") {
+                // Guest user - try to get from DataManager first
+                if let user = dataManager.getUser(playerID) {
+                    displayName = user.username ?? String(playerID.prefix(8))
+                } else {
+                    displayName = String(playerID.prefix(8))
+                }
+            } else if playerID.count > 20 && playerID.contains("-") {
+                // Cognito authenticated user (UUID format) - try to get from DataManager
+                if let user = dataManager.getUser(playerID) {
+                    displayName = user.username ?? String(playerID.prefix(8))
+                } else {
+                    displayName = String(playerID.prefix(8))
+                }
+            } else {
+                // Simple display name (like "Team 1", "Team 2") - use directly
+                displayName = playerID
+            }
+            
             usernames[playerID] = displayName
+            print("🔍 DEBUG: UsernameCacheService - Fetched username for \(playerID): \(displayName)")
         }
         
         return usernames

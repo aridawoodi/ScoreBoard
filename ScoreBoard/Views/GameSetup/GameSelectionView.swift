@@ -174,9 +174,11 @@ struct GameSelectionView: View {
         Task {
             // Get all unique player IDs from all games (active and completed)
             let allPlayerIDs = Set(games.flatMap { $0.playerIDs })
+            print("🔍 DEBUG: GameSelectionView - Loading usernames for \(allPlayerIDs.count) player IDs: \(Array(allPlayerIDs))")
             
             // Use the cache service to get usernames
-            _ = await usernameCache.getUsernames(for: Array(allPlayerIDs))
+            let usernames = await usernameCache.getUsernames(for: Array(allPlayerIDs))
+            print("🔍 DEBUG: GameSelectionView - Retrieved usernames: \(usernames)")
         }
     }
 }
@@ -266,7 +268,9 @@ struct GameCardView: View {
                     }
                 } else {
                     let playerList = game.playerIDs.map { playerID in
-                        usernameCache.getDisplayName(for: playerID)
+                        let displayName = usernameCache.getDisplayName(for: playerID)
+                        print("🔍 DEBUG: GameCardView - Player ID: \(playerID) -> Display Name: \(displayName)")
+                        return displayName
                     }
                     
                     Text(playerList.joined(separator: ", "))
