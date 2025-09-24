@@ -260,14 +260,19 @@ struct ContentView: View {
             }
             .sheet(isPresented: $showGameSelection) {
                 GameSelectionView(
-                    games: navigationState.userGames,
+                    navigationState: navigationState,
                     onGameSelected: { selectedGame in
                         navigationState.selectedGame = selectedGame
-                        selectedTab = 2 // Switch to Your Board
+                        // Only handle active games - completed games are handled by GameSelectionView directly
+                        if selectedGame.gameStatus == .active {
+                            selectedTab = 2 // Switch to Your Board for active games
+                        }
                     },
-                    onGameDeleted: {
-                        // Refresh user games after deletion
-                        loadUserGames()
+                    onGameDeleted: { deletedGame in
+                        print("🔍 DEBUG: ContentView - Game deleted: \(deletedGame.id), notifying DataManager")
+                        Task {
+                            await DataManager.shared.onGameDeleted(deletedGame)
+                        }
                     }
                 )
             }

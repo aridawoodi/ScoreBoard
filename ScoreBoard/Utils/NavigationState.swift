@@ -15,6 +15,8 @@ class NavigationState: ObservableObject {
     @Published var isLoading = false
     @Published var shouldShowMainBoard = false
     @Published var isKeyboardActive = false
+    @Published var showReadOnlyGameSheet = false
+    @Published var selectedGameForReadOnly: Game?
     
     func clear() {
         selectedGame = nil
@@ -22,6 +24,8 @@ class NavigationState: ObservableObject {
         isLoading = false
         shouldShowMainBoard = false
         isKeyboardActive = false
+        showReadOnlyGameSheet = false
+        selectedGameForReadOnly = nil
     }
     
     var hasGames: Bool {

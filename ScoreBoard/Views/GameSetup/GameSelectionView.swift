@@ -10,9 +10,9 @@ import SwiftUI
 import Amplify
 
 struct GameSelectionView: View {
-    let games: [Game]
+    @ObservedObject var navigationState: NavigationState
     let onGameSelected: (Game) -> Void
-    let onGameDeleted: (() -> Void)?
+    let onGameDeleted: ((Game) -> Void)?
     @Environment(\.dismiss) private var dismiss
     @StateObject private var usernameCache = UsernameCacheService.shared
     @State private var selectedGame: Game?
@@ -25,18 +25,38 @@ struct GameSelectionView: View {
     
     @State private var selectedGameStatus: GameStatus = .active
     
+    // Edit mode state
+    @State private var isEditMode = false
+    @State private var selectedGames: Set<String> = []
+    @State private var showMultiDeleteConfirmation = false
+    @State private var gamesToDelete: [Game] = []
+    @State private var refreshTrigger = 0 // Force UI refresh when games are deleted
+    
     // Filter games by selected status
     var filteredGames: [Game] {
-        games.filter { $0.gameStatus == selectedGameStatus }
+        navigationState.userGames.filter { $0.gameStatus == selectedGameStatus }
     }
     
     // Count games by status
     var activeGameCount: Int {
-        games.filter { $0.gameStatus == .active }.count
+        navigationState.userGames.filter { $0.gameStatus == .active }.count
     }
     
     var completedGameCount: Int {
-        games.filter { $0.gameStatus == .completed }.count
+        navigationState.userGames.filter { $0.gameStatus == .completed }.count
+    }
+    
+    // Edit mode computed properties - works for both Active and Completed segments
+    var deletableGames: [Game] {
+        filteredGames.filter { GameService.shared.isGameCreator($0, currentUserId: currentUserId) }
+    }
+    
+    var selectedGamesCount: Int {
+        selectedGames.count
+    }
+    
+    var isAllSelected: Bool {
+        !deletableGames.isEmpty && selectedGames.count == deletableGames.count
     }
     
     var body: some View {
@@ -47,15 +67,23 @@ struct GameSelectionView: View {
                     HStack {
                         Spacer()
                         
-                        Button("Cancel") {
-                            dismiss()
+                        if isEditMode {
+                            Button("Done") {
+                                exitEditMode()
+                            }
+                            .foregroundColor(.white)
+                            .font(.body)
+                        } else {
+                            Button("Cancel") {
+                                dismiss()
+                            }
+                            .foregroundColor(.white)
+                            .font(.body)
                         }
-                        .foregroundColor(.white)
-                        .font(.body)
                     }
                     .padding(.horizontal)
                     
-                    Text("Choose which game you'd like to view")
+                    Text(isEditMode ? "Select \(selectedGameStatus == .active ? "active" : "completed") games to delete" : "Choose which game you'd like to view")
                         .font(.subheadline)
                         .foregroundColor(.white.opacity(0.7))
                         .multilineTextAlignment(.center)
@@ -70,35 +98,87 @@ struct GameSelectionView: View {
                         completedCount: completedGameCount
                     )
                     .padding(.horizontal)
+                    
+                    // Edit button (only show if there are deletable games for current segment)
+                    if !isEditMode && !deletableGames.isEmpty {
+                        HStack {
+                            Spacer()
+                            Button(action: {
+                                enterEditMode()
+                            }) {
+                                Image(systemName: "pencil")
+                                    .font(.body)
+                                    .foregroundColor(.white)
+                                    .padding(8)
+                                    .background(Color.blue)
+                                    .clipShape(Circle())
+                            }
+                            Spacer()
+                        }
+                        .padding(.top, 8)
+                    }
                 }
                 .padding(.bottom, 10)
                 
                 // Game List
                 ScrollView {
                     LazyVStack(spacing: 12) {
-                        ForEach(filteredGames, id: \.id) { game in
-                            GameCardView(
-                                game: game, 
-                                usernameCache: usernameCache,
-                                isSelected: selectedGame?.id == game.id,
-                                isCreator: GameService.shared.isGameCreator(game, currentUserId: currentUserId),
-                                onTap: {
-                                    selectedGame = game
-                                    // Automatically open the selected game and dismiss the sheet
-                                    onGameSelected(game)
-                                    dismiss()
-                                },
-                                onDelete: {
-                                    gameToDelete = game
-                                    showDeleteAlert = true
-                                }
-                            )
+                        ForEach(isEditMode ? deletableGames : filteredGames, id: \.id) { game in
+                            if isEditMode {
+                                EditModeGameCardView(
+                                    game: game,
+                                    usernameCache: usernameCache,
+                                    isSelected: selectedGames.contains(game.id),
+                                    isCreator: GameService.shared.isGameCreator(game, currentUserId: currentUserId),
+                                    onToggleSelection: {
+                                        toggleGameSelection(game.id)
+                                    }
+                                )
+                            } else {
+                                GameCardView(
+                                    game: game, 
+                                    usernameCache: usernameCache,
+                                    isSelected: selectedGame?.id == game.id,
+                                    isCreator: GameService.shared.isGameCreator(game, currentUserId: currentUserId),
+                                    onTap: {
+                                        selectedGame = game
+                                        if game.gameStatus == .completed {
+                                            // Show read-only sheet for completed games
+                                            navigationState.selectedGameForReadOnly = game
+                                            navigationState.showReadOnlyGameSheet = true
+                                        } else {
+                                            // Active games use existing logic
+                                            onGameSelected(game)
+                                            dismiss()
+                                        }
+                                    },
+                                    onDelete: {
+                                        gameToDelete = game
+                                        showDeleteAlert = true
+                                    }
+                                )
+                                .id("\(game.id)_\(refreshTrigger)") // Force refresh when games are deleted
+                            }
                         }
                     }
                     .padding(.horizontal)
                 }
                 
-                Spacer()
+                // Multi-delete action bar (only in edit mode)
+                if isEditMode {
+                    MultiDeleteActionBar(
+                        selectedCount: selectedGamesCount,
+                        isAllSelected: isAllSelected,
+                        onSelectAll: selectAllGames,
+                        onDeselectAll: deselectAllGames,
+                        onDeleteSelected: showDeleteConfirmation,
+                        onCancel: exitEditMode
+                    )
+                    .padding(.horizontal)
+                    .padding(.bottom, 20)
+                } else {
+                    Spacer()
+                }
             }
             .navigationBarHidden(true)
             .toolbarBackground(.hidden, for: .navigationBar)
@@ -107,6 +187,12 @@ struct GameSelectionView: View {
             .onAppear {
                 loadUsernamesFromCache()
                 loadCurrentUser()
+            }
+            .onChange(of: navigationState.userGames) { oldGames, newGames in
+                print("🔍 DEBUG: GameSelectionView - Games updated! Old count: \(oldGames.count), New count: \(newGames.count)")
+                print("🔍 DEBUG: GameSelectionView - New game IDs: \(newGames.map { $0.id })")
+                // Reload usernames when games change
+                loadUsernamesFromCache()
             }
             .animation(.easeInOut(duration: 0.3), value: selectedGame)
             .alert("Delete Game", isPresented: $showDeleteAlert) {
@@ -125,6 +211,27 @@ struct GameSelectionView: View {
                 Button("OK") { }
             } message: {
                 Text(deleteErrorMessage)
+            }
+            .alert("Delete Games", isPresented: $showMultiDeleteConfirmation) {
+                Button("Cancel", role: .cancel) { }
+                Button("Delete", role: .destructive) {
+                    deleteSelectedGames()
+                }
+            } message: {
+                if selectedGamesCount == 1 {
+                    Text("Are you sure you want to delete this game? This action cannot be undone.")
+                } else {
+                    Text("Are you sure you want to delete \(selectedGamesCount) games? This action cannot be undone.")
+                }
+            }
+            .sheet(isPresented: $navigationState.showReadOnlyGameSheet) {
+                if let game = navigationState.selectedGameForReadOnly {
+                    ReadOnlyGameSheet(game: game) {
+                        // Back button action - dismiss this sheet
+                        navigationState.showReadOnlyGameSheet = false
+                        navigationState.selectedGameForReadOnly = nil
+                    }
+                }
             }
         }
     }
@@ -158,8 +265,17 @@ struct GameSelectionView: View {
                 isDeleting = false
                 
                 if success {
+                    // Immediately remove from navigationState.userGames for instant UI update
+                    let beforeCount = navigationState.userGames.count
+                    navigationState.userGames.removeAll { $0.id == game.id }
+                    let afterCount = navigationState.userGames.count
+                    print("🔍 DEBUG: GameSelectionView - Immediately removed single game \(game.id) from UI. Count: \(beforeCount) → \(afterCount)")
+                    
+                    // Force UI refresh
+                    refreshTrigger += 1
+                    
                     // Game deleted successfully - notify parent and dismiss the view
-                    onGameDeleted?()
+                    onGameDeleted?(game)
                     dismiss()
                 } else {
                     // Show error message
@@ -173,12 +289,125 @@ struct GameSelectionView: View {
     func loadUsernamesFromCache() {
         Task {
             // Get all unique player IDs from all games (active and completed)
-            let allPlayerIDs = Set(games.flatMap { $0.playerIDs })
+            let allPlayerIDs = Set(navigationState.userGames.flatMap { $0.playerIDs })
             print("🔍 DEBUG: GameSelectionView - Loading usernames for \(allPlayerIDs.count) player IDs: \(Array(allPlayerIDs))")
             
             // Use the cache service to get usernames
             let usernames = await usernameCache.getUsernames(for: Array(allPlayerIDs))
             print("🔍 DEBUG: GameSelectionView - Retrieved usernames: \(usernames)")
+        }
+    }
+    
+    // MARK: - Edit Mode Functions
+    
+    func enterEditMode() {
+        withAnimation(.easeInOut(duration: 0.3)) {
+            isEditMode = true
+            selectedGames.removeAll()
+            
+            // Debug logging to verify only deletable games are shown
+            print("🔍 DEBUG: GameSelectionView - Entering edit mode")
+            print("🔍 DEBUG: GameSelectionView - Total games in current segment: \(filteredGames.count)")
+            print("🔍 DEBUG: GameSelectionView - Deletable games: \(deletableGames.count)")
+            print("🔍 DEBUG: GameSelectionView - Deletable game IDs: \(deletableGames.map { $0.id })")
+            
+            for game in deletableGames {
+                let isCreator = GameService.shared.isGameCreator(game, currentUserId: currentUserId)
+                print("🔍 DEBUG: GameSelectionView - Game \(game.id) isCreator: \(isCreator)")
+            }
+        }
+    }
+    
+    func exitEditMode() {
+        withAnimation(.easeInOut(duration: 0.3)) {
+            isEditMode = false
+            selectedGames.removeAll()
+        }
+    }
+    
+    func toggleGameSelection(_ gameId: String) {
+        print("🔍 DEBUG: GameSelectionView - toggleGameSelection called for game: \(gameId)")
+        print("🔍 DEBUG: GameSelectionView - Current selectedGames before: \(selectedGames)")
+        
+        withAnimation(.easeInOut(duration: 0.2)) {
+            if selectedGames.contains(gameId) {
+                selectedGames.remove(gameId)
+                print("🔍 DEBUG: GameSelectionView - Deselected game: \(gameId)")
+            } else {
+                selectedGames.insert(gameId)
+                print("🔍 DEBUG: GameSelectionView - Selected game: \(gameId)")
+            }
+        }
+        
+        print("🔍 DEBUG: GameSelectionView - Current selectedGames after: \(selectedGames)")
+    }
+    
+    func selectAllGames() {
+        withAnimation(.easeInOut(duration: 0.3)) {
+            selectedGames = Set(deletableGames.map { $0.id })
+        }
+    }
+    
+    func deselectAllGames() {
+        withAnimation(.easeInOut(duration: 0.3)) {
+            selectedGames.removeAll()
+        }
+    }
+    
+    func showDeleteConfirmation() {
+        gamesToDelete = deletableGames.filter { selectedGames.contains($0.id) }
+        showMultiDeleteConfirmation = true
+    }
+    
+    func deleteSelectedGames() {
+        guard !gamesToDelete.isEmpty else { return }
+        
+        isDeleting = true
+        
+        Task {
+            var successCount = 0
+            var failedGames: [String] = []
+            
+            for game in gamesToDelete {
+                let success = await GameService.shared.deleteGame(game, currentUserId: currentUserId)
+                if success {
+                    successCount += 1
+                    // Immediately remove from navigationState.userGames for instant UI update
+                    await MainActor.run {
+                        let beforeCount = navigationState.userGames.count
+                        navigationState.userGames.removeAll { $0.id == game.id }
+                        let afterCount = navigationState.userGames.count
+                        print("🔍 DEBUG: GameSelectionView - Immediately removed game \(game.id) from UI. Count: \(beforeCount) → \(afterCount)")
+                        
+                        // Force UI refresh
+                        refreshTrigger += 1
+                        
+                        // Notify parent of successful deletion (for backend sync)
+                        onGameDeleted?(game)
+                    }
+                } else {
+                    failedGames.append(game.gameName ?? "Untitled Game")
+                }
+            }
+            
+            await MainActor.run {
+                isDeleting = false
+                
+                if successCount > 0 {
+                    // Clear selections and exit edit mode
+                    selectedGames.removeAll()
+                    isEditMode = false
+                    
+                    // Notify parent of successful deletions (for backend sync)
+                    // Note: Individual game deletions are already handled in the loop above
+                    // This is just for cleanup, the reactive system will handle the updates
+                }
+                
+                if !failedGames.isEmpty {
+                    deleteErrorMessage = "Failed to delete \(failedGames.count) game(s): \(failedGames.joined(separator: ", "))"
+                    showDeleteError = true
+                }
+            }
         }
     }
 }
@@ -192,24 +421,29 @@ struct GameCardView: View {
     let onDelete: () -> Void
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Game header
-            HStack {
+        Button(action: onTap) {
+            HStack(spacing: 12) {
+                // Game icon - Animated Logo
+                AppLogoIcon(isSelected: isSelected, size: 20)
+                
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
                         Text(game.gameName?.isEmpty != false ? "Untitled Game" : (game.gameName ?? "Untitled Game"))
-                            .font(.headline)
-                            .fontWeight(.semibold)
+                            .font(.body)
+                            .fontWeight(.medium)
+                            .foregroundColor(.white)
+                            .lineLimit(1)
                         
+                        // Creator indicator
                         if isCreator {
                             Text("Created by you")
                                 .font(.caption2)
                                 .fontWeight(.medium)
                                 .foregroundColor(.white)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
+                                .padding(.horizontal, 4)
+                                .padding(.vertical, 1)
                                 .background(Color.blue)
-                                .cornerRadius(4)
+                                .cornerRadius(3)
                         }
                         
                         // Game status indicator
@@ -217,15 +451,30 @@ struct GameCardView: View {
                             .font(.caption2)
                             .fontWeight(.medium)
                             .foregroundColor(.white)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 1)
                             .background(game.gameStatus == .active ? Color.green : Color.orange)
-                            .cornerRadius(4)
+                            .cornerRadius(3)
                     }
                     
-                    Text("\(game.rounds) Rounds")
-                        .font(.caption)
-                        .foregroundColor(.white.opacity(0.7))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("\(game.playerIDs.count) players • \(game.rounds) rounds")
+                            .font(.caption)
+                            .foregroundColor(.white.opacity(0.7))
+                        
+                        if !usernameCache.isLoading {
+                            let playerList = game.playerIDs.map { playerID in
+                                let displayName = usernameCache.getDisplayName(for: playerID)
+                                print("🔍 DEBUG: GameCardView - Player ID: \(playerID) -> Display Name: \(displayName)")
+                                return displayName
+                            }
+                            
+                            Text(playerList.joined(separator: ", "))
+                                .font(.caption2)
+                                .foregroundColor(.white.opacity(0.6))
+                                .lineLimit(1)
+                        }
+                    }
                 }
                 
                 Spacer()
@@ -233,100 +482,195 @@ struct GameCardView: View {
                 // Selection indicator
                 if isSelected {
                     Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(.green)
                         .font(.title2)
-                }
-                
-                // Game code
-                VStack(alignment: .trailing, spacing: 2) {
-                    Text("Code")
-                        .font(.caption2)
-                        .foregroundColor(.white.opacity(0.7))
-                    Text(String(game.id.prefix(6)).uppercased())
-                        .font(.caption.bold())
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.white.opacity(0.1))
-                        .cornerRadius(4)
+                        .foregroundColor(Color("LightGreen"))
                 }
             }
-            
-            // Players
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Players:")
-                    .font(.caption)
-                    .foregroundColor(.white.opacity(0.7))
-                
-                if usernameCache.isLoading {
-                    HStack {
-                        ProgressView()
-                            .scaleEffect(0.8)
-                        Text("Loading players...")
-                            .font(.body)
-                            .foregroundColor(.white.opacity(0.7))
-                    }
-                } else {
-                    let playerList = game.playerIDs.map { playerID in
-                        let displayName = usernameCache.getDisplayName(for: playerID)
-                        print("🔍 DEBUG: GameCardView - Player ID: \(playerID) -> Display Name: \(displayName)")
-                        return displayName
-                    }
-                    
-                    Text(playerList.joined(separator: ", "))
-                        .font(.body)
-                        .foregroundColor(.white)
-                        .lineLimit(2)
-                }
+            .padding(12)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(isSelected ? Color("LightGreen").opacity(0.2) : Color.black.opacity(0.3))
+            )
+        }
+        .buttonStyle(PlainButtonStyle())
+        .onAppear {
+            Task {
+                await usernameCache.getUsernames(for: game.playerIDs)
             }
-            
-            // Action buttons
-            HStack {
-                Spacer()
-                
-                // Select button
-                Button(action: onTap) {
-                    HStack {
-                        Image(systemName: isSelected ? "checkmark.circle.fill" : "arrow.right.circle")
-                            .foregroundColor(.white)
-                        Text(isSelected ? "Selected" : "Select Game")
-                            .fontWeight(.medium)
-                            .foregroundColor(.white)
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
-                    .background(isSelected ? Color.green : Color.blue)
-                    .cornerRadius(8)
-                }
-                
-                // Delete button (only for creators)
-                if isCreator {
-                    Button(action: onDelete) {
-                        HStack {
-                            Image(systemName: "trash.fill")
-                                .foregroundColor(.white)
-                            Text("Delete")
-                                .fontWeight(.medium)
-                                .foregroundColor(.white)
-                        }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .background(Color.red)
-                        .cornerRadius(8)
-                    }
-                    .padding(.leading, 8)
+        }
+        .contextMenu {
+            // Delete option for creators (long press)
+            if isCreator {
+                Button(action: onDelete) {
+                    Label("Delete Game", systemImage: "trash")
                 }
             }
         }
-        .padding()
-        .background(Color.black.opacity(0.3))
-        .cornerRadius(12)
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(isSelected ? Color.green : Color.white.opacity(0.3), lineWidth: isSelected ? 2 : 1)
+    }
+}
+
+// MARK: - Edit Mode Game Card View
+struct EditModeGameCardView: View {
+    let game: Game
+    let usernameCache: UsernameCacheService
+    let isSelected: Bool
+    let isCreator: Bool
+    let onToggleSelection: () -> Void
+    
+    var body: some View {
+        Button(action: {
+            print("🔍 DEBUG: EditModeGameCardView - Button tapped for game: \(game.id)")
+            onToggleSelection()
+        }) {
+            HStack(spacing: 12) {
+                // Selection checkbox
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .foregroundColor(isSelected ? Color("LightGreen") : .white.opacity(0.6))
+                    .font(.title2)
+                    .background(
+                        Circle()
+                            .fill(isSelected ? Color("LightGreen").opacity(0.2) : Color.clear)
+                            .frame(width: 32, height: 32)
+                    )
+                
+                // Game icon - Animated Logo
+                AppLogoIcon(isSelected: isSelected, size: 20)
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text(game.gameName?.isEmpty != false ? "Untitled Game" : (game.gameName ?? "Untitled Game"))
+                            .font(.body)
+                            .fontWeight(.medium)
+                            .foregroundColor(.white)
+                            .lineLimit(1)
+                        
+                        // Creator indicator
+                        if isCreator {
+                            Text("Created by you")
+                                .font(.caption2)
+                                .fontWeight(.medium)
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 4)
+                                .padding(.vertical, 1)
+                                .background(Color.blue)
+                                .cornerRadius(3)
+                        }
+                        
+                        // Game status indicator
+                        Text(game.gameStatus == .active ? "Active" : "Completed")
+                            .font(.caption2)
+                            .fontWeight(.medium)
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 1)
+                            .background(game.gameStatus == .active ? Color.green : Color.orange)
+                            .cornerRadius(3)
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("\(game.playerIDs.count) players • \(game.rounds) rounds")
+                            .font(.caption)
+                            .foregroundColor(.white.opacity(0.7))
+                        
+                        if !usernameCache.isLoading {
+                            let playerList = game.playerIDs.map { playerID in
+                                usernameCache.getDisplayName(for: playerID)
+                            }
+                            
+                            Text(playerList.joined(separator: ", "))
+                                .font(.caption2)
+                                .foregroundColor(.white.opacity(0.6))
+                                .lineLimit(1)
+                        }
+                    }
+                }
+                
+                Spacer()
+            }
+            .padding(12)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(isSelected ? Color("LightGreen").opacity(0.2) : Color.black.opacity(0.3))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(isSelected ? Color("LightGreen") : Color.clear, lineWidth: 1)
+                    )
+            )
+        }
+        .buttonStyle(PlainButtonStyle())
+        .contentShape(Rectangle()) // Ensure entire area is tappable
+        .onAppear {
+            Task {
+                await usernameCache.getUsernames(for: game.playerIDs)
+            }
+        }
+    }
+}
+
+// MARK: - Multi Delete Action Bar
+struct MultiDeleteActionBar: View {
+    let selectedCount: Int
+    let isAllSelected: Bool
+    let onSelectAll: () -> Void
+    let onDeselectAll: () -> Void
+    let onDeleteSelected: () -> Void
+    let onCancel: () -> Void
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            // Select All / Deselect All button
+            Button(action: isAllSelected ? onDeselectAll : onSelectAll) {
+                Text(isAllSelected ? "Deselect All" : "Select All")
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(Color.blue)
+                    .cornerRadius(6)
+            }
+            
+            Spacer()
+            
+            // Delete Selected button
+            Button(action: onDeleteSelected) {
+                HStack(spacing: 6) {
+                    Image(systemName: "trash")
+                        .font(.caption)
+                    Text("Delete (\(selectedCount))")
+                        .font(.caption)
+                        .fontWeight(.medium)
+                }
+                .foregroundColor(.white)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(selectedCount > 0 ? Color.red : Color.gray)
+                .cornerRadius(6)
+            }
+            .disabled(selectedCount == 0)
+            
+            // Cancel button
+            Button(action: onCancel) {
+                Text("Cancel")
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(Color.gray)
+                    .cornerRadius(6)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color.black.opacity(0.8))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                )
         )
-        .scaleEffect(isSelected ? 1.02 : 1.0)
-        .animation(.easeInOut(duration: 0.2), value: isSelected)
     }
 }
 

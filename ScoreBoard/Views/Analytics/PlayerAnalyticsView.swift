@@ -15,6 +15,11 @@ struct PlayerAnalyticsView: View {
     @State private var playerStats: PlayerStats?
     @StateObject private var analyticsService = AnalyticsService.shared
     
+    // Add initializer to accept pre-loaded playerStats
+    init(playerStats: PlayerStats? = nil) {
+        self._playerStats = State(initialValue: playerStats)
+    }
+    
     // Help alert states
     @State private var showingPlayerInfo = false
     @State private var showingStatsInfo = false
@@ -239,8 +244,11 @@ struct PlayerAnalyticsView: View {
             Text(currentStatInfo)
         }
         .onAppear {
-            Task {
-                playerStats = await analyticsService.loadUserAnalytics()
+            // Only load data if not already provided
+            if playerStats == nil {
+                Task {
+                    playerStats = await analyticsService.loadUserAnalytics()
+                }
             }
         }
     }
@@ -346,19 +354,26 @@ struct PlayerAnalyticsView: View {
 
              for game in games {
                  let gameScores = scoresByGame[game.id] ?? []
-                 guard let myScore = gameScores.first(where: { $0.playerID == userId }) else { continue }
+                 guard let myScore = gameScores.first(where: { $0.playerID == userId }) else { 
+                     print("🔍 DEBUG: PlayerStats.from - No score found for user \(userId) in game \(game.id)")
+                     continue 
+                 }
                  
                  // Determine winner based on game's win condition
                  let isWin: Bool
                  let winCondition = game.winCondition ?? .highestScore
                  
+                 print("🔍 DEBUG: PlayerStats.from - Processing game \(game.id): winCondition=\(winCondition.rawValue), myScore=\(myScore.score), allScores=\(gameScores.map { $0.score })")
+                 
                  switch winCondition {
                  case .highestScore:
                      let maxScore = gameScores.map { $0.score }.max() ?? 0
                      isWin = myScore.score == maxScore && maxScore > 0
+                     print("🔍 DEBUG: PlayerStats.from - Highest score game: maxScore=\(maxScore), isWin=\(isWin)")
                  case .lowestScore:
                      let minScore = gameScores.map { $0.score }.min() ?? 0
                      isWin = myScore.score == minScore && minScore > 0
+                     print("🔍 DEBUG: PlayerStats.from - Lowest score game: minScore=\(minScore), isWin=\(isWin)")
                  }
                  
                  if isWin {
@@ -367,8 +382,10 @@ struct PlayerAnalyticsView: View {
                      switch winCondition {
                      case .highestScore:
                          highestScoreWins += 1
+                         print("🔍 DEBUG: PlayerStats.from - Incremented highestScoreWins to \(highestScoreWins)")
                      case .lowestScore:
                          lowestScoreWins += 1
+                         print("🔍 DEBUG: PlayerStats.from - Incremented lowestScoreWins to \(lowestScoreWins)")
                      }
                  } else {
                      losses += 1
@@ -405,6 +422,8 @@ struct PlayerAnalyticsView: View {
 
              // 5. Win rate
              let winRate = totalGames > 0 ? Double(wins) / Double(totalGames) : 0
+             
+             print("🔍 DEBUG: PlayerStats.from - Final win condition counts: highestScoreWins=\(highestScoreWins), lowestScoreWins=\(lowestScoreWins), totalWins=\(wins)")
 
              // 6. Achievements with win condition awareness
              let achievements: [Achievement] = [

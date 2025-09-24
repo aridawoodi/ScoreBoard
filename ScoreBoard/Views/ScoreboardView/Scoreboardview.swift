@@ -800,14 +800,31 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                 let userGames = DataManager.shared.getGamesForUser(userId)
                 
                 await MainActor.run {
-                    self.availableGames = userGames
-                    // Find current game index
-                    if let currentIndex = userGames.firstIndex(where: { $0.id == self.game.id }) {
+                    // Filter to only active games and sort by creation date (latest first)
+                    let activeGames = userGames
+                        .filter { $0.gameStatus == .active }
+                        .sorted { game1, game2 in
+                            // Sort by creation date - most recent first
+                            let date1 = game1.createdAt.foundationDate ?? Date.distantPast
+                            let date2 = game2.createdAt.foundationDate ?? Date.distantPast
+                            return date1 > date2
+                        }
+                    
+                    // Take only the latest 3 active games
+                    let latest3ActiveGames = Array(activeGames.prefix(3))
+                    
+                    self.availableGames = latest3ActiveGames
+                    
+                    // Find current game index in the filtered list
+                    if let currentIndex = latest3ActiveGames.firstIndex(where: { $0.id == self.game.id }) {
                         self.currentGameIndex = currentIndex
                     } else {
                         self.currentGameIndex = 0
                     }
-                    print("🔍 DEBUG: Loaded \(userGames.count) games, current index: \(self.currentGameIndex)")
+                    
+                    print("🔍 DEBUG: ScoreboardView - Filtered to \(latest3ActiveGames.count) latest active games")
+                    print("🔍 DEBUG: ScoreboardView - Available games: \(latest3ActiveGames.map { $0.gameName ?? "Untitled" })")
+                    print("🔍 DEBUG: Loaded \(latest3ActiveGames.count) games, current index: \(self.currentGameIndex)")
                 }
             }
         }
@@ -1110,7 +1127,7 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                     .font(.system(size: 16, weight: .medium))
                     .foregroundColor(.white)
                 
-                Text("\(availableGames.count) Games")
+                Text("\(availableGames.count) Active Games")
                     .font(.system(size: 14, weight: .medium))
                     .foregroundColor(.white)
                 
@@ -4148,7 +4165,7 @@ struct GameListBottomSheet: View {
                         .fontWeight(.bold)
                         .foregroundColor(.white)
                     
-                    Text("\(games.count) games available")
+                    Text("Latest \(games.count) active games")
                         .font(.caption)
                         .foregroundColor(.white.opacity(0.7))
                 }

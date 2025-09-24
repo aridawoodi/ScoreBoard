@@ -55,6 +55,10 @@ class DataManager: ObservableObject {
     
     // Reactive leaderboard calculation - automatically updates when games/scores change
     @Published var reactiveLeaderboardData: [PlayerLeaderboardEntry] = []
+    
+    // Reactive analytics data - automatically updates when games/scores change
+    @Published var reactiveAnalyticsData: Any?
+    
     private var cancellables = Set<AnyCancellable>()
     
     // Cache management
@@ -682,6 +686,31 @@ class DataManager: ObservableObject {
         return anonymousName
     }
     
+    // MARK: - Analytics Data Generation (Cost-Efficient)
+    
+    /// Generates analytics data for a specific user using cached data (no API calls)
+    func generateUserAnalytics(for userId: String) -> Any? {
+        print("🔍 DEBUG: DataManager.generateUserAnalytics called for user: \(userId)")
+        
+        // Get user's games from cached data
+        let userGames = getGamesForUser(userId)
+        print("🔍 DEBUG: DataManager.generateUserAnalytics - Found \(userGames.count) games for user")
+        
+        // Get user's scores from cached data
+        let userScores = getScoresForPlayer(userId)
+        print("🔍 DEBUG: DataManager.generateUserAnalytics - Found \(userScores.count) scores for user")
+        
+        // Use the same logic as AnalyticsService but with cached data
+        guard !userGames.isEmpty, !userScores.isEmpty else {
+            print("🔍 DEBUG: DataManager.generateUserAnalytics - No data available for user")
+            return nil
+        }
+        
+        // Return the raw data for AnalyticsTabView to process
+        print("🔍 DEBUG: DataManager.generateUserAnalytics - Successfully generated analytics data for user")
+        return ["games": userGames, "scores": userScores, "userId": userId]
+    }
+    
     // MARK: - Reactive Leaderboard System
     
     /// Sets up reactive leaderboard calculation that automatically updates when games or scores change
@@ -692,6 +721,8 @@ class DataManager: ObservableObject {
             .sink { [weak self] games, scores, currentUserId in
                 Task { @MainActor in
                     await self?.calculateReactiveLeaderboard(games: games, scores: scores, currentUserId: currentUserId)
+                    // Also calculate reactive analytics data
+                    await self?.calculateReactiveAnalytics(games: games, scores: scores, currentUserId: currentUserId)
                 }
             }
             .store(in: &cancellables)
@@ -907,6 +938,31 @@ class DataManager: ObservableObject {
         }
     }
     
+    /// Calculates analytics data reactively using existing data (no additional API calls)
+    @MainActor
+    private func calculateReactiveAnalytics(games: [Game], scores: [Score], currentUserId: String?) async {
+        print("🔍 DEBUG: DataManager - Reactive analytics calculation triggered")
+        
+        // If no current user, clear the analytics data
+        guard let currentUserId = currentUserId else {
+            print("🔍 DEBUG: DataManager - No current user, clearing analytics data")
+            reactiveAnalyticsData = nil
+            return
+        }
+        
+        // Use the generateUserAnalytics method to create analytics data from cached data
+        let analyticsData = generateUserAnalytics(for: currentUserId)
+        
+        if let analyticsData = analyticsData {
+            print("🔍 DEBUG: DataManager - Reactive analytics calculation completed for user \(currentUserId)")
+            print("🔍 DEBUG: DataManager - Analytics data generated successfully")
+        } else {
+            print("🔍 DEBUG: DataManager - No analytics data available for user \(currentUserId)")
+        }
+        
+        reactiveAnalyticsData = analyticsData
+    }
+    
     /// Callback for when a game is updated - triggers reactive leaderboard recalculation
     @MainActor
     func onGameUpdated(_ updatedGame: Game) {
@@ -1032,6 +1088,7 @@ class DataManager: ObservableObject {
             scores = []
             users = []
             reactiveLeaderboardData = []
+            reactiveAnalyticsData = nil
             userLeaderboardData = []
             leaderboardData = []
             lastError = nil

@@ -11,15 +11,11 @@ import SwiftUI
 struct AnalyticsTabView: View {
     @ObservedObject var navigationState: NavigationState
     @Binding var selectedTab: Int
-    @StateObject private var analyticsService = AnalyticsService.shared
-    @StateObject private var dataManager = DataManager.shared
-    @State private var playerStats: PlayerStats?
-    @State private var isLoading = false
-    @State private var showSampleData = false
+    @ObservedObject private var dataManager = DataManager.shared
     
     var body: some View {
         Group {
-            if isLoading {
+            if dataManager.isLoadingGames || dataManager.isLoadingScores || dataManager.isLoadingUsers {
                 VStack(spacing: 16) {
                     ProgressView()
                         .scaleEffect(1.2)
@@ -27,40 +23,35 @@ struct AnalyticsTabView: View {
                         .font(.headline)
                         .foregroundColor(.white.opacity(0.7))
                 }
-            } else if let stats = playerStats {
-                // Show real analytics data
-                PlayerAnalyticsView()
-                    .onAppear {
-                        // The PlayerAnalyticsView will handle its own data loading
-                    }
+            } else if let analyticsData = dataManager.reactiveAnalyticsData as? [String: Any] {
+                // Show real analytics data from reactive DataManager
+                AnalyticsDataView(analyticsData: analyticsData)
             } else {
-                // Show sample data with clear indication it's sample data
+                // Show sample data when no real data is available
                 SampleAnalyticsView()
             }
         }
         .gradientBackground()
         .onAppear {
-            loadAnalyticsData()
+            print("🔍 DEBUG: AnalyticsTabView onAppear - using reactive analytics data from DataManager")
+            print("🔍 DEBUG: AnalyticsTabView - Current analytics data available: \(dataManager.reactiveAnalyticsData != nil)")
         }
     }
+}
+
+// MARK: - Analytics Data View
+struct AnalyticsDataView: View {
+    let analyticsData: [String: Any]
     
-    private func loadAnalyticsData() {
-        isLoading = true
-        
-        Task {
-            // Check if user has any games
-            let hasGames = !navigationState.userGames.isEmpty
-            
-            if hasGames {
-                // Load real analytics data
-                playerStats = await analyticsService.loadUserAnalytics()
+    var body: some View {
+        Group {
+            if let games = analyticsData["games"] as? [Game],
+               let scores = analyticsData["scores"] as? [Score],
+               let userId = analyticsData["userId"] as? String,
+               let stats = PlayerStats.from(games: games, scores: scores, userId: userId) {
+                PlayerAnalyticsView(playerStats: stats)
             } else {
-                // Show sample data - no need to set playerStats
-                showSampleData = true
-            }
-            
-            await MainActor.run {
-                isLoading = false
+                SampleAnalyticsView()
             }
         }
     }

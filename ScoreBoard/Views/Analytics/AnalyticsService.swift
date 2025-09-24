@@ -70,9 +70,21 @@ class AnalyticsService: ObservableObject {
                 print("🔍 DEBUG: User scores details: \(userScores.map { "Player: \($0.playerID), Score: \($0.score), Round: \($0.roundNumber)" })")
                 
                 // Create real analytics from backend data
+                print("🔍 DEBUG: AnalyticsService - About to create PlayerStats from \(userGames.count) games and \(userScores.count) scores for user \(userId)")
+                
+                // Debug: Print game details
+                for game in userGames {
+                    print("🔍 DEBUG: AnalyticsService - Game \(game.id): status=\(game.gameStatus), winCondition=\(game.winCondition?.rawValue ?? "nil"), playerIDs=\(game.playerIDs)")
+                }
+                
+                // Debug: Print score details
+                for score in userScores {
+                    print("🔍 DEBUG: AnalyticsService - Score: gameID=\(score.gameID), playerID=\(score.playerID), score=\(score.score), round=\(score.roundNumber)")
+                }
+                
                 guard let realStats = PlayerStats.from(games: userGames, scores: userScores, userId: userId) else {
                     // No data available, return nil to show sample analytics
-                    print("🔍 DEBUG: No games/scores found - returning nil for sample analytics")
+                    print("🔍 DEBUG: AnalyticsService - No games/scores found - returning nil for sample analytics")
                     await MainActor.run {
                         self.isLoading = false
                     }
