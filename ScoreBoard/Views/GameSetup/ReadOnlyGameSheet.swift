@@ -4,7 +4,10 @@
 //
 //  Created by Ari Dawoodi on 12/14/24.
 //
+//  DEPRECATED: This file is no longer used. Replaced by ScoreboardView with readCompleted mode.
+//
 
+/*
 import SwiftUI
 import Amplify
 
@@ -516,3 +519,4 @@ struct ReadOnlyGameInfoSheet: View {
         // Preview back action
     }
 }
+*/

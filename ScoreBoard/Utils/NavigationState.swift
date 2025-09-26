@@ -15,8 +15,9 @@ class NavigationState: ObservableObject {
     @Published var isLoading = false
     @Published var shouldShowMainBoard = false
     @Published var isKeyboardActive = false
-    @Published var showReadOnlyGameSheet = false
-    @Published var selectedGameForReadOnly: Game?
+    @Published var showScoreboardView = false
+    @Published var selectedGameForScoreboard: Game?
+    @Published var scoreboardMode: ScoreboardMode = .edit
     
     func clear() {
         selectedGame = nil
@@ -24,8 +25,9 @@ class NavigationState: ObservableObject {
         isLoading = false
         shouldShowMainBoard = false
         isKeyboardActive = false
-        showReadOnlyGameSheet = false
-        selectedGameForReadOnly = nil
+        showScoreboardView = false
+        selectedGameForScoreboard = nil
+        scoreboardMode = .edit
     }
     
     var hasGames: Bool {
@@ -57,5 +59,11 @@ class NavigationState: ObservableObject {
                 self.userGames = updatedGames
             }
         }
+    }
+    
+    func showScoreboardForGame(_ game: Game, mode: ScoreboardMode = .edit) {
+        selectedGameForScoreboard = game
+        scoreboardMode = mode
+        showScoreboardView = true
     }
 } 

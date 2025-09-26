@@ -143,9 +143,8 @@ struct GameSelectionView: View {
                                     onTap: {
                                         selectedGame = game
                                         if game.gameStatus == .completed {
-                                            // Show read-only sheet for completed games
-                                            navigationState.selectedGameForReadOnly = game
-                                            navigationState.showReadOnlyGameSheet = true
+                                            // Show ScoreboardView in readCompleted mode for completed games
+                                            navigationState.showScoreboardForGame(game, mode: .readCompleted)
                                         } else {
                                             // Active games use existing logic
                                             onGameSelected(game)
@@ -224,15 +223,33 @@ struct GameSelectionView: View {
                     Text("Are you sure you want to delete \(selectedGamesCount) games? This action cannot be undone.")
                 }
             }
-            .sheet(isPresented: $navigationState.showReadOnlyGameSheet) {
-                if let game = navigationState.selectedGameForReadOnly {
-                    ReadOnlyGameSheet(game: game) {
-                        // Back button action - dismiss this sheet
-                        navigationState.showReadOnlyGameSheet = false
-                        navigationState.selectedGameForReadOnly = nil
-                    }
-                }
+            .sheet(isPresented: $navigationState.showScoreboardView) {
+                scoreboardSheetContent
             }
+        }
+    }
+    
+    // MARK: - Computed Properties
+    
+    @ViewBuilder
+    private var scoreboardSheetContent: some View {
+        if let game = navigationState.selectedGameForScoreboard {
+            ScoreboardView(
+                game: .constant(game),
+                mode: navigationState.scoreboardMode,
+                onGameUpdated: { _ in
+                    // Game updated callback - no action needed for read-only mode
+                },
+                onGameDeleted: {
+                    // Game deleted callback - dismiss the sheet
+                    navigationState.showScoreboardView = false
+                    navigationState.selectedGameForScoreboard = nil
+                    navigationState.scoreboardMode = .edit
+                },
+                onKeyboardStateChanged: { _ in
+                    // Keyboard state changed callback - no action needed
+                }
+            )
         }
     }
     

@@ -20,8 +20,8 @@ struct YourBoardTabView: View {
         NavigationStack {
             VStack {
                 if let selectedGame = navigationState.selectedGame, !forceViewReset {
-                    // Show selected game with new Scoreboardview
-                    Scoreboardview(game: Binding(
+                    // Show selected game with ScoreboardView in edit mode
+                    ScoreboardView(game: Binding(
                         get: { navigationState.selectedGame ?? selectedGame },
                         set: { newGame in
                             print("🔍 DEBUG: YourBoardTabView - Binding setter called. Updated game ID: \(newGame.id), status: \(newGame.gameStatus)")
@@ -30,7 +30,7 @@ struct YourBoardTabView: View {
                             DataManager.shared.onGameUpdated(newGame)
                             print("🔍 DEBUG: YourBoardTabView - DataManager notified of game update")
                         }
-                    )) { updatedGame in
+                    ), mode: .edit) { updatedGame in
                         print("🔍 DEBUG: ===== GAME UPDATE IN YOUR BOARD TAB ======")
                         print("🔍 DEBUG: Updating selectedGame from \(selectedGame.id) to \(updatedGame.id)")
                         print("🔍 DEBUG: Old rounds: \(selectedGame.rounds), New rounds: \(updatedGame.rounds)")
@@ -84,8 +84,8 @@ struct YourBoardTabView: View {
                     }
                     
                 } else if let latestGame = navigationState.latestGame, !forceViewReset, !navigationState.shouldShowMainBoard {
-                    // Show latest game with new Scoreboardview
-                    Scoreboardview(game: .constant(latestGame)) { updatedGame in
+                    // Show latest game with ScoreboardView in edit mode
+                    ScoreboardView(game: .constant(latestGame), mode: .edit) { updatedGame in
                         print("🔍 DEBUG: ===== GAME UPDATE IN YOUR BOARD TAB (LATEST) =====")
                         print("🔍 DEBUG: Updating latestGame from \(latestGame.id) to \(updatedGame.id)")
                         print("🔍 DEBUG: Old rounds: \(latestGame.rounds), New rounds: \(updatedGame.rounds)")

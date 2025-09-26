@@ -189,8 +189,15 @@ struct TestPlayer: Identifiable {
     var total: Int { scores.filter { $0 != -1 }.reduce(0, +) }
 }
 
-struct Scoreboardview: View {
+// MARK: - Scoreboard Mode
+enum ScoreboardMode {
+    case edit        // For active games (current behavior)
+    case readCompleted // For completed games (new behavior)
+}
+
+struct ScoreboardView: View {
     @Binding var game: Game
+    let mode: ScoreboardMode
     @State private var selectedRound = 1
     @State private var players: [TestPlayer] = []
     @State private var isLoading = true
@@ -298,11 +305,12 @@ struct Scoreboardview: View {
     let onGameDeleted: (() -> Void)?
     let onKeyboardStateChanged: ((Bool) -> Void)?
     
-    init(game: Binding<Game>, onGameUpdated: ((Game) -> Void)? = nil, onGameDeleted: (() -> Void)? = nil, onKeyboardStateChanged: ((Bool) -> Void)? = nil) {
+    init(game: Binding<Game>, mode: ScoreboardMode = .edit, onGameUpdated: ((Game) -> Void)? = nil, onGameDeleted: (() -> Void)? = nil, onKeyboardStateChanged: ((Bool) -> Void)? = nil) {
         self._game = game
         self._currentGameId = State(initialValue: game.wrappedValue.id)
         self._lastKnownGameRounds = State(initialValue: game.wrappedValue.rounds)
         self._dynamicRounds = State(initialValue: game.wrappedValue.rounds)
+        self.mode = mode
         self.onGameUpdated = onGameUpdated
         self.onGameDeleted = onGameDeleted
         self.onKeyboardStateChanged = onKeyboardStateChanged
@@ -4007,7 +4015,7 @@ struct SystemKeyboardView: View {
 
 
 
-struct Scoreboardview_Previews: PreviewProvider {
+struct ScoreboardView_Previews: PreviewProvider {
     static var previews: some View {
         // Create a sample game for preview
         let sampleGame = Game(
@@ -4021,7 +4029,7 @@ struct Scoreboardview_Previews: PreviewProvider {
             createdAt: Temporal.DateTime.now(),
             updatedAt: Temporal.DateTime.now()
         )
-        Scoreboardview(game: .constant(sampleGame))
+        ScoreboardView(game: .constant(sampleGame), mode: .edit)
     }
 }
 
