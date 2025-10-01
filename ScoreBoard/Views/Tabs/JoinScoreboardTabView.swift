@@ -30,8 +30,9 @@ struct JoinScoreboardTabView: View {
                     }
                     
                     if navigationState.gameCount == 1 {
-                        navigationState.selectedGame = navigationState.userGames.first
-                        selectedTab = 2 // Switch to Your Board
+                        // Show game selection sheet even for single game
+                        // This allows users to view completed games properly
+                        showGameSelection = true
                     } else if navigationState.gameCount > 1 {
                         showGameSelection = true
                     } else {

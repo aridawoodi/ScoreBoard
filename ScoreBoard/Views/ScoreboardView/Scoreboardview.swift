@@ -205,6 +205,10 @@ struct ScoreboardView: View {
     @State private var showGameSettings = false
     @State private var playerNames: [String: String] = [:]
     @State private var scores: [String: [Int]] = [:]
+    
+    // Player hierarchy states
+    @State private var playerHierarchy: [String: [String]] = [:]
+    @State private var childPlayerNames: [String: String] = [:]
     @State private var gameUpdateCounter = 0 // Track game updates
     @State private var currentGameId: String // Track current game ID
     @State private var lastKnownGameRounds: Int // Track last known rounds
@@ -578,21 +582,39 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
         
         let trimmedName = editingPlayerName.trimmingCharacters(in: .whitespacesAndNewlines)
         
+        // Get the actual playerID from the player being edited (not relying on index)
+        let oldPlayerID = players[index].playerID
+        
         // Update the player name in the local players array
         players[index] = TestPlayer(
             name: trimmedName,
             scores: players[index].scores,
-            playerID: players[index].playerID
+            playerID: trimmedName // Update playerID to match the new name
         )
         
         // Update the game's playerIDs array to persist the change
         var updatedGame = game
-        if index < updatedGame.playerIDs.count {
-            print("🔍 DEBUG: Updating playerIDs[\(index)] from '\(updatedGame.playerIDs[index])' to '\(trimmedName)'")
-            updatedGame.playerIDs[index] = trimmedName
+        // Find the correct index in playerIDs by matching the playerID (not visual index)
+        if let playerIDIndex = updatedGame.playerIDs.firstIndex(of: oldPlayerID) {
+            print("🔍 DEBUG: Updating playerIDs[\(playerIDIndex)] from '\(oldPlayerID)' to '\(trimmedName)'")
+            updatedGame.playerIDs[playerIDIndex] = trimmedName
             print("🔍 DEBUG: Updated game.playerIDs: \(updatedGame.playerIDs)")
+            
+            // If this is a parent player in a hierarchy, update the hierarchy keys
+            if !playerHierarchy.isEmpty && playerHierarchy.keys.contains(oldPlayerID) {
+                var hierarchy = playerHierarchy
+                if let childPlayers = hierarchy[oldPlayerID] {
+                    hierarchy.removeValue(forKey: oldPlayerID)
+                    hierarchy[trimmedName] = childPlayers
+                    updatedGame = updatedGame.setPlayerHierarchy(hierarchy)
+                    // Update local state to match
+                    playerHierarchy = hierarchy
+                    print("🔍 DEBUG: Updated hierarchy key from '\(oldPlayerID)' to '\(trimmedName)' with \(childPlayers.count) children")
+                    print("🔍 DEBUG: New hierarchy: \(hierarchy)")
+                }
+            }
         } else {
-            print("🔍 DEBUG: ERROR: Index \(index) is out of bounds for playerIDs array (count: \(updatedGame.playerIDs.count))")
+            print("🔍 DEBUG: ERROR: PlayerID '\(oldPlayerID)' not found in game.playerIDs: \(updatedGame.playerIDs)")
         }
         
         // Save to backend
@@ -773,8 +795,11 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
     private struct TimeoutError: Error {}
     
     private func onAppearAction() {
+        print("🔍 DEBUG: ===== SCOREBOARDVIEW ONAPPEAR =====")
         print("🔍 DEBUG: Scoreboardview onAppear - Game ID: \(game.id)")
+        print("🔍 DEBUG: Scoreboardview onAppear - Mode: \(mode)")
         print("🔍 DEBUG: Current game rounds: \(game.rounds)")
+        print("🔍 DEBUG: Current game status: \(game.gameStatus)")
         print("🔍 DEBUG: Last known rounds: \(lastKnownGameRounds)")
         
         
@@ -808,31 +833,39 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                 let userGames = DataManager.shared.getGamesForUser(userId)
                 
                 await MainActor.run {
-                    // Filter to only active games and sort by creation date (latest first)
-                    let activeGames = userGames
-                        .filter { $0.gameStatus == .active }
-                        .sorted { game1, game2 in
-                            // Sort by creation date - most recent first
-                            let date1 = game1.createdAt.foundationDate ?? Date.distantPast
-                            let date2 = game2.createdAt.foundationDate ?? Date.distantPast
-                            return date1 > date2
-                        }
+                    // Filter based on mode: active games for edit mode, all games for readCompleted mode
+                    let filteredGames: [Game]
+                    if mode == .readCompleted {
+                        // In read-only mode, include all games (active and completed)
+                        filteredGames = userGames
+                    } else {
+                        // In edit mode, only show active games
+                        filteredGames = userGames.filter { $0.gameStatus == .active }
+                    }
                     
-                    // Take only the latest 3 active games
-                    let latest3ActiveGames = Array(activeGames.prefix(3))
+                    let sortedGames = filteredGames.sorted { game1, game2 in
+                        // Sort by creation date - most recent first
+                        let date1 = game1.createdAt.foundationDate ?? Date.distantPast
+                        let date2 = game2.createdAt.foundationDate ?? Date.distantPast
+                        return date1 > date2
+                    }
                     
-                    self.availableGames = latest3ActiveGames
+                    // Take only the latest 3 games
+                    let latest3Games = Array(sortedGames.prefix(3))
+                    
+                    self.availableGames = latest3Games
                     
                     // Find current game index in the filtered list
-                    if let currentIndex = latest3ActiveGames.firstIndex(where: { $0.id == self.game.id }) {
+                    if let currentIndex = latest3Games.firstIndex(where: { $0.id == self.game.id }) {
                         self.currentGameIndex = currentIndex
                     } else {
                         self.currentGameIndex = 0
                     }
                     
-                    print("🔍 DEBUG: ScoreboardView - Filtered to \(latest3ActiveGames.count) latest active games")
-                    print("🔍 DEBUG: ScoreboardView - Available games: \(latest3ActiveGames.map { $0.gameName ?? "Untitled" })")
-                    print("🔍 DEBUG: Loaded \(latest3ActiveGames.count) games, current index: \(self.currentGameIndex)")
+                    let gameTypeDescription = mode == .readCompleted ? "games (all statuses)" : "active games"
+                    print("🔍 DEBUG: ScoreboardView - Filtered to \(latest3Games.count) latest \(gameTypeDescription)")
+                    print("🔍 DEBUG: ScoreboardView - Available games: \(latest3Games.map { $0.gameName ?? "Untitled" })")
+                    print("🔍 DEBUG: Loaded \(latest3Games.count) games, current index: \(self.currentGameIndex)")
                 }
             }
         }
@@ -1080,7 +1113,8 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                     print("🔍 DEBUG: Game selected in list sheet: \(index)")
                     currentGameIndex = index
                     showGameListSheet = false
-                }
+                },
+                mode: mode
             )
         }
         .sheet(isPresented: $showPlayerNameEditor) {
@@ -1135,7 +1169,7 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                     .font(.system(size: 16, weight: .medium))
                     .foregroundColor(.white)
                 
-                Text("\(availableGames.count) Active Games")
+                Text("\(availableGames.count) \(mode == .readCompleted ? "Game" : "Active Game")\(availableGames.count == 1 ? "" : "s")")
                     .font(.system(size: 14, weight: .medium))
                     .foregroundColor(.white)
                 
@@ -1278,7 +1312,8 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
             */
             
             // Alternative: Bottom sheet trigger with carousel preview
-            if availableGames.count > 1 {
+            // Only show for edit mode (not for read-only completed games)
+            if availableGames.count > 1 && mode != .readCompleted {
                 bottomSheetTriggerView
             }
             
@@ -2067,6 +2102,18 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                                     .lineLimit(1)
                                     .truncationMode(.tail)
                                 
+                                // Child count notification badge for parent players
+                                if let childIDs = playerHierarchy[player.playerID], !childIDs.isEmpty {
+                                    ZStack {
+                                        Circle()
+                                            .fill(Color.red)
+                                            .frame(width: 18, height: 18)
+                                        Text("\(childIDs.count)")
+                                            .font(.system(size: 10, weight: .bold))
+                                            .foregroundColor(.white)
+                                    }
+                                }
+                                
                                 // Edit indicator
                                 if canEditSpecificPlayerName(player) {
                                     Image(systemName: "pencil.circle")
@@ -2426,6 +2473,65 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
         return false
     }
     
+    // Load child player usernames for hierarchy
+    func loadChildPlayerUsernames() async {
+        print("🔍 DEBUG: Loading child player usernames...")
+        
+        let allChildPlayers = playerHierarchy.values.flatMap { $0 }
+        let registeredChildPlayers = allChildPlayers.filter { $0.hasPrefix("user_") || $0.hasPrefix("guest_") }
+        
+        if registeredChildPlayers.isEmpty {
+            print("🔍 DEBUG: No registered child players to look up")
+            return
+        }
+        
+        // Load usernames for registered child players
+        for childPlayerID in registeredChildPlayers {
+            let displayName = UsernameCacheService.shared.getDisplayName(for: childPlayerID)
+            await MainActor.run {
+                childPlayerNames[childPlayerID] = displayName
+            }
+        }
+        
+        print("🔍 DEBUG: Loaded \(childPlayerNames.count) child player usernames")
+    }
+    
+    // Get display name for a player with hierarchy information
+    func getPlayerDisplayName(for playerID: String) -> String {
+        if let baseDisplayName = playerNames[playerID] ?? childPlayerNames[playerID] {
+            // If this is a parent player with children, show child count
+            if let childPlayers = playerHierarchy[playerID], !childPlayers.isEmpty {
+                return "\(baseDisplayName) (\(childPlayers.count) players)"
+            }
+            return baseDisplayName
+        }
+        
+        // Fallback to playerID if no display name found
+        if let childPlayers = playerHierarchy[playerID], !childPlayers.isEmpty {
+            return "\(playerID) (\(childPlayers.count) players)"
+        }
+        return playerID
+    }
+    
+    // Check if current user can edit scores for a specific player
+    func canCurrentUserEditScores(for playerID: String) -> Bool {
+        // For child players, check if user can edit the parent's scores
+        if let parentPlayer = game.getParentPlayer(forChild: playerID) {
+            return game.canUserEditScores(for: parentPlayer, userId: currentUserID)
+        }
+        
+        // For parent players or regular players, check normally
+        return game.canUserEditScores(for: playerID, userId: currentUserID)
+    }
+    
+    // Get the actual player ID for score operations (parent for children, self for parents/regular)
+    func getScorePlayerID(for displayPlayerID: String) -> String {
+        if let parentPlayer = game.getParentPlayer(forChild: displayPlayerID) {
+            return parentPlayer
+        }
+        return displayPlayerID
+    }
+    
     // Load game data efficiently
     func loadGameData(suppressCompletionCelebration: Bool = false) {
         print("🔍 DEBUG: ===== LOAD GAME DATA START =====")
@@ -2446,6 +2552,10 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
         // Load custom rules from game
         customRules = CustomRulesManager.shared.jsonToRules(game.customRules)
         print("🔍 DEBUG: Loaded \(customRules.count) custom rules from game")
+        
+        // Load player hierarchy from game
+        playerHierarchy = game.getPlayerHierarchy()
+        print("🔍 DEBUG: Loaded player hierarchy: \(playerHierarchy)")
         
         isLoading = true
         
@@ -2476,6 +2586,11 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                 }
                 // First, load usernames for registered users
                 await loadPlayerUsernames()
+                
+                // Load child player usernames if hierarchy exists
+                if !playerHierarchy.isEmpty {
+                    await loadChildPlayerUsernames()
+                }
                 
                 // Fetch scores for this game only (server-side filtering)
                 let scoresQuery = Score.keys.gameID.eq(game.id)
@@ -2509,6 +2624,15 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                             playerData[playerID] = (name: playerName, scores: Array(repeating: -1, count: dynamicRounds))
                         }
                         
+                        // Add child players to playerData with inherited scores
+                        for (parentID, childIDs) in playerHierarchy {
+                            for childID in childIDs {
+                                let childName = getPlayerName(for: childID)
+                                // Child players inherit parent's scores (will be set after parent scores are loaded)
+                                playerData[childID] = (name: childName, scores: Array(repeating: -1, count: dynamicRounds))
+                            }
+                        }
+                        
                         // Fill in actual scores from database
                         print("🔍 DEBUG: Processing \(gameScores.count) scores from database")
                         for score in gameScores {
@@ -2520,6 +2644,17 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                                 print("🔍 DEBUG: Updating player \(score.playerID) round \(score.roundNumber) (index \(roundIndex)) to score \(score.score)")
                                 updatedScores[roundIndex] = score.score
                                 playerData[score.playerID] = (name: existingPlayerData.name, scores: updatedScores)
+                                
+                                // Inherit scores to child players
+                                if let childPlayers = playerHierarchy[score.playerID] {
+                                    for childID in childPlayers {
+                                        if var childData = playerData[childID] {
+                                            childData.scores[roundIndex] = score.score
+                                            playerData[childID] = childData
+                                            print("🔍 DEBUG: Inherited score \(score.score) to child player \(childID) for round \(score.roundNumber)")
+                                        }
+                                    }
+                                }
                             } else {
                                 print("🔍 DEBUG: Skipping score - playerID: \(score.playerID), roundNumber: \(score.roundNumber), dynamicRounds: \(dynamicRounds)")
                             }
@@ -2547,11 +2682,45 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                                 
                                 playerData[playerID] = (name: existingPlayerData.name, scores: mergedScores)
                                 print("🔍 DEBUG: Merged scores for \(playerID): \(mergedScores)")
+                                
+                                // Inherit unsaved scores to child players
+                                if let childPlayers = playerHierarchy[playerID] {
+                                    for childID in childPlayers {
+                                        if var childData = playerData[childID] {
+                                            var childMergedScores = childData.scores
+                                            
+                                            // Ensure the child scores array has the correct size
+                                            while childMergedScores.count < dynamicRounds {
+                                                childMergedScores.append(-1)
+                                            }
+                                            if childMergedScores.count > dynamicRounds {
+                                                childMergedScores = Array(childMergedScores.prefix(dynamicRounds))
+                                            }
+                                            
+                                            // Apply unsaved scores to child
+                                            for (roundIndex, unsavedScore) in unsavedPlayerScores.enumerated() {
+                                                if roundIndex < childMergedScores.count {
+                                                    childMergedScores[roundIndex] = unsavedScore
+                                                }
+                                            }
+                                            
+                                            childData.scores = childMergedScores
+                                            playerData[childID] = childData
+                                            print("🔍 DEBUG: Inherited unsaved scores to child player \(childID): \(childMergedScores)")
+                                        }
+                                    }
+                                }
                             }
                         }
                         
-                        // Convert to TestPlayer array
-                        self.players = playerData.map { playerID, data in
+                        // Convert to TestPlayer array - ONLY for parent players (not children)
+                        self.players = playerData.compactMap { playerID, data in
+                            // Skip child players - they don't get their own columns
+                            let isChildPlayer = playerHierarchy.values.flatMap { $0 }.contains(playerID)
+                            if isChildPlayer {
+                                return nil
+                            }
+                            
                             // Ensure scores array matches dynamic rounds
                             var scores = data.scores
                             while scores.count < dynamicRounds {
@@ -2562,8 +2731,14 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                                 scores = Array(scores.prefix(dynamicRounds))
                             }
                             
+                            // Add child count badge to parent player name if they have children
+                            var displayName = data.name
+                            if let childIDs = playerHierarchy[playerID], !childIDs.isEmpty {
+                                displayName = data.name // Will add badge in UI
+                            }
+                            
                             return TestPlayer(
-                                name: data.name,
+                                name: displayName,
                                 scores: scores,
                                 playerID: playerID
                             )
@@ -2657,8 +2832,15 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                     print("🔍 DEBUG: Existing score: \(score.playerID) round \(score.roundNumber) = \(score.score)")
                 }
                 
-                // Process all unsaved changes
+                // Process all unsaved changes - ONLY for parent players (not children)
                 for (playerID, scores) in unsavedScores {
+                    // Skip child players - they don't have their own scores
+                    let isChildPlayer = playerHierarchy.values.flatMap { $0 }.contains(playerID)
+                    if isChildPlayer {
+                        print("🔍 DEBUG: Skipping score save for child player: \(playerID)")
+                        continue
+                    }
+                    
                     print("🔍 DEBUG: Processing unsaved scores for player \(playerID): \(scores)")
                     for (roundIndex, score) in scores.enumerated() {
                         let roundNumber = roundIndex + 1
@@ -2775,8 +2957,15 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                         print("🔍 DEBUG: Existing score: \(score.playerID) round \(score.roundNumber) = \(score.score)")
                     }
                     
-                    // Process every player and every round based on the table values
+                    // Process every player and every round based on the table values - ONLY for parent players
                     for (playerID, scoresRow) in scoresForAllPlayers {
+                        // Skip child players - they don't have their own scores
+                        let isChildPlayer = playerHierarchy.values.flatMap { $0 }.contains(playerID)
+                        if isChildPlayer {
+                            print("🔍 DEBUG: Skipping score save for child player: \(playerID)")
+                            continue
+                        }
+                        
                         for (roundIndex, scoreValue) in scoresRow.enumerated() {
                             let roundNumber = roundIndex + 1
                             let lastSavedArray = lastSavedScores[playerID] ?? []
@@ -3878,6 +4067,13 @@ struct SystemKeyboardView: View {
                         existingScoreMap[key] = score
                     }
                     for (playerID, scoresRow) in scoresForAllPlayers {
+                        // Skip child players - they don't have their own scores
+                        let isChildPlayer = playerHierarchy.values.flatMap { $0 }.contains(playerID)
+                        if isChildPlayer {
+                            print("🔍 DEBUG: Skipping score save for child player: \(playerID)")
+                            continue
+                        }
+                        
                         for (roundIndex, scoreValue) in scoresRow.enumerated() {
                             let roundNumber = roundIndex + 1
                             let scoreKey = "\(playerID)-\(roundNumber)"
@@ -4154,6 +4350,7 @@ struct GameListBottomSheet: View {
     let games: [Game]
     @Binding var currentIndex: Int
     let onGameSelected: (Int) -> Void
+    var mode: ScoreboardMode = .edit // Add mode parameter
     
     @Environment(\.dismiss) private var dismiss
     
@@ -4173,7 +4370,7 @@ struct GameListBottomSheet: View {
                         .fontWeight(.bold)
                         .foregroundColor(.white)
                     
-                    Text("Latest \(games.count) active games")
+                    Text("Latest \(games.count) \(mode == .readCompleted ? "game" : "active game")\(games.count == 1 ? "" : "s")")
                         .font(.caption)
                         .foregroundColor(.white.opacity(0.7))
                 }

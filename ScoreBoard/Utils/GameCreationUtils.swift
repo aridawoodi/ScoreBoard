@@ -98,12 +98,25 @@ class GameCreationUtils {
         customRules: String? = nil,
         winCondition: WinCondition? = nil,
         maxScore: Int? = nil,
-        maxRounds: Int? = nil
+        maxRounds: Int? = nil,
+        playerHierarchy: [String: [String]]? = nil
     ) -> Game {
         // Use provided values or fall back to defaults
         let finalWinCondition = winCondition ?? .highestScore
         let finalMaxScore = maxScore ?? 100
         let finalMaxRounds = maxRounds ?? 8
+        
+        // Encode player hierarchy to JSON string
+        let hierarchyString: String?
+        if let hierarchy = playerHierarchy, !hierarchy.isEmpty {
+            if let data = try? JSONEncoder().encode(hierarchy) {
+                hierarchyString = String(data: data, encoding: .utf8)
+            } else {
+                hierarchyString = nil
+            }
+        } else {
+            hierarchyString = nil
+        }
         
         return Game(
             gameName: gameName?.isEmpty == true ? nil : gameName,
@@ -116,6 +129,7 @@ class GameCreationUtils {
             winCondition: finalWinCondition,
             maxScore: finalMaxScore,
             maxRounds: finalMaxRounds,
+            playerHierarchy: hierarchyString,
             createdAt: Temporal.DateTime.now(),
             updatedAt: Temporal.DateTime.now()
         )

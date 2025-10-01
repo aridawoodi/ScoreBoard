@@ -17,6 +17,7 @@ type Game @model @auth(rules: [
   winCondition: WinCondition
   maxScore: Int
   maxRounds: Int
+  playerHierarchy: String
   createdAt: AWSDateTime!
   updatedAt: AWSDateTime!
   owner: String

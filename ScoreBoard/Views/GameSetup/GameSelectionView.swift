@@ -142,11 +142,16 @@ struct GameSelectionView: View {
                                     isCreator: GameService.shared.isGameCreator(game, currentUserId: currentUserId),
                                     onTap: {
                                         selectedGame = game
+                                        print("🔍 DEBUG: GameCardView tapped - game ID: \(game.id), status: \(game.gameStatus)")
                                         if game.gameStatus == .completed {
                                             // Show ScoreboardView in readCompleted mode for completed games
+                                            print("🔍 DEBUG: Opening completed game in read-only mode")
+                                            print("🔍 DEBUG: Before: showScoreboardView=\(navigationState.showScoreboardView), selectedGameForScoreboard=\(navigationState.selectedGameForScoreboard?.id ?? "nil"), mode=\(navigationState.scoreboardMode)")
                                             navigationState.showScoreboardForGame(game, mode: .readCompleted)
+                                            print("🔍 DEBUG: After: showScoreboardView=\(navigationState.showScoreboardView), selectedGameForScoreboard=\(navigationState.selectedGameForScoreboard?.id ?? "nil"), mode=\(navigationState.scoreboardMode)")
                                         } else {
                                             // Active games use existing logic
+                                            print("🔍 DEBUG: Opening active game - dismissing sheet and selecting game")
                                             onGameSelected(game)
                                             dismiss()
                                         }
@@ -224,7 +229,10 @@ struct GameSelectionView: View {
                 }
             }
             .sheet(isPresented: $navigationState.showScoreboardView) {
-                scoreboardSheetContent
+                print("🔍 DEBUG: ===== SCOREBOARD SHEET PRESENTING =====")
+                print("🔍 DEBUG: Sheet presenting with game: \(navigationState.selectedGameForScoreboard?.id ?? "nil")")
+                print("🔍 DEBUG: Sheet mode: \(navigationState.scoreboardMode)")
+                return scoreboardSheetContent
             }
         }
     }
@@ -234,6 +242,9 @@ struct GameSelectionView: View {
     @ViewBuilder
     private var scoreboardSheetContent: some View {
         if let game = navigationState.selectedGameForScoreboard {
+            let _ = print("🔍 DEBUG: scoreboardSheetContent - Rendering ScoreboardView for game: \(game.id)")
+            let _ = print("🔍 DEBUG: scoreboardSheetContent - Game status: \(game.gameStatus)")
+            let _ = print("🔍 DEBUG: scoreboardSheetContent - Mode: \(navigationState.scoreboardMode)")
             ScoreboardView(
                 game: .constant(game),
                 mode: navigationState.scoreboardMode,
@@ -250,6 +261,9 @@ struct GameSelectionView: View {
                     // Keyboard state changed callback - no action needed
                 }
             )
+        } else {
+            let _ = print("🔍 DEBUG: scoreboardSheetContent - No game selected, showing empty view")
+            Color.clear
         }
     }
     

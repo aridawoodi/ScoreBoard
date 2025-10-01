@@ -86,6 +86,11 @@ struct CreateGameView: View {
     @State private var newRuleLetter: String = ""
     @State private var newRuleValue: Int = 0
     
+    // Player hierarchy states
+    @State private var usePlayerHierarchy = false
+    @State private var parentPlayers: [String] = []
+    @State private var playerHierarchy: [String: [String]] = [:]
+    
     // Default Settings
     @State private var saveAsDefault: Bool = false
     @State private var hasManuallyLoadedLastSettings: Bool = false
@@ -121,6 +126,9 @@ struct CreateGameView: View {
                     players: $players,
                     searchResults: $searchResults,
                     isSearching: $isSearching,
+                    usePlayerHierarchy: $usePlayerHierarchy,
+                    parentPlayers: $parentPlayers,
+                    playerHierarchy: $playerHierarchy,
                     currentUser: $currentUser,
                     currentUserProfile: $currentUserProfile,
     
@@ -135,6 +143,7 @@ struct CreateGameView: View {
                     titleFont: titleFont,
                     bodyFont: bodyFont,
                     sectionSpacing: sectionSpacing,
+                    isEditMode: isEditMode,
                     addPlayer: addPlayer,
                     searchUsers: searchUsers,
                     addRegisteredPlayer: addRegisteredPlayer,
@@ -439,6 +448,9 @@ struct CreateGameView: View {
                 // Convert custom rules array to JSON string for storage
                 let customRulesJSON = CustomRulesManager.shared.rulesToJSON(customRules)
                 
+                // Prepare player hierarchy if enabled
+                let hierarchyToCreate = usePlayerHierarchy && !playerHierarchy.isEmpty ? playerHierarchy : nil
+                
                 // Use shared game object creation
                 let game = GameCreationUtils.createGameObject(
                     gameName: gameName,
@@ -447,7 +459,8 @@ struct CreateGameView: View {
                     customRules: customRulesJSON,
                     winCondition: winCondition,
                     maxScore: maxScore,
-                    maxRounds: maxRounds
+                    maxRounds: maxRounds,
+                    playerHierarchy: hierarchyToCreate
                 )
                 print("🔍 DEBUG: Game object created successfully")
                 
@@ -562,6 +575,22 @@ struct CreateGameView: View {
                 // Convert custom rules array to JSON string for storage
                 let customRulesJSON = CustomRulesManager.shared.rulesToJSON(customRules)
                 
+                // Preserve or update player hierarchy
+                let hierarchyToSave: String?
+                if usePlayerHierarchy && !playerHierarchy.isEmpty {
+                    // Encode current hierarchy
+                    if let data = try? JSONEncoder().encode(playerHierarchy) {
+                        hierarchyToSave = String(data: data, encoding: .utf8)
+                    } else {
+                        hierarchyToSave = gameToUpdate.playerHierarchy // Keep existing if encoding fails
+                    }
+                } else {
+                    // Preserve existing hierarchy if not using hierarchy mode
+                    hierarchyToSave = gameToUpdate.playerHierarchy
+                }
+                
+                print("🔍 DEBUG: Preserving hierarchy - usePlayerHierarchy: \(usePlayerHierarchy), hierarchyToSave: \(hierarchyToSave ?? "nil")")
+                
                 // Create updated game object
                 let updatedGame = Game(
                     id: gameToUpdate.id,
@@ -575,6 +604,7 @@ struct CreateGameView: View {
                     winCondition: winCondition,
                     maxScore: maxScore,
                     maxRounds: maxRounds,
+                    playerHierarchy: hierarchyToSave, // Preserve player hierarchy
                     createdAt: gameToUpdate.createdAt, // Keep original creation date
                     updatedAt: Temporal.DateTime.now()
                 )
@@ -729,6 +759,15 @@ struct CreateGameView: View {
         // Load custom rules from JSON
         customRules = CustomRulesManager.shared.jsonToRules(game.customRules)
         print("🔍 DEBUG: Loaded \(customRules.count) custom rules from game")
+        
+        // Load player hierarchy if it exists
+        let hierarchy = game.getPlayerHierarchy()
+        if !hierarchy.isEmpty {
+            usePlayerHierarchy = true
+            parentPlayers = Array(hierarchy.keys).sorted()
+            playerHierarchy = hierarchy
+            print("🔍 DEBUG: Loaded hierarchy - enabled: \(usePlayerHierarchy), parents: \(parentPlayers), hierarchy: \(playerHierarchy)")
+        }
         
         print("🔍 DEBUG: Game data loaded - winCondition: \(game.winCondition?.rawValue ?? "nil"), maxScore: \(game.maxScore ?? -1), maxRounds: \(game.maxRounds ?? -1)")
         
@@ -942,6 +981,9 @@ struct CreateGameContentView: View {
     @Binding var players: [Player]
     @Binding var searchResults: [User]
     @Binding var isSearching: Bool
+    @Binding var usePlayerHierarchy: Bool
+    @Binding var parentPlayers: [String]
+    @Binding var playerHierarchy: [String: [String]]
     @Binding var currentUser: AuthUser?
     @Binding var currentUserProfile: User?
 
@@ -957,6 +999,7 @@ struct CreateGameContentView: View {
     let titleFont: Font
     let bodyFont: Font
     let sectionSpacing: CGFloat
+    var isEditMode: Bool = false
     let addPlayer: () -> Void
     let searchUsers: (String) -> Void
     let addRegisteredPlayer: (User) -> Void
@@ -1121,6 +1164,26 @@ struct CreateGameContentView: View {
         .background(Color.black.opacity(0.3))
         .cornerRadius(hostJoinCornerRadius)
         
+        let playerHierarchyToggleSection = VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Toggle("Use Player Hierarchy", isOn: $usePlayerHierarchy)
+                    .foregroundColor(.white)
+                    .fontWeight(.medium)
+                
+                Spacer()
+            }
+            
+            if usePlayerHierarchy {
+                Text("Create parent players (e.g., 'Team 1', 'Team 2') and add child players to them. Child players will inherit parent's scores.")
+                    .font(.caption)
+                    .foregroundColor(.white.opacity(0.8))
+                    .multilineTextAlignment(.leading)
+            }
+        }
+        .padding()
+        .background(Color.black.opacity(0.3))
+        .cornerRadius(10)
+        
         let advancedSettingsButton = Button(action: {
             showAdvancedSettingsSheet = true
         }) {
@@ -1160,24 +1223,35 @@ struct CreateGameContentView: View {
             // Host Join Option
             hostJoinSection
             
+            // Player Hierarchy Toggle
+            playerHierarchyToggleSection
+            
             // Player Management
-            PlayerManagementView(
-                players: $players,
-                newPlayerName: $newPlayerName,
-                searchText: $searchText,
-                searchResults: $searchResults,
-                isSearching: $isSearching,
-                addPlayer: addPlayer,
-                searchUsers: searchUsers,
-                addRegisteredPlayer: addRegisteredPlayer,
-                removePlayer: removePlayer,
-                hostJoinAsPlayer: hostJoinAsPlayer,
-                currentUser: currentUser,
-                onHostRemoved: {
-                    // Turn off the toggle when host is removed
-                    hostJoinAsPlayer = false
-                }
-            )
+            if usePlayerHierarchy {
+                PlayerHierarchyView(
+                    parentPlayers: $parentPlayers,
+                    playerHierarchy: $playerHierarchy,
+                    isEditMode: isEditMode
+                )
+            } else {
+                PlayerManagementView(
+                    players: $players,
+                    newPlayerName: $newPlayerName,
+                    searchText: $searchText,
+                    searchResults: $searchResults,
+                    isSearching: $isSearching,
+                    addPlayer: addPlayer,
+                    searchUsers: searchUsers,
+                    addRegisteredPlayer: addRegisteredPlayer,
+                    removePlayer: removePlayer,
+                    hostJoinAsPlayer: hostJoinAsPlayer,
+                    currentUser: currentUser,
+                    onHostRemoved: {
+                        // Turn off the toggle when host is removed
+                        hostJoinAsPlayer = false
+                    }
+                )
+            }
             
             // Advanced Settings
             advancedSettingsSection

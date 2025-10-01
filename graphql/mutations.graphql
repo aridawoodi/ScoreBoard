@@ -16,6 +16,7 @@ mutation CreateGame(
     winCondition
     maxScore
     maxRounds
+    playerHierarchy
     createdAt
     updatedAt
     owner
@@ -39,6 +40,7 @@ mutation UpdateGame(
     winCondition
     maxScore
     maxRounds
+    playerHierarchy
     createdAt
     updatedAt
     owner
@@ -62,6 +64,7 @@ mutation DeleteGame(
     winCondition
     maxScore
     maxRounds
+    playerHierarchy
     createdAt
     updatedAt
     owner

@@ -16,6 +16,7 @@ subscription OnCreateGame(
     winCondition
     maxScore
     maxRounds
+    playerHierarchy
     createdAt
     updatedAt
     owner
@@ -39,6 +40,7 @@ subscription OnUpdateGame(
     winCondition
     maxScore
     maxRounds
+    playerHierarchy
     createdAt
     updatedAt
     owner
@@ -62,6 +64,7 @@ subscription OnDeleteGame(
     winCondition
     maxScore
     maxRounds
+    playerHierarchy
     createdAt
     updatedAt
     owner

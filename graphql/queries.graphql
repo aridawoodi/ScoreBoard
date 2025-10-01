@@ -13,6 +13,7 @@ query GetGame($id: ID!) {
     winCondition
     maxScore
     maxRounds
+    playerHierarchy
     createdAt
     updatedAt
     owner
@@ -38,6 +39,7 @@ query ListGames(
       winCondition
       maxScore
       maxRounds
+      playerHierarchy
       createdAt
       updatedAt
       owner

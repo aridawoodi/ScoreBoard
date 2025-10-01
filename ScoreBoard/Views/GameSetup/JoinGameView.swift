@@ -26,6 +26,9 @@ struct JoinGameView: View {
     @State private var pendingGame: Game?
     @State private var showJoinOptions = false
     @State private var joinMode: JoinMode = .player
+    @State private var showHierarchySelection = false
+    @State private var selectedParentPlayer: String?
+    @State private var pendingUserId: String?
     @Environment(\.dismiss) private var dismiss
     @Binding var showJoinGame: Bool
     let onGameJoined: (Game) -> Void
@@ -152,6 +155,23 @@ struct JoinGameView: View {
                 } else {
                     Text("Error: Game not found")
                         .foregroundColor(.white)
+                }
+            }
+            .sheet(isPresented: $showHierarchySelection) {
+                if let game = pendingGame, let userId = pendingUserId {
+                    HierarchySelectionView(
+                        game: game,
+                        userId: userId,
+                        playerName: playerName,
+                        onParentSelected: { parentPlayerId in
+                            joinAsChildPlayer(
+                                game: game,
+                                userId: userId,
+                                playerName: playerName,
+                                parentPlayerId: parentPlayerId
+                            )
+                        }
+                    )
                 }
             }
         }
@@ -419,8 +439,22 @@ struct JoinGameView: View {
                     return
                 }
                 
-                // User not in game - add them with their chosen name
+                // User not in game - check if this is a hierarchy game
                 print("🔍 DEBUG: User \(userId) is NOT in game (anonymous), adding them with identifier: \(playerIdentifier). Current playerIDs: \(game.playerIDs ?? [])")
+                
+                // Check if game has player hierarchy
+                if game.hasPlayerHierarchy {
+                    print("🔍 DEBUG: Game has player hierarchy, showing parent player selection")
+                    await MainActor.run {
+                        pendingUserId = userId
+                        pendingGame = game
+                        showHierarchySelection = true
+                        isProcessingJoin = false
+                    }
+                    return
+                }
+                
+                // Regular game - add player normally
                 var updatedGame = game
                 updatedGame.playerIDs = (game.playerIDs ?? []) + [playerIdentifier]
                 
@@ -490,5 +524,52 @@ struct JoinGameView: View {
         
         print("🔍 DEBUG: No match found for user ID: \(userId)")
         return false
+    }
+    
+    func joinAsChildPlayer(game: Game, userId: String, playerName: String, parentPlayerId: String) {
+        print("🔍 DEBUG: ===== JOIN AS CHILD PLAYER START =====")
+        print("🔍 DEBUG: Game ID: \(game.id)")
+        print("🔍 DEBUG: User ID: \(userId)")
+        print("🔍 DEBUG: Player Name: \(playerName)")
+        print("🔍 DEBUG: Parent Player ID: \(parentPlayerId)")
+        
+        isProcessingJoin = true
+        
+        Task {
+            do {
+                // Add user as child player to the selected parent
+                var updatedGame = game.addChildPlayer(userId, to: parentPlayerId)
+                
+                // Update the game in the backend
+                let updateResult = try await Amplify.API.mutate(request: .update(updatedGame))
+                switch updateResult {
+                case .success(let savedGame):
+                    print("🔍 DEBUG: Successfully added child player to hierarchy")
+                    await MainActor.run {
+                        foundGame = savedGame
+                        onGameJoined(savedGame)
+                        showJoinGame = false
+                        showHierarchySelection = false
+                        isProcessingJoin = false
+                    }
+                case .failure(let error):
+                    print("🔍 DEBUG: Failed to add child player: \(error)")
+                    await MainActor.run {
+                        alertMessage = "Failed to join as child player: \(error.localizedDescription)"
+                        showAlert = true
+                        showHierarchySelection = false
+                        isProcessingJoin = false
+                    }
+                }
+            } catch {
+                print("🔍 DEBUG: Error in joinAsChildPlayer: \(error)")
+                await MainActor.run {
+                    alertMessage = "Error: \(error.localizedDescription)"
+                    showAlert = true
+                    showHierarchySelection = false
+                    isProcessingJoin = false
+                }
+            }
+        }
     }
 } 

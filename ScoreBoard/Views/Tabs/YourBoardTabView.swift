@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import Amplify
 
 // MARK: - Your Board Tab View
 struct YourBoardTabView: View {
@@ -208,6 +209,31 @@ struct YourBoardTabView: View {
                                     
                                     print("🔍 DEBUG: ===== 3 PLAYER QUICK GAME CREATED END =====")
                                 }
+                                
+                                // Quick Hierarchy Game Card (2 parent teams)
+                                QuickHierarchyGameCard { game in
+                                    print("🔍 DEBUG: ===== HIERARCHY QUICK GAME CREATED =====")
+                                    
+                                    // Use standardized callback handling
+                                    Task {
+                                        await GameCreationUtils.handleGameCreated(
+                                            game: game,
+                                            navigationState: navigationState
+                                        )
+                                    }
+                                    
+                                    // Reset force view reset flag
+                                    forceViewReset = false
+                                    
+                                    // Increment refresh counter to force view update
+                                    viewRefreshCounter += 1
+                                    
+                                    print("🔍 DEBUG: After hierarchy creation - selectedGame: \(navigationState.selectedGame?.id ?? "nil")")
+                                    print("🔍 DEBUG: After hierarchy creation - userGames count: \(navigationState.userGames.count)")
+                                    print("🔍 DEBUG: After hierarchy creation - forceViewReset: \(forceViewReset)")
+                                    
+                                    print("🔍 DEBUG: ===== HIERARCHY QUICK GAME CREATED END =====")
+                                }
                             }
                             .padding(.horizontal, 20)
                         }
@@ -215,15 +241,25 @@ struct YourBoardTabView: View {
                             print("🔍 DEBUG: Showing main board with \(navigationState.userGames.count) games")
                         }
                         
-                        // Floating action button to show existing games
-                        if navigationState.hasGames {
+                        // Floating action button to show existing active games
+                        let activeGamesCount = navigationState.userGames.filter { $0.gameStatus == .active }.count
+                        if activeGamesCount > 0 {
                             DraggableFloatingButton(
-                                gamesCount: navigationState.userGames.count,
+                                gamesCount: activeGamesCount,
                                 onTap: {
-                                    print("🔍 DEBUG: Floating action button tapped - showing \(navigationState.userGames.count) games")
-                                    // Auto-select the latest game to show the scoreboard view
-                                    if let latestGame = navigationState.latestGame {
-                                        navigationState.selectedGame = latestGame
+                                    print("🔍 DEBUG: Floating action button tapped - showing \(activeGamesCount) active games")
+                                    // Auto-select the latest active game to show the scoreboard view
+                                    let latestActiveGame = navigationState.userGames
+                                        .filter { $0.gameStatus == .active }
+                                        .sorted { game1, game2 in
+                                            let date1 = game1.updatedAt ?? game1.createdAt ?? Temporal.DateTime.now()
+                                            let date2 = game2.updatedAt ?? game2.createdAt ?? Temporal.DateTime.now()
+                                            return date1 > date2
+                                        }
+                                        .first
+                                    
+                                    if let activeGame = latestActiveGame {
+                                        navigationState.selectedGame = activeGame
                                     }
                                 }
                             )
