@@ -66,11 +66,19 @@ extension Game {
     }
     
     /// Get parent player for a given child player
+    /// Handles both "userId:username" format and plain userId/name formats
     func getParentPlayer(for childPlayer: String) -> String? {
         let hierarchy = getPlayerHierarchy()
+        // Extract userId for comparison (handle "userId:username" format)
+        let searchUserId = childPlayer.components(separatedBy: ":").first ?? childPlayer
+        
         for (parent, children) in hierarchy {
-            if children.contains(childPlayer) {
-                return parent
+            // Check for exact match or userId match
+            for child in children {
+                let childUserId = child.components(separatedBy: ":").first ?? child
+                if childUserId == searchUserId {
+                    return parent
+                }
             }
         }
         return nil
@@ -82,6 +90,7 @@ extension Game {
     }
     
     /// Check if a user is a child player in this game
+    /// Handles both "userId:username" format and plain userId/name formats
     func isChildPlayer(_ userId: String) -> Bool {
         return getParentPlayer(for: userId) != nil
     }

@@ -18,6 +18,43 @@ struct HierarchySelectionView: View {
     @State private var selectedParentPlayer: String?
     @State private var parentPlayers: [ParentPlayerInfo] = []
     
+    /// Extract display name from "userId:username" format, prioritizing fresh username from cache
+    private func getDisplayName(for playerIdentifier: String) -> String {
+        let components = playerIdentifier.components(separatedBy: ":")
+        
+        if components.count > 1 {
+            // Has "userId:username" format
+            let userId = components[0]
+            let storedUsername = components[1]
+            
+            // Priority 1: Try to get fresh username from DataManager's in-memory cache
+            if let user = DataManager.shared.getUser(userId) {
+                return user.username ?? storedUsername
+            }
+            
+            // Priority 2: Try to get from UsernameCacheService
+            if let cachedUsername = UsernameCacheService.shared.cachedUsernames[userId] {
+                return cachedUsername
+            }
+            
+            // Priority 3: Use stored username as fallback
+            return storedUsername
+        }
+        
+        // Plain format - check if it's a userId that needs lookup
+        if playerIdentifier.hasPrefix("guest_") || playerIdentifier.hasPrefix("user_") || 
+           (playerIdentifier.count > 20 && playerIdentifier.contains("-")) {
+            // Try to get username from DataManager
+            if let user = DataManager.shared.getUser(playerIdentifier) {
+                return user.username ?? String(playerIdentifier.prefix(8))
+            }
+            return String(playerIdentifier.prefix(8))
+        }
+        
+        // Anonymous player or team name - return as-is
+        return playerIdentifier
+    }
+    
     var body: some View {
         NavigationView {
             VStack(spacing: 20) {
@@ -120,6 +157,43 @@ struct ParentPlayerCard: View {
     let isSelected: Bool
     let onTap: () -> Void
     
+    /// Extract display name from "userId:username" format, prioritizing fresh username from cache
+    private func getDisplayName(for playerIdentifier: String) -> String {
+        let components = playerIdentifier.components(separatedBy: ":")
+        
+        if components.count > 1 {
+            // Has "userId:username" format
+            let userId = components[0]
+            let storedUsername = components[1]
+            
+            // Priority 1: Try to get fresh username from DataManager's in-memory cache
+            if let user = DataManager.shared.getUser(userId) {
+                return user.username ?? storedUsername
+            }
+            
+            // Priority 2: Try to get from UsernameCacheService
+            if let cachedUsername = UsernameCacheService.shared.cachedUsernames[userId] {
+                return cachedUsername
+            }
+            
+            // Priority 3: Use stored username as fallback
+            return storedUsername
+        }
+        
+        // Plain format - check if it's a userId that needs lookup
+        if playerIdentifier.hasPrefix("guest_") || playerIdentifier.hasPrefix("user_") || 
+           (playerIdentifier.count > 20 && playerIdentifier.contains("-")) {
+            // Try to get username from DataManager
+            if let user = DataManager.shared.getUser(playerIdentifier) {
+                return user.username ?? String(playerIdentifier.prefix(8))
+            }
+            return String(playerIdentifier.prefix(8))
+        }
+        
+        // Anonymous player or team name - return as-is
+        return playerIdentifier
+    }
+    
     var body: some View {
         Button(action: onTap) {
             HStack {
@@ -133,7 +207,8 @@ struct ParentPlayerCard: View {
                         .foregroundColor(.white.opacity(0.7))
                     
                     if !parentPlayer.childPlayers.isEmpty {
-                        Text("Children: \(parentPlayer.childPlayers.joined(separator: ", "))")
+                        let displayNames = parentPlayer.childPlayers.map { getDisplayName(for: $0) }
+                        Text("Children: \(displayNames.joined(separator: ", "))")
                             .font(.caption)
                             .foregroundColor(.white.opacity(0.6))
                             .lineLimit(2)

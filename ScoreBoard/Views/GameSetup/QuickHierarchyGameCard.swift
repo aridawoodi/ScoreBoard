@@ -18,17 +18,17 @@ struct QuickHierarchyGameCard: View {
         VStack(spacing: 16) {
             // Card Header
             HStack {
-                Image(systemName: "person.3.sequence.fill")
+                Image(systemName: "bolt.fill")
                     .font(.title2)
-                    .foregroundColor(Color("LightBlue"))
+                    .foregroundColor(Color("Orange"))
                 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Team Hierarchy")
+                    Text("Build Teams")
                         .font(.headline)
                         .fontWeight(.bold)
                         .foregroundColor(.white)
                     
-                    Text("2 Parent Teams • Add Players Later")
+                    Text("2 Teams • Add Players Later")
                         .font(.caption)
                         .foregroundColor(.white.opacity(0.7))
                 }
@@ -45,7 +45,7 @@ struct QuickHierarchyGameCard: View {
                         } else {
                             Image(systemName: "plus.circle.fill")
                                 .font(.system(size: 16, weight: .semibold))
-                                .foregroundColor(Color("LightBlue"))
+                                .foregroundColor(Color("LightGreen"))
                         }
                         
                         Text(isCreating ? "Creating..." : "Create")
@@ -66,19 +66,10 @@ struct QuickHierarchyGameCard: View {
             // Card Details
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
-                    Image(systemName: "person.2.badge.gearshape.fill")
-                        .foregroundColor(Color("LightBlue"))
-                        .font(.caption)
-                    Text("Team 1 & Team 2 with hierarchy")
-                        .font(.caption)
-                        .foregroundColor(.white.opacity(0.7))
-                }
-                
-                HStack {
-                    Image(systemName: "person.badge.plus")
+                    Image(systemName: "person.2.fill")
                         .foregroundColor(.green)
                         .font(.caption)
-                    Text("Players can join teams after creation")
+                    Text("Team 1 & Team 2 with players")
                         .font(.caption)
                         .foregroundColor(.white.opacity(0.7))
                 }
@@ -93,7 +84,7 @@ struct QuickHierarchyGameCard: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: 16)
-                .stroke(Color("LightBlue").opacity(0.5), lineWidth: 1)
+                .stroke(Color.white.opacity(0.3), lineWidth: 1)
         )
         .alert("Quick Game Error", isPresented: $showError) {
             Button("OK") { }
@@ -128,6 +119,8 @@ struct QuickHierarchyGameCard: View {
                 
                 // Load default settings for quick games
                 let defaultSettings = DefaultGameSettingsStorage.shared.loadDefaultGameSettings()
+                print("🔍 DEBUG: QuickHierarchyGameCard - Loaded default settings: \(defaultSettings?.useAsDefault ?? false)")
+                print("🔍 DEBUG: QuickHierarchyGameCard - Custom rules from defaults: '\(defaultSettings?.customRules ?? "nil")'")
                 
                 // Use shared game object creation with hierarchy
                 let game = GameCreationUtils.createGameObject(
@@ -140,6 +133,8 @@ struct QuickHierarchyGameCard: View {
                     maxRounds: defaultSettings?.useAsDefault == true ? defaultSettings?.maxRounds : nil,
                     playerHierarchy: playerHierarchy
                 )
+                
+                print("🔍 DEBUG: QuickHierarchyGameCard - Final game custom rules: '\(game.customRules ?? "nil")'")
                 
                 // Use shared database creation
                 let createdGame = try await GameCreationUtils.saveGameToDatabase(game)

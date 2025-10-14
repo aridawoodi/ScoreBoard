@@ -67,6 +67,9 @@ struct ScoreCell: View {
                         .font(.system(size: 12))
                         .foregroundColor(.white.opacity(0.6))
                         .opacity(0.6)
+                        .onAppear {
+                            print("🔍 DEBUG: Showing edit pencil for player \(player.name) round \(roundIndex + 1) - hasScoreBeenEntered: \(hasScoreBeenEntered), currentScore: \(currentScore), canEdit: \(canEdit)")
+                        }
                 }
             }
             .frame(maxWidth: .infinity, minHeight: 44)
@@ -209,6 +212,7 @@ struct ScoreboardView: View {
     // Player hierarchy states
     @State private var playerHierarchy: [String: [String]] = [:]
     @State private var childPlayerNames: [String: String] = [:]
+    @State private var playerData: [String: (name: String, scores: [Int])] = [:]
     @State private var gameUpdateCounter = 0 // Track game updates
     @State private var currentGameId: String // Track current game ID
     @State private var lastKnownGameRounds: Int // Track last known rounds
@@ -613,6 +617,30 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                     print("🔍 DEBUG: New hierarchy: \(hierarchy)")
                 }
             }
+            
+            // Update playerData dictionary to use the new playerID
+            if let existingPlayerData = playerData[oldPlayerID] {
+                playerData.removeValue(forKey: oldPlayerID)
+                playerData[trimmedName] = existingPlayerData
+                print("🔍 DEBUG: Updated playerData key from '\(oldPlayerID)' to '\(trimmedName)'")
+            }
+            
+            // Update enteredScores set to use new playerID
+            let oldEnteredScores = enteredScores.filter { $0.hasPrefix("\(oldPlayerID)-") }
+            for oldScoreKey in oldEnteredScores {
+                enteredScores.remove(oldScoreKey)
+                let roundNumber = String(oldScoreKey.dropFirst("\(oldPlayerID)-".count))
+                let newScoreKey = "\(trimmedName)-\(roundNumber)"
+                enteredScores.insert(newScoreKey)
+                print("🔍 DEBUG: Updated enteredScores key from '\(oldScoreKey)' to '\(newScoreKey)'")
+            }
+            
+            // Update lastSavedScores dictionary to use new playerID
+            if let existingLastSavedScores = lastSavedScores[oldPlayerID] {
+                lastSavedScores.removeValue(forKey: oldPlayerID)
+                lastSavedScores[trimmedName] = existingLastSavedScores
+                print("🔍 DEBUG: Updated lastSavedScores key from '\(oldPlayerID)' to '\(trimmedName)'")
+            }
         } else {
             print("🔍 DEBUG: ERROR: PlayerID '\(oldPlayerID)' not found in game.playerIDs: \(updatedGame.playerIDs)")
         }
@@ -628,6 +656,15 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                     onGameUpdated?(savedGame)
                 }
                 print("🔍 DEBUG: Player name updated successfully: \(trimmedName)")
+                
+                // Migrate existing scores to use the new player ID
+                await migrateScoresForRenamedPlayer(oldPlayerID: oldPlayerID, newPlayerID: trimmedName)
+                
+                // Reload game data to ensure UI state is consistent with database
+                await MainActor.run {
+                    print("🔍 DEBUG: Reloading game data after player rename and score migration")
+                    loadGameData()
+                }
             case .failure(let error):
                 print("🔍 DEBUG: Failed to update player name: \(error)")
                 // Revert the change on failure
@@ -642,6 +679,121 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
         editingPlayerIndex = nil
         editingPlayerName = ""
         showPlayerNameEditor = false
+    }
+    
+    /// Migrate existing scores to use the new player ID when a player is renamed
+    func migrateScoresForRenamedPlayer(oldPlayerID: String, newPlayerID: String) async {
+        print("🔍 DEBUG: ===== MIGRATING SCORES FOR RENAMED PLAYER =====")
+        print("🔍 DEBUG: Migrating scores from '\(oldPlayerID)' to '\(newPlayerID)'")
+        
+        do {
+            // Fetch all scores for this game
+            let scoresResult = try await Amplify.API.query(request: .list(Score.self, where: Score.keys.gameID.eq(game.id)))
+            
+            switch scoresResult {
+            case .success(let scores):
+                print("🔍 DEBUG: Found \(scores.count) scores to check for migration")
+                
+                // Find scores that need to be migrated
+                let scoresToMigrate = scores.filter { $0.playerID == oldPlayerID }
+                print("🔍 DEBUG: Found \(scoresToMigrate.count) scores to migrate")
+                
+                for score in scoresToMigrate {
+                    print("🔍 DEBUG: Migrating score - Round: \(score.roundNumber), Score: \(score.score)")
+                    
+                    // Try to update the existing score first
+                    var updatedScore = score
+                    updatedScore.playerID = newPlayerID
+                    
+                    let updateResult = try await Amplify.API.mutate(request: .update(updatedScore))
+                    switch updateResult {
+                    case .success(let updatedScore):
+                        print("🔍 DEBUG: Successfully updated score for player '\(newPlayerID)' - Round: \(updatedScore.roundNumber), Score: \(updatedScore.score)")
+                    case .failure(let error):
+                        print("🔍 DEBUG: Update failed (likely due to key constraint), falling back to delete/create: \(error)")
+                        
+                        // Fallback: Delete old score and create new one
+                        let _ = try await Amplify.API.mutate(request: .delete(score))
+                        print("🔍 DEBUG: Deleted old score for player '\(oldPlayerID)'")
+                        
+                        // Create new score with updated player ID
+                        let newScore = Score(
+                            id: UUID().uuidString,
+                            gameID: score.gameID,
+                            playerID: newPlayerID,
+                            roundNumber: score.roundNumber,
+                            score: score.score,
+                            createdAt: Temporal.DateTime.now(),
+                            updatedAt: Temporal.DateTime.now(),
+                            owner: score.owner
+                        )
+                        
+                        let createResult = try await Amplify.API.mutate(request: .create(newScore))
+                        switch createResult {
+                        case .success(let createdScore):
+                            print("🔍 DEBUG: Created new score for player '\(newPlayerID)' - Round: \(createdScore.roundNumber), Score: \(createdScore.score)")
+                        case .failure(let createError):
+                            print("🔍 DEBUG: Failed to create new score: \(createError)")
+                        }
+                    }
+                }
+                
+                print("🔍 DEBUG: Score migration completed successfully")
+                
+            case .failure(let error):
+                print("🔍 DEBUG: Failed to fetch scores for migration: \(error)")
+            }
+            
+        } catch {
+            print("🔍 DEBUG: Error during score migration: \(error)")
+        }
+        
+            print("🔍 DEBUG: ===== SCORE MIGRATION END =====")
+            
+            // Validate state consistency after migration
+            await validateStateConsistency(oldPlayerID: oldPlayerID, newPlayerID: newPlayerID)
+        }
+    
+    /// Validate state consistency after player rename and score migration
+    func validateStateConsistency(oldPlayerID: String, newPlayerID: String) async {
+        print("🔍 DEBUG: ===== VALIDATING STATE CONSISTENCY =====")
+        print("🔍 DEBUG: Checking consistency for player rename: '\(oldPlayerID)' -> '\(newPlayerID)'")
+        
+        // Check if old playerID still exists in any state
+        let oldPlayerInEnteredScores = enteredScores.contains { $0.hasPrefix("\(oldPlayerID)-") }
+        let oldPlayerInLastSavedScores = lastSavedScores.keys.contains(oldPlayerID)
+        let oldPlayerInPlayerData = playerData.keys.contains(oldPlayerID)
+        
+        print("🔍 DEBUG: Old playerID '\(oldPlayerID)' still exists in:")
+        print("🔍 DEBUG: - enteredScores: \(oldPlayerInEnteredScores)")
+        print("🔍 DEBUG: - lastSavedScores: \(oldPlayerInLastSavedScores)")
+        print("🔍 DEBUG: - playerData: \(oldPlayerInPlayerData)")
+        
+        // Check if new playerID exists in all relevant state
+        let newPlayerInEnteredScores = enteredScores.contains { $0.hasPrefix("\(newPlayerID)-") }
+        let newPlayerInLastSavedScores = lastSavedScores.keys.contains(newPlayerID)
+        let newPlayerInPlayerData = playerData.keys.contains(newPlayerID)
+        
+        print("🔍 DEBUG: New playerID '\(newPlayerID)' exists in:")
+        print("🔍 DEBUG: - enteredScores: \(newPlayerInEnteredScores)")
+        print("🔍 DEBUG: - lastSavedScores: \(newPlayerInLastSavedScores)")
+        print("🔍 DEBUG: - playerData: \(newPlayerInPlayerData)")
+        
+        // Check for any inconsistencies
+        if oldPlayerInEnteredScores || oldPlayerInLastSavedScores || oldPlayerInPlayerData {
+            print("🔍 DEBUG: ⚠️ WARNING: Old playerID still exists in some state - this may cause UI glitches")
+        }
+        
+        if !newPlayerInEnteredScores && !newPlayerInLastSavedScores && !newPlayerInPlayerData {
+            print("🔍 DEBUG: ⚠️ WARNING: New playerID doesn't exist in any state - this may cause UI glitches")
+        }
+        
+        // Log current state for debugging
+        print("🔍 DEBUG: Current enteredScores keys: \(Array(enteredScores).sorted())")
+        print("🔍 DEBUG: Current lastSavedScores keys: \(Array(lastSavedScores.keys).sorted())")
+        print("🔍 DEBUG: Current playerData keys: \(Array(playerData.keys).sorted())")
+        
+        print("🔍 DEBUG: ===== STATE CONSISTENCY VALIDATION END =====")
     }
     
     /// Revert player name changes (undo functionality)
@@ -994,7 +1146,7 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                         Spacer()
                         Button("Next") {
                             if let player = editingPlayer {
-                                let newScore = Int(scoreInputText) ?? 0
+                                let newScore = parseScoreInput(scoreInputText) ?? 0
                                 updateScore(playerID: player.playerID, round: editingRound, newScore: newScore)
                             }
                             awaitSaveChangesSilently()
@@ -1013,7 +1165,7 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                             .monospacedDigit()
                         Button("Save") {
                             if let player = editingPlayer {
-                                let newScore = Int(scoreInputText) ?? 0
+                                let newScore = parseScoreInput(scoreInputText) ?? 0
                                 updateScore(playerID: player.playerID, round: editingRound, newScore: newScore)
                             }
                             awaitSaveChangesSilently()
@@ -1357,7 +1509,8 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                     players: players,
                     updateScore: updateScore,
                     awaitSaveChangesSilently: awaitSaveChangesSilently,
-                    customRuleLetter: customRuleLetter
+                    customRuleLetter: customRuleLetter,
+                    parseScoreInput: parseScoreInput
                 )
                 .zIndex(1000) // Ensure it's on top
                 .onAppear {
@@ -1383,7 +1536,7 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                     }
                     .onSubmit {
                         // Auto-save on Enter
-                        if let currentScore = Int(scoreInputText) {
+                        if let currentScore = parseScoreInput(scoreInputText) {
                             updateScore(playerID: editingPlayer?.playerID ?? "", round: editingRound, newScore: currentScore)
                             awaitSaveChangesSilently()
                         }
@@ -2440,19 +2593,29 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
     
     // Parse input text to score value (handles custom letters and numbers)
     func parseScoreInput(_ input: String) -> Int? {
+        print("🔍 DEBUG: parseScoreInput called with: '\(input)'")
         let trimmedInput = input.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        print("🔍 DEBUG: trimmedInput: '\(trimmedInput)'")
         
         if trimmedInput.isEmpty {
+            print("🔍 DEBUG: Input is empty, returning nil")
             return nil
         }
         
         // First check if it's a custom rule letter
         if let customRule = customRules.first(where: { $0.letter == trimmedInput }) {
+            print("🔍 DEBUG: Found custom rule: \(customRule.letter) = \(customRule.value)")
             return customRule.value
         }
         
         // Otherwise try to parse as regular number
-        return Int(trimmedInput)
+        if let number = Int(trimmedInput) {
+            print("🔍 DEBUG: Parsed as number: \(number)")
+            return number
+        }
+        
+        print("🔍 DEBUG: Failed to parse input, returning nil")
+        return nil
     }
     
     // Check if a score has been explicitly entered for a player and round
@@ -2461,15 +2624,19 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
         
         // Check if this score has been explicitly entered by the user
         if enteredScores.contains(scoreKey) {
+            print("🔍 DEBUG: hasScoreBeenEntered(\(playerID), \(round)) = true (found in enteredScores)")
             return true
         }
         
         // Check if there's a saved score in the backend (this indicates a score was explicitly saved)
         if let savedScores = lastSavedScores[playerID], round <= savedScores.count {
             let scoreValue = savedScores[round - 1] // Convert to 0-based index
-            return scoreValue != -1 // Only consider it entered if it's not -1 (empty)
+            let hasBeenEntered = scoreValue != -1 // Only consider it entered if it's not -1 (empty)
+            print("🔍 DEBUG: hasScoreBeenEntered(\(playerID), \(round)) = \(hasBeenEntered) (savedScores[\(round-1)] = \(scoreValue))")
+            return hasBeenEntered
         }
         
+        print("🔍 DEBUG: hasScoreBeenEntered(\(playerID), \(round)) = false (not found in enteredScores or lastSavedScores)")
         return false
     }
     
@@ -2478,18 +2645,47 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
         print("🔍 DEBUG: Loading child player usernames...")
         
         let allChildPlayers = playerHierarchy.values.flatMap { $0 }
-        let registeredChildPlayers = allChildPlayers.filter { $0.hasPrefix("user_") || $0.hasPrefix("guest_") }
         
-        if registeredChildPlayers.isEmpty {
-            print("🔍 DEBUG: No registered child players to look up")
-            return
-        }
-        
-        // Load usernames for registered child players
-        for childPlayerID in registeredChildPlayers {
-            let displayName = UsernameCacheService.shared.getDisplayName(for: childPlayerID)
+        // Extract display names from "userId:username" format, prioritizing fresh username from cache
+        for childPlayerIdentifier in allChildPlayers {
+            let displayName: String
+            let components = childPlayerIdentifier.components(separatedBy: ":")
+            
+            if components.count > 1 {
+                // Has "userId:username" format
+                let userId = components[0]
+                let storedUsername = components[1]
+                
+                // Priority 1: Try to get fresh username from DataManager's in-memory cache
+                if let user = DataManager.shared.getUser(userId) {
+                    displayName = user.username ?? storedUsername
+                    print("🔍 DEBUG: Using fresh username '\(displayName)' from DataManager for '\(userId)'")
+                } else if let cachedUsername = UsernameCacheService.shared.cachedUsernames[userId] {
+                    // Priority 2: Try to get from UsernameCacheService
+                    displayName = cachedUsername
+                    print("🔍 DEBUG: Using cached username '\(displayName)' from UsernameCacheService for '\(userId)'")
+                } else {
+                    // Priority 3: Use stored username as fallback
+                    displayName = storedUsername
+                    print("🔍 DEBUG: Using stored username '\(displayName)' from identifier '\(childPlayerIdentifier)'")
+                }
+            } else if childPlayerIdentifier.hasPrefix("user_") || childPlayerIdentifier.hasPrefix("guest_") {
+                // Plain userId format - try to get fresh username from DataManager first
+                if let user = DataManager.shared.getUser(childPlayerIdentifier) {
+                    displayName = user.username ?? UsernameCacheService.shared.getDisplayName(for: childPlayerIdentifier)
+                    print("🔍 DEBUG: Fetched username '\(displayName)' from DataManager for userId '\(childPlayerIdentifier)'")
+                } else {
+                    displayName = UsernameCacheService.shared.getDisplayName(for: childPlayerIdentifier)
+                    print("🔍 DEBUG: Fetched username '\(displayName)' from cache for userId '\(childPlayerIdentifier)'")
+                }
+            } else {
+                // Anonymous player name - use as-is
+                displayName = childPlayerIdentifier
+                print("🔍 DEBUG: Using display name '\(displayName)' as-is")
+            }
+            
             await MainActor.run {
-                childPlayerNames[childPlayerID] = displayName
+                childPlayerNames[childPlayerIdentifier] = displayName
             }
         }
         
@@ -2602,7 +2798,7 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                         print("🔍 DEBUG: Found \(gameScores.count) scores for this game")
                         
                         // Process player names and scores
-                        var playerData: [String: (name: String, scores: [Int])] = [:]
+                        self.playerData = [:]
                         
                         // Initialize scores for all players in the game
                         for (index, playerID) in game.playerIDs.enumerated() {
@@ -2621,7 +2817,7 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                                 // Simple display name (like "Team 1", "Team 2") - use directly
                                 playerName = playerID
                             }
-                            playerData[playerID] = (name: playerName, scores: Array(repeating: -1, count: dynamicRounds))
+                            self.playerData[playerID] = (name: playerName, scores: Array(repeating: -1, count: dynamicRounds))
                         }
                         
                         // Add child players to playerData with inherited scores
@@ -2629,7 +2825,7 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                             for childID in childIDs {
                                 let childName = getPlayerName(for: childID)
                                 // Child players inherit parent's scores (will be set after parent scores are loaded)
-                                playerData[childID] = (name: childName, scores: Array(repeating: -1, count: dynamicRounds))
+                                self.playerData[childID] = (name: childName, scores: Array(repeating: -1, count: dynamicRounds))
                             }
                         }
                         
@@ -2637,20 +2833,20 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                         print("🔍 DEBUG: Processing \(gameScores.count) scores from database")
                         for score in gameScores {
                             print("🔍 DEBUG: Score from DB - playerID: \(score.playerID), roundNumber: \(score.roundNumber), score: \(score.score)")
-                            if let existingPlayerData = playerData[score.playerID],
+                            if let existingPlayerData = self.playerData[score.playerID],
                                score.roundNumber <= dynamicRounds {
                                 var updatedScores = existingPlayerData.scores
                                 let roundIndex = score.roundNumber - 1 // Convert 1-based round to 0-based index
                                 print("🔍 DEBUG: Updating player \(score.playerID) round \(score.roundNumber) (index \(roundIndex)) to score \(score.score)")
                                 updatedScores[roundIndex] = score.score
-                                playerData[score.playerID] = (name: existingPlayerData.name, scores: updatedScores)
+                                self.playerData[score.playerID] = (name: existingPlayerData.name, scores: updatedScores)
                                 
                                 // Inherit scores to child players
                                 if let childPlayers = playerHierarchy[score.playerID] {
                                     for childID in childPlayers {
-                                        if var childData = playerData[childID] {
+                                        if var childData = self.playerData[childID] {
                                             childData.scores[roundIndex] = score.score
-                                            playerData[childID] = childData
+                                            self.playerData[childID] = childData
                                             print("🔍 DEBUG: Inherited score \(score.score) to child player \(childID) for round \(score.roundNumber)")
                                         }
                                     }
@@ -2662,7 +2858,7 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                         
                         // Merge with unsaved scores to preserve current state
                         for (playerID, unsavedPlayerScores) in unsavedScores {
-                            if let existingPlayerData = playerData[playerID] {
+                            if let existingPlayerData = self.playerData[playerID] {
                                 var mergedScores = existingPlayerData.scores
                                 
                                 // Ensure the merged scores array has the correct size
@@ -2680,13 +2876,13 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                                     }
                                 }
                                 
-                                playerData[playerID] = (name: existingPlayerData.name, scores: mergedScores)
+                                self.playerData[playerID] = (name: existingPlayerData.name, scores: mergedScores)
                                 print("🔍 DEBUG: Merged scores for \(playerID): \(mergedScores)")
                                 
                                 // Inherit unsaved scores to child players
                                 if let childPlayers = playerHierarchy[playerID] {
                                     for childID in childPlayers {
-                                        if var childData = playerData[childID] {
+                                        if var childData = self.playerData[childID] {
                                             var childMergedScores = childData.scores
                                             
                                             // Ensure the child scores array has the correct size
@@ -2705,7 +2901,7 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                                             }
                                             
                                             childData.scores = childMergedScores
-                                            playerData[childID] = childData
+                                            self.playerData[childID] = childData
                                             print("🔍 DEBUG: Inherited unsaved scores to child player \(childID): \(childMergedScores)")
                                         }
                                     }
@@ -2714,7 +2910,7 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                         }
                         
                         // Convert to TestPlayer array - ONLY for parent players (not children)
-                        self.players = playerData.compactMap { playerID, data in
+                        self.players = self.playerData.compactMap { playerID, data in
                             // Skip child players - they don't get their own columns
                             let isChildPlayer = playerHierarchy.values.flatMap { $0 }.contains(playerID)
                             if isChildPlayer {
@@ -3292,6 +3488,7 @@ struct SystemKeyboardView: View {
     let updateScore: (String, Int, Int) -> Void
     let awaitSaveChangesSilently: () -> Void
     let customRuleLetter: String
+    let parseScoreInput: (String) -> Int?
     
     var body: some View {
         VStack(spacing: 0) {
@@ -3343,7 +3540,8 @@ struct SystemKeyboardView: View {
                         */
                         
                         Button("Save") {
-                    saveCurrentScore()
+                            print("🔍 DEBUG: Save button tapped in SystemKeyboardView")
+                            saveCurrentScore()
                             isVisible = false
                         }
                 .foregroundColor(.blue)
@@ -3385,10 +3583,20 @@ struct SystemKeyboardView: View {
     }
     
     private func saveCurrentScore() {
-        if let currentScore = Int(text) {
+        print("🔍 DEBUG: ===== SAVE CURRENT SCORE (KEYBOARD) =====")
+        print("🔍 DEBUG: text value: '\(text)'")
+        print("🔍 DEBUG: editingPlayer: \(editingPlayer?.name ?? "nil")")
+        print("🔍 DEBUG: editingRound: \(editingRound)")
+        
+        if let currentScore = parseScoreInput(text) {
+            print("🔍 DEBUG: Parsed score: \(currentScore)")
             updateScore(editingPlayer?.playerID ?? "", editingRound, currentScore)
             awaitSaveChangesSilently()
+            print("🔍 DEBUG: Score saved successfully")
+        } else {
+            print("🔍 DEBUG: Failed to parse score from text: '\(text)'")
         }
+        print("🔍 DEBUG: ===== SAVE CURRENT SCORE END =====")
     }
                         
     private func moveToNextEmptyCell() {
@@ -4088,17 +4296,13 @@ struct SystemKeyboardView: View {
                             let lastSavedArray = lastSavedScores[playerID] ?? []
                             let lastSavedScore = (roundIndex < lastSavedArray.count) ? lastSavedArray[roundIndex] : -1
                             if existing == nil || scoreValue != lastSavedScore {
-                                let scoreObject = Score(
-                                    id: "\(game.id)-\(playerID)-\(roundNumber)",
-                                    gameID: game.id,
-                                    playerID: playerID,
-                                    roundNumber: roundNumber,
-                                    score: scoreValue,
-                                    createdAt: Temporal.DateTime.now(),
-                                    updatedAt: Temporal.DateTime.now()
-                                )
                                 if existing != nil {
-                                    let result = try await Amplify.API.mutate(request: .update(scoreObject))
+                                    // Update existing score - preserve original createdAt
+                                    var updatedScore = existing!
+                                    updatedScore.score = scoreValue
+                                    updatedScore.updatedAt = Temporal.DateTime.now()
+                                    
+                                    let result = try await Amplify.API.mutate(request: .update(updatedScore))
                                     switch result {
                                     case .success(let updatedScore):
                                         await MainActor.run {
@@ -4108,6 +4312,16 @@ struct SystemKeyboardView: View {
                                         print("Error updating score: \(error)")
                                     }
                                 } else {
+                                    // Create new score
+                                    let scoreObject = Score(
+                                        id: "\(game.id)-\(playerID)-\(roundNumber)",
+                                        gameID: game.id,
+                                        playerID: playerID,
+                                        roundNumber: roundNumber,
+                                        score: scoreValue,
+                                        createdAt: Temporal.DateTime.now(),
+                                        updatedAt: Temporal.DateTime.now()
+                                    )
                                     let result = try await Amplify.API.mutate(request: .create(scoreObject))
                                     switch result {
                                     case .success(let createdScore):

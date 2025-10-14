@@ -259,7 +259,7 @@ class DataManager: ObservableObject {
         switch allGamesResult {
         case .success(let allGames):
             let playerGames = allGames.filter { game in
-                isUserInGame(userId: userId, playerIDs: game.playerIDs)
+                isUserInGame(userId: userId, playerIDs: game.playerIDs, game: game)
             }
             allUserGames.append(contentsOf: playerGames)
             print("🔍 DEBUG: Found \(playerGames.count) games where user is a player")
@@ -619,7 +619,7 @@ class DataManager: ObservableObject {
             }
             
             // Check if user is a player using improved detection
-            let isPlayer = isUserInGame(userId: userId, playerIDs: game.playerIDs)
+            let isPlayer = isUserInGame(userId: userId, playerIDs: game.playerIDs, game: game)
             if isPlayer {
                 print("🔍 DEBUG: User \(userId) is player in game \(game.id)")
             }
@@ -632,7 +632,8 @@ class DataManager: ObservableObject {
     
     /// Helper function to check if a user is in a game's player list
     /// This handles both registered users (direct user ID) and anonymous users (userID:displayName format)
-    private func isUserInGame(userId: String, playerIDs: [String]) -> Bool {
+    /// Also checks player hierarchy for child players in hierarchy games
+    private func isUserInGame(userId: String, playerIDs: [String], game: Game? = nil) -> Bool {
         print("🔍 DEBUG: isUserInGame checking user \(userId) in playerIDs: \(playerIDs)")
         
         // Check for exact match (registered users)
@@ -659,11 +660,28 @@ class DataManager: ObservableObject {
         
         if hasContainedMatch {
             print("🔍 DEBUG: Found contained match for user \(userId)")
-        } else {
-            print("🔍 DEBUG: No match found for user \(userId)")
+            return true
         }
         
-        return hasContainedMatch
+        // Check player hierarchy for child players (hierarchy games)
+        if let game = game, game.hasPlayerHierarchy {
+            let hierarchy = game.getPlayerHierarchy()
+            let allChildPlayers = hierarchy.values.flatMap { $0 }
+            
+            // Compare by userId (extract from "userId:username" format)
+            let hasChildMatch = allChildPlayers.contains { childPlayer in
+                let childUserId = childPlayer.components(separatedBy: ":").first ?? childPlayer
+                return childUserId == userId || childPlayer.hasPrefix(userId + ":")
+            }
+            
+            if hasChildMatch {
+                print("🔍 DEBUG: Found user \(userId) as child player in hierarchy")
+                return true
+            }
+        }
+        
+        print("🔍 DEBUG: No match found for user \(userId)")
+        return false
     }
     
     func getScoresForGame(_ gameId: String) -> [Score] {
@@ -671,7 +689,29 @@ class DataManager: ObservableObject {
     }
     
     func getScoresForPlayer(_ playerId: String) -> [Score] {
-        return scores.filter { $0.playerID == playerId }
+        var playerScores = scores.filter { $0.playerID == playerId }
+        
+        // For hierarchy games, also include scores from parent team if player is a child player
+        for game in games {
+            if game.hasPlayerHierarchy {
+                let hierarchy = game.getPlayerHierarchy()
+                // Check if the player is a child player and get their parent team's scores
+                for (parentID, childPlayers) in hierarchy {
+                    // Compare by userId (extract from "userId:username" format)
+                    let hasMatch = childPlayers.contains { childPlayer in
+                        let childUserId = childPlayer.components(separatedBy: ":").first ?? childPlayer
+                        return childUserId == playerId
+                    }
+                    
+                    if hasMatch {
+                        let parentScores = scores.filter { $0.playerID == parentID && $0.gameID == game.id }
+                        playerScores.append(contentsOf: parentScores)
+                    }
+                }
+            }
+        }
+        
+        return playerScores
     }
     
     func getUser(_ userId: String) -> User? {
@@ -749,7 +789,7 @@ class DataManager: ObservableObject {
             }
             
             // Check if user is a player using improved detection
-            return isUserInGame(userId: currentUserId, playerIDs: game.playerIDs)
+            return isUserInGame(userId: currentUserId, playerIDs: game.playerIDs, game: game)
         }
         
         print("🔍 DEBUG: DataManager - Filtered to \(userGames.count) games where user \(currentUserId) participated")

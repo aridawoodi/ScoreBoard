@@ -149,7 +149,9 @@ struct CreateGameView: View {
                     addRegisteredPlayer: addRegisteredPlayer,
                     removePlayer: removePlayer,
                     loadLastGameSettings: loadLastGameSettings,
-                    addCustomRule: addCustomRule
+                    addCustomRule: addCustomRule,
+                    addHostToHierarchy: addHostToHierarchy,
+                    removeHostFromHierarchy: removeHostFromHierarchy
                 )
                 .padding(.bottom, 100) // Add bottom padding to avoid floating tab bar
             }
@@ -172,7 +174,42 @@ struct CreateGameView: View {
                         
                         let totalPlayers = getTotalPlayerCount()
                         print("🔍 DEBUG: Total players count: \(totalPlayers) (manual players: \(players.count), host joining: \(hostJoinAsPlayer))")
-                        if totalPlayers < 2 {
+                        print("🔍 DEBUG: Use player hierarchy: \(usePlayerHierarchy)")
+                        
+                        // For hierarchy mode, count child players instead of parent teams
+                        let effectivePlayerCount: Int
+                        if usePlayerHierarchy {
+                            var totalChildPlayers = playerHierarchy.values.flatMap { $0 }.count
+                            // Add host to count if they're joining as player (they'll be added on create/update)
+                            if hostJoinAsPlayer {
+                                // Check if host is not already in hierarchy before adding to count
+                                let hostUserId: String
+                                if let currentUser = currentUser {
+                                    hostUserId = currentUser.userId
+                                } else {
+                                    hostUserId = hostPlayerName.trimmingCharacters(in: .whitespacesAndNewlines)
+                                }
+                                
+                                // Compare by userId (extract from "userId:username" format)
+                                let allChildPlayers = playerHierarchy.values.flatMap { $0 }
+                                let isHostInHierarchy = allChildPlayers.contains { childPlayer in
+                                    let childUserId = childPlayer.components(separatedBy: ":").first ?? childPlayer
+                                    return childUserId == hostUserId
+                                }
+                                
+                                if !isHostInHierarchy && !hostUserId.isEmpty {
+                                    totalChildPlayers += 1
+                                    print("🔍 DEBUG: Hierarchy mode - host will be added, including in count")
+                                }
+                            }
+                            effectivePlayerCount = totalChildPlayers
+                            print("🔍 DEBUG: Hierarchy mode - counting child players: \(totalChildPlayers)")
+                        } else {
+                            effectivePlayerCount = totalPlayers
+                            print("🔍 DEBUG: Regular mode - counting total players: \(totalPlayers)")
+                        }
+                        
+                        if effectivePlayerCount < 2 {
                             showNoPlayersAlert = true
                         } else if !isLoading {
                             if isEditMode {
@@ -389,10 +426,43 @@ struct CreateGameView: View {
         print("🔍 DEBUG: createGame() called")
         let totalPlayers = getTotalPlayerCount()
         
-        // Use shared validation
+        // For hierarchy mode, count child players instead of parent teams
+        let effectivePlayerCount: Int
+        if usePlayerHierarchy {
+            var totalChildPlayers = playerHierarchy.values.flatMap { $0 }.count
+            // Add host to count if they're joining as player (they'll be added before API call)
+            if hostJoinAsPlayer {
+                // Check if host is not already in hierarchy before adding to count
+                let hostUserId: String
+                if let currentUser = currentUser {
+                    hostUserId = currentUser.userId
+                } else {
+                    hostUserId = hostPlayerName.trimmingCharacters(in: .whitespacesAndNewlines)
+                }
+                
+                // Compare by userId (extract from "userId:username" format)
+                let allChildPlayers = playerHierarchy.values.flatMap { $0 }
+                let isHostInHierarchy = allChildPlayers.contains { childPlayer in
+                    let childUserId = childPlayer.components(separatedBy: ":").first ?? childPlayer
+                    return childUserId == hostUserId
+                }
+                
+                if !isHostInHierarchy && !hostUserId.isEmpty {
+                    totalChildPlayers += 1
+                    print("🔍 DEBUG: Hierarchy mode - host will be added, including in count")
+                }
+            }
+            effectivePlayerCount = totalChildPlayers
+            print("🔍 DEBUG: Hierarchy mode - counting child players: \(totalChildPlayers)")
+        } else {
+            effectivePlayerCount = totalPlayers
+            print("🔍 DEBUG: Regular mode - counting total players: \(totalPlayers)")
+        }
+        
+        // Use shared validation with effective player count
         let validation = GameCreationUtils.validateGameCreation(
-            playerCount: players.count,
-            hostJoinAsPlayer: hostJoinAsPlayer
+            playerCount: usePlayerHierarchy ? effectivePlayerCount : players.count,
+            hostJoinAsPlayer: usePlayerHierarchy ? false : hostJoinAsPlayer // For hierarchy, host is already counted in effectivePlayerCount
         )
         
         guard validation.isValid else {
@@ -412,29 +482,43 @@ struct CreateGameView: View {
                 // Use shared user ID handling
                 let currentUserId = try await GameCreationUtils.getCurrentUserId()
                 
-                var playerIDs = players.map { $0.userId ?? $0.name } // Use user ID if registered, name if anonymous
-                print("🔍 DEBUG: Player IDs: \(playerIDs)")
+                var playerIDs: [String]
                 
-                // Add host as player if option is enabled
-                if hostJoinAsPlayer {
-                    if let currentUser = currentUser {
-                        // Check if host is already in the players array before adding
-                        if !isUserAlreadyInPlayers(userId: currentUser.userId, players: players) {
-                            playerIDs.append(currentUser.userId)
-                            print("🔍 DEBUG: Added host as registered user with ID: \(currentUser.userId)")
-                        } else {
-                            print("🔍 DEBUG: Host is already in players array, skipping duplicate addition")
-                        }
-                    } else {
-                        // Host is anonymous - use their chosen display name
-                        let hostName = hostPlayerName.trimmingCharacters(in: .whitespacesAndNewlines)
-                        if !hostName.isEmpty {
-                            // Check if host name is already in the players array
-                            if !isUserAlreadyInPlayers(userId: hostName, players: players) {
-                                playerIDs.append(hostName)
-                                print("🔍 DEBUG: Added host as anonymous user: \(hostName)")
+                if usePlayerHierarchy {
+                    // For hierarchy games, add host as child player if toggle is ON
+                    if hostJoinAsPlayer {
+                        addHostToHierarchy()
+                    }
+                    
+                    // Use parent player names (team names) from playerHierarchy
+                    playerIDs = Array(playerHierarchy.keys).sorted()
+                    print("🔍 DEBUG: Hierarchy mode - Player IDs (parent teams): \(playerIDs)")
+                } else {
+                    // For regular games, use the players array
+                    playerIDs = players.map { $0.userId ?? $0.name } // Use user ID if registered, name if anonymous
+                    print("🔍 DEBUG: Regular mode - Player IDs: \(playerIDs)")
+                    
+                    // Add host as player if option is enabled (only for regular games)
+                    if hostJoinAsPlayer {
+                        if let currentUser = currentUser {
+                            // Check if host is already in the players array before adding
+                            if !isUserAlreadyInPlayers(userId: currentUser.userId, players: players) {
+                                playerIDs.append(currentUser.userId)
+                                print("🔍 DEBUG: Added host as registered user with ID: \(currentUser.userId)")
                             } else {
-                                print("🔍 DEBUG: Host name is already in players array, skipping duplicate addition")
+                                print("🔍 DEBUG: Host is already in players array, skipping duplicate addition")
+                            }
+                        } else {
+                            // Host is anonymous - use their chosen display name
+                            let hostName = hostPlayerName.trimmingCharacters(in: .whitespacesAndNewlines)
+                            if !hostName.isEmpty {
+                                // Check if host name is already in the players array
+                                if !isUserAlreadyInPlayers(userId: hostName, players: players) {
+                                    playerIDs.append(hostName)
+                                    print("🔍 DEBUG: Added host as anonymous user: \(hostName)")
+                                } else {
+                                    print("🔍 DEBUG: Host name is already in players array, skipping duplicate addition")
+                                }
                             }
                         }
                     }
@@ -491,7 +575,41 @@ struct CreateGameView: View {
     func updateGame() {
         print("🔍 DEBUG: updateGame() called")
         let totalPlayers = getTotalPlayerCount()
-        guard totalPlayers >= 2 else {
+        
+        // For hierarchy mode, count child players instead of parent teams
+        let effectivePlayerCount: Int
+        if usePlayerHierarchy {
+            var totalChildPlayers = playerHierarchy.values.flatMap { $0 }.count
+            // Add host to count if they're joining as player (they'll be added before API call)
+            if hostJoinAsPlayer {
+                // Check if host is not already in hierarchy before adding to count
+                let hostUserId: String
+                if let currentUser = currentUser {
+                    hostUserId = currentUser.userId
+                } else {
+                    hostUserId = hostPlayerName.trimmingCharacters(in: .whitespacesAndNewlines)
+                }
+                
+                // Compare by userId (extract from "userId:username" format)
+                let allChildPlayers = playerHierarchy.values.flatMap { $0 }
+                let isHostInHierarchy = allChildPlayers.contains { childPlayer in
+                    let childUserId = childPlayer.components(separatedBy: ":").first ?? childPlayer
+                    return childUserId == hostUserId
+                }
+                
+                if !isHostInHierarchy && !hostUserId.isEmpty {
+                    totalChildPlayers += 1
+                    print("🔍 DEBUG: Hierarchy mode - host will be added, including in count")
+                }
+            }
+            effectivePlayerCount = totalChildPlayers
+            print("🔍 DEBUG: Hierarchy mode - counting child players: \(totalChildPlayers)")
+        } else {
+            effectivePlayerCount = totalPlayers
+            print("🔍 DEBUG: Regular mode - counting total players: \(totalPlayers)")
+        }
+        
+        guard effectivePlayerCount >= 2 else {
             print("🔍 DEBUG: Not enough players found, showing alert")
             alertMessage = "Please add at least two players to the game."
             showAlert = true
@@ -527,42 +645,58 @@ struct CreateGameView: View {
                     print("🔍 DEBUG: Current user ID: \(currentUserId)")
                 }
                 
-                var playerIDs = players.map { $0.userId ?? $0.name }
-                print("🔍 DEBUG: Player IDs: \(playerIDs)")
+                var playerIDs: [String]
                 
-                // Handle host participation based on toggle state
-                if hostJoinAsPlayer {
-                    // Add host as player if option is enabled
-                    if let currentUser = currentUser {
-                        // Check if host is already in the players array before adding
-                        if !isUserAlreadyInPlayers(userId: currentUser.userId, players: players) {
-                            playerIDs.append(currentUser.userId)
-                            print("🔍 DEBUG: Added host as registered user with ID: \(currentUser.userId)")
-                        } else {
-                            print("🔍 DEBUG: Host is already in players array, skipping duplicate addition")
-                        }
+                if usePlayerHierarchy {
+                    // For hierarchy games, add/remove host as child player based on toggle
+                    if hostJoinAsPlayer {
+                        addHostToHierarchy()
                     } else {
-                        let hostName = hostPlayerName.trimmingCharacters(in: .whitespacesAndNewlines)
-                        if !hostName.isEmpty {
-                            // Check if host name is already in the players array
-                            if !isUserAlreadyInPlayers(userId: hostName, players: players) {
-                                playerIDs.append(hostName)
-                                print("🔍 DEBUG: Added host as anonymous user: \(hostName)")
+                        removeHostFromHierarchy()
+                    }
+                    
+                    // Use parent player names (team names) from playerHierarchy
+                    playerIDs = Array(playerHierarchy.keys).sorted()
+                    print("🔍 DEBUG: Hierarchy mode - Player IDs (parent teams): \(playerIDs)")
+                } else {
+                    // For regular games, use the players array
+                    playerIDs = players.map { $0.userId ?? $0.name }
+                    print("🔍 DEBUG: Regular mode - Player IDs: \(playerIDs)")
+                    
+                    // Handle host participation based on toggle state (only for regular games)
+                    if hostJoinAsPlayer {
+                        // Add host as player if option is enabled
+                        if let currentUser = currentUser {
+                            // Check if host is already in the players array before adding
+                            if !isUserAlreadyInPlayers(userId: currentUser.userId, players: players) {
+                                playerIDs.append(currentUser.userId)
+                                print("🔍 DEBUG: Added host as registered user with ID: \(currentUser.userId)")
                             } else {
-                                print("🔍 DEBUG: Host name is already in players array, skipping duplicate addition")
+                                print("🔍 DEBUG: Host is already in players array, skipping duplicate addition")
+                            }
+                        } else {
+                            let hostName = hostPlayerName.trimmingCharacters(in: .whitespacesAndNewlines)
+                            if !hostName.isEmpty {
+                                // Check if host name is already in the players array
+                                if !isUserAlreadyInPlayers(userId: hostName, players: players) {
+                                    playerIDs.append(hostName)
+                                    print("🔍 DEBUG: Added host as anonymous user: \(hostName)")
+                                } else {
+                                    print("🔍 DEBUG: Host name is already in players array, skipping duplicate addition")
+                                }
                             }
                         }
-                    }
-                } else {
-                    // Remove host from player list if option is disabled
-                    if let currentUser = currentUser {
-                        playerIDs.removeAll { $0 == currentUser.userId }
-                        print("🔍 DEBUG: Removed host from player list: \(currentUser.userId)")
                     } else {
-                        let hostName = hostPlayerName.trimmingCharacters(in: .whitespacesAndNewlines)
-                        if !hostName.isEmpty {
-                            playerIDs.removeAll { $0 == hostName }
-                            print("🔍 DEBUG: Removed host from player list: \(hostName)")
+                        // Remove host from player list if option is disabled
+                        if let currentUser = currentUser {
+                            playerIDs.removeAll { $0 == currentUser.userId }
+                            print("🔍 DEBUG: Removed host from player list: \(currentUser.userId)")
+                        } else {
+                            let hostName = hostPlayerName.trimmingCharacters(in: .whitespacesAndNewlines)
+                            if !hostName.isEmpty {
+                                playerIDs.removeAll { $0 == hostName }
+                                print("🔍 DEBUG: Removed host from player list: \(hostName)")
+                            }
                         }
                     }
                 }
@@ -786,14 +920,33 @@ struct CreateGameView: View {
             
             // Determine if host is joining as player
             print("🔍 DEBUG: Determining host join status...")
-            // This is a bit tricky since we need to check if the current user is in the playerIDs
-            if let currentUser = currentUser {
-                hostJoinAsPlayer = game.playerIDs.contains(currentUser.userId)
-                print("🔍 DEBUG: Current user found, hostJoinAsPlayer: \(hostJoinAsPlayer)")
+            
+            if usePlayerHierarchy {
+                // For hierarchy games, check if current user is a child player in hierarchy
+                let hostUserId: String
+                if let currentUser = currentUser {
+                    hostUserId = currentUser.userId
+                } else {
+                    hostUserId = hostPlayerName.trimmingCharacters(in: .whitespacesAndNewlines)
+                }
+                
+                // Compare by userId (extract from "userId:username" format)
+                let allChildPlayers = hierarchy.values.flatMap { $0 }
+                hostJoinAsPlayer = allChildPlayers.contains { childPlayer in
+                    let childUserId = childPlayer.components(separatedBy: ":").first ?? childPlayer
+                    return childUserId == hostUserId
+                }
+                print("🔍 DEBUG: Hierarchy mode - Host with userId '\(hostUserId)' is child player: \(hostJoinAsPlayer)")
             } else {
-                // For guest users, we'll assume they're joining if they have a display name
-                hostJoinAsPlayer = !hostPlayerName.isEmpty
-                print("🔍 DEBUG: No current user, using hostPlayerName check: \(hostJoinAsPlayer)")
+                // For regular games, check if the current user is in the playerIDs
+                if let currentUser = currentUser {
+                    hostJoinAsPlayer = game.playerIDs.contains(currentUser.userId)
+                    print("🔍 DEBUG: Current user found, hostJoinAsPlayer: \(hostJoinAsPlayer)")
+                } else {
+                    // For guest users, we'll assume they're joining if they have a display name
+                    hostJoinAsPlayer = !hostPlayerName.isEmpty
+                    print("🔍 DEBUG: No current user, using hostPlayerName check: \(hostJoinAsPlayer)")
+                }
             }
             
             print("🔍 DEBUG: Host joining as player: \(hostJoinAsPlayer)")
@@ -929,6 +1082,79 @@ struct CreateGameView: View {
         }
     }
     
+    /// Add host player to hierarchy as a child player
+    /// Uses format "userId:username" for consistent identification and display
+    private func addHostToHierarchy() {
+        // Get host identifier in "userId:username" format
+        let hostIdentifier: String
+        if let currentUser = currentUser {
+            // For registered/guest users: use "userId:username" format
+            let username = currentUserProfile?.username ?? UsernameCacheService.shared.getCurrentUserUsername() ?? "User"
+            hostIdentifier = "\(currentUser.userId):\(username)"
+        } else {
+            // For anonymous users: just use the display name
+            let name = hostPlayerName.trimmingCharacters(in: .whitespacesAndNewlines)
+            hostIdentifier = name.isEmpty ? "" : name
+        }
+        
+        guard !hostIdentifier.isEmpty else {
+            print("🔍 DEBUG: Host identifier is empty, skipping add to hierarchy")
+            return
+        }
+        
+        // Extract userId for comparison (handle both "userId:username" and plain formats)
+        let hostUserId = hostIdentifier.components(separatedBy: ":").first ?? hostIdentifier
+        
+        // Check if host is already a child in ANY parent team (compare by userId)
+        let allChildPlayers = playerHierarchy.values.flatMap { $0 }
+        let isDuplicate = allChildPlayers.contains { childPlayer in
+            let childUserId = childPlayer.components(separatedBy: ":").first ?? childPlayer
+            return childUserId == hostUserId
+        }
+        
+        if isDuplicate {
+            print("🔍 DEBUG: Host with userId '\(hostUserId)' is already a child player, skipping duplicate")
+            return
+        }
+        
+        // Add to first available parent team (sorted alphabetically)
+        guard let firstParent = playerHierarchy.keys.sorted().first else {
+            print("🔍 DEBUG: No parent teams available, skipping add to hierarchy")
+            return
+        }
+        
+        if playerHierarchy[firstParent] == nil {
+            playerHierarchy[firstParent] = []
+        }
+        playerHierarchy[firstParent]?.append(hostIdentifier)
+        print("🔍 DEBUG: Added host '\(hostIdentifier)' as child to '\(firstParent)'")
+    }
+    
+    /// Remove host player from all parent teams in hierarchy
+    private func removeHostFromHierarchy() {
+        // Get host userId for comparison
+        let hostUserId: String
+        if let currentUser = currentUser {
+            hostUserId = currentUser.userId
+        } else {
+            hostUserId = hostPlayerName.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        
+        guard !hostUserId.isEmpty else {
+            print("🔍 DEBUG: Host identifier is empty, skipping remove from hierarchy")
+            return
+        }
+        
+        // Remove from all parent teams (compare by userId part)
+        for parent in playerHierarchy.keys {
+            playerHierarchy[parent]?.removeAll { childPlayer in
+                let childUserId = childPlayer.components(separatedBy: ":").first ?? childPlayer
+                return childUserId == hostUserId
+            }
+        }
+        print("🔍 DEBUG: Removed host with userId '\(hostUserId)' from all parent teams")
+    }
+    
     private func saveCurrentGameSettings() {
         // Convert custom rules array to JSON string
         let customRulesJSON = CustomRulesManager.shared.rulesToJSON(customRules) ?? ""
@@ -1006,6 +1232,8 @@ struct CreateGameContentView: View {
     let removePlayer: (Player) -> Void
     let loadLastGameSettings: () -> Void
     let addCustomRule: () -> Void
+    let addHostToHierarchy: () -> Void
+    let removeHostFromHierarchy: () -> Void
     
     private func getHostDisplayName(for user: AuthUser) -> String {
         // First try to get username from cache (fastest)
@@ -1130,6 +1358,18 @@ struct CreateGameContentView: View {
             toggleContent
         }
         .toggleStyle(SwitchToggleStyle(tint: Color("LightGreen")))
+        .onChange(of: hostJoinAsPlayer) { oldValue, newValue in
+            // For hierarchy games, add/remove host immediately when toggle changes
+            if usePlayerHierarchy {
+                if newValue {
+                    addHostToHierarchy()
+                    print("🔍 DEBUG: Toggle ON - Added host to hierarchy")
+                } else {
+                    removeHostFromHierarchy()
+                    print("🔍 DEBUG: Toggle OFF - Removed host from hierarchy")
+                }
+            }
+        }
         
         let hostNameTextField = TextField("", text: $hostPlayerName)
             .modifier(AppTextFieldStyle(placeholder: "Enter your display name", text: $hostPlayerName))
@@ -1166,15 +1406,16 @@ struct CreateGameContentView: View {
         
         let playerHierarchyToggleSection = VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Toggle("Use Player Hierarchy", isOn: $usePlayerHierarchy)
+                Toggle("Add Team's players", isOn: $usePlayerHierarchy)
                     .foregroundColor(.white)
                     .fontWeight(.medium)
+                    .disabled(isEditMode && !playerHierarchy.isEmpty)
                 
                 Spacer()
             }
             
             if usePlayerHierarchy {
-                Text("Create parent players (e.g., 'Team 1', 'Team 2') and add child players to them. Child players will inherit parent's scores.")
+                Text("Search Add registered players to the teams and build your team")
                     .font(.caption)
                     .foregroundColor(.white.opacity(0.8))
                     .multilineTextAlignment(.leading)
@@ -1210,8 +1451,8 @@ struct CreateGameContentView: View {
         .cornerRadius(advancedSettingsCornerRadius)
         
         return VStack(spacing: sectionSpacing) {
-            // Quick Start with Last Game Settings
-            if GameSettingsStorage.shared.hasLastGameSettings() {
+            // Quick Start with Last Game Settings - Only show in create mode
+            if !isEditMode && GameSettingsStorage.shared.hasLastGameSettings() {
                 quickStartSection
             }
             
@@ -1223,8 +1464,10 @@ struct CreateGameContentView: View {
             // Host Join Option
             hostJoinSection
             
-            // Player Hierarchy Toggle
-            playerHierarchyToggleSection
+            // Player Hierarchy Toggle - Only show for hierarchy games or when creating new hierarchy games
+            if !playerHierarchy.isEmpty || usePlayerHierarchy {
+                playerHierarchyToggleSection
+            }
             
             // Player Management
             if usePlayerHierarchy {
