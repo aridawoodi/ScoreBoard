@@ -42,6 +42,9 @@ class GameCreationUtils {
             // Set the selected game
             navigationState.selectedGame = game
             
+            // Reset shouldShowMainBoard since we're now showing a specific game
+            navigationState.shouldShowMainBoard = false
+            
             // Add the new game to userGames immediately to ensure UI consistency
             if !navigationState.userGames.contains(where: { $0.id == game.id }) {
                 print("🔍 DEBUG: Adding new game to userGames immediately")
@@ -53,6 +56,7 @@ class GameCreationUtils {
             
             print("🔍 DEBUG: Current navigationState.selectedGame: \(navigationState.selectedGame?.id ?? "nil")")
             print("🔍 DEBUG: Current userGames count: \(navigationState.userGames.count)")
+            print("🔍 DEBUG: shouldShowMainBoard reset to: \(navigationState.shouldShowMainBoard)")
         }
         
         // Switch to Your Board tab if provided

@@ -54,19 +54,23 @@ struct YourBoardTabView: View {
                         // Remove the deleted game from userGames array
                         navigationState.userGames.removeAll { $0.id == selectedGame.id }
                         
-                        // Switch to another game if available
-                        if let nextGame = navigationState.userGames.first {
-                            print("🔍 DEBUG: Switching to next available game: \(nextGame.id)")
-                            navigationState.selectedGame = nextGame
-                            print("🔍 DEBUG: Set selectedGame to: \(nextGame.id)")
+                        // Check if there are any active games left
+                        let activeGames = navigationState.userGames.filter { $0.gameStatus == .active }
+                        
+                        if let nextActiveGame = activeGames.first {
+                            print("🔍 DEBUG: Switching to next available active game: \(nextActiveGame.id)")
+                            navigationState.selectedGame = nextActiveGame
+                            print("🔍 DEBUG: Set selectedGame to: \(nextActiveGame.id)")
                         } else {
-                            print("🔍 DEBUG: No games left, going back to main board")
-                            // No games left, go back to main board
+                            print("🔍 DEBUG: No active games left, going back to main board")
+                            // No active games left, go back to main board
                             navigationState.selectedGame = nil
+                            navigationState.shouldShowMainBoard = true
                         }
                         
                         print("🔍 DEBUG: After - selectedGame: \(navigationState.selectedGame?.id ?? "nil")")
                         print("🔍 DEBUG: After - userGames count: \(navigationState.userGames.count)")
+                        print("🔍 DEBUG: After - shouldShowMainBoard: \(navigationState.shouldShowMainBoard)")
                         
                         // Force view refresh by triggering objectWillChange
                         navigationState.objectWillChange.send()
@@ -81,10 +85,10 @@ struct YourBoardTabView: View {
                         print("🔍 DEBUG: navigationState.isKeyboardActive set to: \(navigationState.isKeyboardActive)")
                     }
                     .onAppear {
-                        print("🔍 DEBUG: Showing selectedGame view for: \(selectedGame.id)")
+                        // Debug logging moved to main onAppear block
                     }
                     
-                } else if let latestGame = navigationState.latestGame, !forceViewReset, !navigationState.shouldShowMainBoard {
+                } else if let latestGame = navigationState.latestGame, latestGame.gameStatus == .active, !forceViewReset, !navigationState.shouldShowMainBoard {
                     // Show latest game with ScoreboardView in edit mode
                     ScoreboardView(game: .constant(latestGame), mode: .edit) { updatedGame in
                         print("🔍 DEBUG: ===== GAME UPDATE IN YOUR BOARD TAB (LATEST) =====")
@@ -109,19 +113,23 @@ struct YourBoardTabView: View {
                         // Remove the deleted game from userGames array
                         navigationState.userGames.removeAll { $0.id == latestGame.id }
                         
-                        // Switch to another game if available
-                        if let nextGame = navigationState.userGames.first {
-                            print("🔍 DEBUG: Switching to next available game: \(nextGame.id)")
-                            navigationState.selectedGame = nextGame
-                            print("🔍 DEBUG: Set selectedGame to: \(nextGame.id)")
+                        // Check if there are any active games left
+                        let activeGames = navigationState.userGames.filter { $0.gameStatus == .active }
+                        
+                        if let nextActiveGame = activeGames.first {
+                            print("🔍 DEBUG: Switching to next available active game: \(nextActiveGame.id)")
+                            navigationState.selectedGame = nextActiveGame
+                            print("🔍 DEBUG: Set selectedGame to: \(nextActiveGame.id)")
                         } else {
-                            print("🔍 DEBUG: No games left, going back to main board")
-                            // No games left, go back to main board
+                            print("🔍 DEBUG: No active games left, going back to main board")
+                            // No active games left, go back to main board
                             navigationState.selectedGame = nil
+                            navigationState.shouldShowMainBoard = true
                         }
                         
                         print("🔍 DEBUG: After - selectedGame: \(navigationState.selectedGame?.id ?? "nil")")
                         print("🔍 DEBUG: After - userGames count: \(navigationState.userGames.count)")
+                        print("🔍 DEBUG: After - shouldShowMainBoard: \(navigationState.shouldShowMainBoard)")
                         
                         // Force view refresh by triggering objectWillChange
                         navigationState.objectWillChange.send()
@@ -137,7 +145,7 @@ struct YourBoardTabView: View {
                     }
                     .id(latestGame.id) // Prevent recreation when switching tabs
                     .onAppear {
-                        print("🔍 DEBUG: Showing latestGame view for: \(latestGame.id)")
+                        // Debug logging moved to main onAppear block
                     }
                 } else {
                     // Main board view - show empty state with quick game cards and floating action button for existing games
@@ -260,6 +268,7 @@ struct YourBoardTabView: View {
                                     
                                     if let activeGame = latestActiveGame {
                                         navigationState.selectedGame = activeGame
+                                        navigationState.shouldShowMainBoard = false
                                     }
                                 }
                             )
@@ -301,6 +310,15 @@ struct YourBoardTabView: View {
                     navigationState.shouldShowMainBoard = false // Reset the flag
                 } else {
                     print("🔍 DEBUG: No auto-selection needed - selectedGame: \(navigationState.selectedGame?.id ?? "nil"), latestGame: \(navigationState.latestGame?.id ?? "nil"), shouldShowMainBoard: \(navigationState.shouldShowMainBoard)")
+                }
+                
+                // Debug logging for which view is being shown
+                if navigationState.selectedGame != nil {
+                    print("🔍 DEBUG: Showing selectedGame view for: \(navigationState.selectedGame!.id)")
+                } else if let latestGame = navigationState.latestGame, latestGame.gameStatus == .active, !navigationState.shouldShowMainBoard {
+                    print("🔍 DEBUG: Showing latestGame view for: \(latestGame.id)")
+                } else {
+                    print("🔍 DEBUG: Showing main board view - no active games or shouldShowMainBoard=true")
                 }
                 
                 // Show onboarding tooltip for new users with no games
