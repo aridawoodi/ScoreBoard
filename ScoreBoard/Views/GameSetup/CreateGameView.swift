@@ -1998,7 +1998,9 @@ struct AdvancedSettingsSheet: View {
     
     private func saveCurrentGameAsDefaults() {
         print("🔍 DEBUG: AdvancedSettingsSheet - saveCurrentGameAsDefaults() called")
+        print("🔍 DEBUG: AdvancedSettingsSheet - Current custom rules: \(customRules)")
         let customRulesJSON = CustomRulesManager.shared.rulesToJSON(customRules) ?? ""
+        print("🔍 DEBUG: AdvancedSettingsSheet - Custom rules JSON: '\(customRulesJSON)'")
         
         let defaultSettings = DefaultGameSettings(
             winCondition: winCondition,
@@ -2010,6 +2012,7 @@ struct AdvancedSettingsSheet: View {
             lastUpdated: Date()
         )
         
+        print("🔍 DEBUG: AdvancedSettingsSheet - About to save default settings with custom rules: '\(defaultSettings.customRules)'")
         DefaultGameSettingsStorage.shared.saveDefaultGameSettings(defaultSettings)
         hasExistingDefaults = true
         

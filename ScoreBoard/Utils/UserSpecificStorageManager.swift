@@ -266,31 +266,40 @@ class UserSpecificStorageManager {
     
     // MARK: - Migration Support
     
-    /// Migrate existing data to user-specific storage
+    /// Migrate existing data to user-specific storage (only if user-specific data doesn't exist)
     func migrateExistingData() {
         guard let currentUserId = getCurrentUserId() else { return }
         
         print("🔍 DEBUG: UserSpecificStorageManager - Migrating existing data for user: \(currentUserId)")
         
-        // Migrate default game settings
-        if let data = UserDefaults.standard.data(forKey: "default_game_settings") {
-            let userSpecificKey = getUserSpecificKey("default_game_settings", userId: currentUserId)
-            UserDefaults.standard.set(data, forKey: userSpecificKey)
+        // Migrate default game settings (only if user-specific data doesn't exist)
+        let defaultUserKey = getUserSpecificKey("default_game_settings", userId: currentUserId)
+        if let data = UserDefaults.standard.data(forKey: "default_game_settings"),
+           UserDefaults.standard.data(forKey: defaultUserKey) == nil {
+            UserDefaults.standard.set(data, forKey: defaultUserKey)
             print("🔍 DEBUG: UserSpecificStorageManager - Migrated default game settings")
+        } else {
+            print("🔍 DEBUG: UserSpecificStorageManager - Skipping default game settings migration (user-specific data already exists)")
         }
         
-        // Migrate last game settings
-        if let data = UserDefaults.standard.data(forKey: "last_game_settings") {
-            let userSpecificKey = getUserSpecificKey("last_game_settings", userId: currentUserId)
-            UserDefaults.standard.set(data, forKey: userSpecificKey)
+        // Migrate last game settings (only if user-specific data doesn't exist)
+        let lastUserKey = getUserSpecificKey("last_game_settings", userId: currentUserId)
+        if let data = UserDefaults.standard.data(forKey: "last_game_settings"),
+           UserDefaults.standard.data(forKey: lastUserKey) == nil {
+            UserDefaults.standard.set(data, forKey: lastUserKey)
             print("🔍 DEBUG: UserSpecificStorageManager - Migrated last game settings")
+        } else {
+            print("🔍 DEBUG: UserSpecificStorageManager - Skipping last game settings migration (user-specific data already exists)")
         }
         
-        // Migrate game templates
-        if let data = UserDefaults.standard.data(forKey: "saved_game_templates") {
-            let userSpecificKey = getUserSpecificKey("saved_game_templates", userId: currentUserId)
-            UserDefaults.standard.set(data, forKey: userSpecificKey)
+        // Migrate game templates (only if user-specific data doesn't exist)
+        let templatesUserKey = getUserSpecificKey("saved_game_templates", userId: currentUserId)
+        if let data = UserDefaults.standard.data(forKey: "saved_game_templates"),
+           UserDefaults.standard.data(forKey: templatesUserKey) == nil {
+            UserDefaults.standard.set(data, forKey: templatesUserKey)
             print("🔍 DEBUG: UserSpecificStorageManager - Migrated game templates")
+        } else {
+            print("🔍 DEBUG: UserSpecificStorageManager - Skipping game templates migration (user-specific data already exists)")
         }
     }
 }
