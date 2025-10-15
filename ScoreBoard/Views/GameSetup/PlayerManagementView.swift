@@ -355,7 +355,7 @@ struct PlayerManagementView: View {
                     showSearchSheet = true
                 }) {
                     HStack {
-                        Text("Search Registered Users")
+                        Text("Add Users")
                             .foregroundColor(.white)
                             .fontWeight(.medium)
                         Spacer()

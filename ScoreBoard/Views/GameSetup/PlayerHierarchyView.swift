@@ -246,7 +246,7 @@ struct ParentPlayerRow: View {
                 Spacer()
                 
                 HStack(spacing: 8) {
-                    Button("Search Registered users") {
+                    Button("Add Users") {
                         onAddChild()
                     }
                     .buttonStyle(SecondaryButtonStyle())

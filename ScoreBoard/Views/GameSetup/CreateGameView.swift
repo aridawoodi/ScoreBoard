@@ -90,6 +90,7 @@ struct CreateGameView: View {
     @State private var usePlayerHierarchy = false
     @State private var parentPlayers: [String] = []
     @State private var playerHierarchy: [String: [String]] = [:]
+    @State private var hostLastTeam: String? = nil // Track which team host was in
     
     // Default Settings
     @State private var saveAsDefault: Bool = false
@@ -129,6 +130,7 @@ struct CreateGameView: View {
                     usePlayerHierarchy: $usePlayerHierarchy,
                     parentPlayers: $parentPlayers,
                     playerHierarchy: $playerHierarchy,
+                    hostLastTeam: $hostLastTeam,
                     currentUser: $currentUser,
                     currentUserProfile: $currentUserProfile,
     
@@ -149,9 +151,7 @@ struct CreateGameView: View {
                     addRegisteredPlayer: addRegisteredPlayer,
                     removePlayer: removePlayer,
                     loadLastGameSettings: loadLastGameSettings,
-                    addCustomRule: addCustomRule,
-                    addHostToHierarchy: addHostToHierarchy,
-                    removeHostFromHierarchy: removeHostFromHierarchy
+                    addCustomRule: addCustomRule
                 )
                 .padding(.bottom, 100) // Add bottom padding to avoid floating tab bar
             }
@@ -1082,77 +1082,18 @@ struct CreateGameView: View {
         }
     }
     
-    /// Add host player to hierarchy as a child player
-    /// Uses format "userId:username" for consistent identification and display
+    /// Wrapper function to add host to hierarchy (delegates to CreateGameContentView)
     private func addHostToHierarchy() {
-        // Get host identifier in "userId:username" format
-        let hostIdentifier: String
-        if let currentUser = currentUser {
-            // For registered/guest users: use "userId:username" format
-            let username = currentUserProfile?.username ?? UsernameCacheService.shared.getCurrentUserUsername() ?? "User"
-            hostIdentifier = "\(currentUser.userId):\(username)"
-        } else {
-            // For anonymous users: just use the display name
-            let name = hostPlayerName.trimmingCharacters(in: .whitespacesAndNewlines)
-            hostIdentifier = name.isEmpty ? "" : name
-        }
-        
-        guard !hostIdentifier.isEmpty else {
-            print("🔍 DEBUG: Host identifier is empty, skipping add to hierarchy")
-            return
-        }
-        
-        // Extract userId for comparison (handle both "userId:username" and plain formats)
-        let hostUserId = hostIdentifier.components(separatedBy: ":").first ?? hostIdentifier
-        
-        // Check if host is already a child in ANY parent team (compare by userId)
-        let allChildPlayers = playerHierarchy.values.flatMap { $0 }
-        let isDuplicate = allChildPlayers.contains { childPlayer in
-            let childUserId = childPlayer.components(separatedBy: ":").first ?? childPlayer
-            return childUserId == hostUserId
-        }
-        
-        if isDuplicate {
-            print("🔍 DEBUG: Host with userId '\(hostUserId)' is already a child player, skipping duplicate")
-            return
-        }
-        
-        // Add to first available parent team (sorted alphabetically)
-        guard let firstParent = playerHierarchy.keys.sorted().first else {
-            print("🔍 DEBUG: No parent teams available, skipping add to hierarchy")
-            return
-        }
-        
-        if playerHierarchy[firstParent] == nil {
-            playerHierarchy[firstParent] = []
-        }
-        playerHierarchy[firstParent]?.append(hostIdentifier)
-        print("🔍 DEBUG: Added host '\(hostIdentifier)' as child to '\(firstParent)'")
+        // This function is now handled internally by CreateGameContentView
+        // The actual implementation is in the handleHierarchyToggleChange function
+        print("🔍 DEBUG: addHostToHierarchy called from CreateGameView - handled by CreateGameContentView")
     }
     
-    /// Remove host player from all parent teams in hierarchy
+    /// Wrapper function to remove host from hierarchy (delegates to CreateGameContentView)
     private func removeHostFromHierarchy() {
-        // Get host userId for comparison
-        let hostUserId: String
-        if let currentUser = currentUser {
-            hostUserId = currentUser.userId
-        } else {
-            hostUserId = hostPlayerName.trimmingCharacters(in: .whitespacesAndNewlines)
-        }
-        
-        guard !hostUserId.isEmpty else {
-            print("🔍 DEBUG: Host identifier is empty, skipping remove from hierarchy")
-            return
-        }
-        
-        // Remove from all parent teams (compare by userId part)
-        for parent in playerHierarchy.keys {
-            playerHierarchy[parent]?.removeAll { childPlayer in
-                let childUserId = childPlayer.components(separatedBy: ":").first ?? childPlayer
-                return childUserId == hostUserId
-            }
-        }
-        print("🔍 DEBUG: Removed host with userId '\(hostUserId)' from all parent teams")
+        // This function is now handled internally by CreateGameContentView
+        // The actual implementation is in the handleHierarchyToggleChange function
+        print("🔍 DEBUG: removeHostFromHierarchy called from CreateGameView - handled by CreateGameContentView")
     }
     
     private func saveCurrentGameSettings() {
@@ -1210,6 +1151,7 @@ struct CreateGameContentView: View {
     @Binding var usePlayerHierarchy: Bool
     @Binding var parentPlayers: [String]
     @Binding var playerHierarchy: [String: [String]]
+    @Binding var hostLastTeam: String?
     @Binding var currentUser: AuthUser?
     @Binding var currentUserProfile: User?
 
@@ -1232,8 +1174,6 @@ struct CreateGameContentView: View {
     let removePlayer: (Player) -> Void
     let loadLastGameSettings: () -> Void
     let addCustomRule: () -> Void
-    let addHostToHierarchy: () -> Void
-    let removeHostFromHierarchy: () -> Void
     
     private func getHostDisplayName(for user: AuthUser) -> String {
         // First try to get username from cache (fastest)
@@ -1248,6 +1188,130 @@ struct CreateGameContentView: View {
         
         // Last resort: show placeholder that maintains layout
         return "••••••••" // Use dots to maintain consistent height and prevent UI shift
+    }
+    
+    /// Handle hierarchy toggle changes - auto-create teams and manage host
+    private func handleHierarchyToggleChange(newValue: Bool) {
+        print("🔍 DEBUG: handleHierarchyToggleChange - newValue: \(newValue)")
+        
+        if newValue {
+            // Toggle turned ON - auto-create teams if they don't exist
+            if parentPlayers.isEmpty {
+                print("🔍 DEBUG: Auto-creating Team 1 and Team 2")
+                parentPlayers = ["Team 1", "Team 2"]
+                playerHierarchy = [
+                    "Team 1": [],
+                    "Team 2": []
+                ]
+                
+                // Auto-add host to Team 1 if they're joining as player
+                if hostJoinAsPlayer {
+                    hostLastTeam = "Team 1" // Set default team for host
+                    addHostToHierarchy()
+                    print("🔍 DEBUG: Auto-added host to Team 1")
+                }
+            }
+        } else {
+            // Toggle turned OFF - clear hierarchy data
+            print("🔍 DEBUG: Clearing hierarchy data")
+            parentPlayers = []
+            playerHierarchy = [:]
+            hostLastTeam = nil // Reset host team tracking
+        }
+    }
+    
+    /// Add host player to hierarchy (specifically to Team 1 or their last team)
+    private func addHostToHierarchy() {
+        // Get host identifier in "userId:username" format
+        let hostIdentifier: String
+        if let currentUser = currentUser {
+            // For registered/guest users: use "userId:username" format
+            let username = currentUserProfile?.username ?? UsernameCacheService.shared.getCurrentUserUsername() ?? "User"
+            hostIdentifier = "\(currentUser.userId):\(username)"
+        } else {
+            // For anonymous users: just use the display name
+            let name = hostPlayerName.trimmingCharacters(in: .whitespacesAndNewlines)
+            hostIdentifier = name.isEmpty ? "" : name
+        }
+        
+        guard !hostIdentifier.isEmpty else {
+            print("🔍 DEBUG: Host identifier is empty, skipping add to hierarchy")
+            return
+        }
+        
+        // Extract userId for comparison (handle both "userId:username" and plain formats)
+        let hostUserId = hostIdentifier.components(separatedBy: ":").first ?? hostIdentifier
+        
+        // Check if host is already a child in ANY parent team (compare by userId)
+        let allChildPlayers = playerHierarchy.values.flatMap { $0 }
+        let isDuplicate = allChildPlayers.contains { childPlayer in
+            let childUserId = childPlayer.components(separatedBy: ":").first ?? childPlayer
+            return childUserId == hostUserId
+        }
+        
+        if isDuplicate {
+            print("🔍 DEBUG: Host with userId '\(hostUserId)' is already a child player, skipping duplicate")
+            return
+        }
+        
+        // Add to their last team if they were removed, or find the first available team
+        let targetTeam: String
+        if let lastTeam = hostLastTeam, playerHierarchy.keys.contains(lastTeam) {
+            targetTeam = lastTeam
+            print("🔍 DEBUG: Using host's last team '\(lastTeam)'")
+        } else {
+            // If last team doesn't exist (was renamed), use the first available team
+            targetTeam = playerHierarchy.keys.sorted().first ?? "Team 1"
+            print("🔍 DEBUG: Last team '\(hostLastTeam ?? "nil")' not found, using first available team '\(targetTeam)'")
+        }
+        
+        guard playerHierarchy.keys.contains(targetTeam) else {
+            print("🔍 DEBUG: Target team '\(targetTeam)' not found, skipping add to hierarchy")
+            return
+        }
+        
+        if playerHierarchy[targetTeam] == nil {
+            playerHierarchy[targetTeam] = []
+        }
+        playerHierarchy[targetTeam]?.append(hostIdentifier)
+        print("🔍 DEBUG: Added host '\(hostIdentifier)' as child to '\(targetTeam)'")
+    }
+    
+    /// Remove host player from all parent teams in hierarchy
+    private func removeHostFromHierarchy() {
+        // Get host userId for comparison
+        let hostUserId: String
+        if let currentUser = currentUser {
+            hostUserId = currentUser.userId
+        } else {
+            hostUserId = hostPlayerName.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        
+        guard !hostUserId.isEmpty else {
+            print("🔍 DEBUG: Host identifier is empty, skipping remove from hierarchy")
+            return
+        }
+        
+        // Find which team the host is in and remember it, then remove from all teams
+        for parent in playerHierarchy.keys {
+            if let childPlayers = playerHierarchy[parent] {
+                let hostInThisTeam = childPlayers.contains { childPlayer in
+                    let childUserId = childPlayer.components(separatedBy: ":").first ?? childPlayer
+                    return childUserId == hostUserId
+                }
+                
+                if hostInThisTeam {
+                    hostLastTeam = parent
+                    print("🔍 DEBUG: Remembering host was in team '\(parent)'")
+                }
+                
+                playerHierarchy[parent]?.removeAll { childPlayer in
+                    let childUserId = childPlayer.components(separatedBy: ":").first ?? childPlayer
+                    return childUserId == hostUserId
+                }
+            }
+        }
+        print("🔍 DEBUG: Removed host with userId '\(hostUserId)' from all parent teams")
     }
     
     var body: some View {
@@ -1464,9 +1528,12 @@ struct CreateGameContentView: View {
             // Host Join Option
             hostJoinSection
             
-            // Player Hierarchy Toggle - Only show for hierarchy games or when creating new hierarchy games
-            if !playerHierarchy.isEmpty || usePlayerHierarchy {
+            // Player Hierarchy Toggle - Show in create mode or for existing hierarchy games
+            if !isEditMode || !playerHierarchy.isEmpty || usePlayerHierarchy {
                 playerHierarchyToggleSection
+                    .onChange(of: usePlayerHierarchy) { oldValue, newValue in
+                        self.handleHierarchyToggleChange(newValue: newValue)
+                    }
             }
             
             // Player Management

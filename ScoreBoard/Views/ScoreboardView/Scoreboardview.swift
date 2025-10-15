@@ -1279,7 +1279,15 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                 },
                 onCancel: {
                     cancelPlayerNameEditing()
-                }
+                },
+                isHierarchyGame: !playerHierarchy.isEmpty,
+                childPlayers: {
+                    if let index = editingPlayerIndex, index < players.count {
+                        let playerID = players[index].playerID
+                        return playerHierarchy[playerID] ?? []
+                    }
+                    return []
+                }()
             )
         }
         .sheet(isPresented: $showGameInfoSheet) {
@@ -2259,11 +2267,22 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                                 if let childIDs = playerHierarchy[player.playerID], !childIDs.isEmpty {
                                     ZStack {
                                         Circle()
-                                            .fill(Color.red)
+                                            .fill(Color("LightGreen"))
                                             .frame(width: 18, height: 18)
-                                        Text("\(childIDs.count)")
-                                            .font(.system(size: 10, weight: .bold))
-                                            .foregroundColor(.white)
+                                        
+                                        // Show person icons based on count (up to 3 icons max to fit in circle)
+                                        HStack(spacing: 0) {
+                                            ForEach(0..<min(childIDs.count, 3), id: \.self) { _ in
+                                                Image(systemName: "person.fill")
+                                                    .font(.system(size: 5, weight: .bold))
+                                                    .foregroundColor(.white)
+                                            }
+                                            if childIDs.count > 3 {
+                                                Text("+")
+                                                    .font(.system(size: 5, weight: .bold))
+                                                    .foregroundColor(.white)
+                                            }
+                                        }
                                     }
                                 }
                                 
@@ -4791,6 +4810,48 @@ struct PlayerNameEditorSheet: View {
     let onCancel: () -> Void
     @FocusState private var isTextFieldFocused: Bool
     
+    // Hierarchy information
+    let isHierarchyGame: Bool
+    let childPlayers: [String]
+    
+    /// Extract display name from "userId:username" format, prioritizing fresh username from cache
+    private func getDisplayName(for playerIdentifier: String) -> String {
+        let components = playerIdentifier.components(separatedBy: ":")
+        
+        if components.count > 1 {
+            // Has "userId:username" format
+            let userId = components[0]
+            let storedUsername = components[1]
+            
+            // Priority 1: Try to get fresh username from DataManager's in-memory cache
+            if let user = DataManager.shared.getUser(userId) {
+                return user.username ?? storedUsername
+            }
+            
+            // Priority 2: Try to get from UsernameCacheService
+            let cachedUsername = UsernameCacheService.shared.cachedUsernames[userId]
+            if let cachedUsername = cachedUsername {
+                return cachedUsername
+            }
+            
+            // Priority 3: Use stored username as fallback
+            return storedUsername
+        }
+        
+        // Plain format - check if it's a userId that needs lookup
+        if playerIdentifier.hasPrefix("guest_") || playerIdentifier.hasPrefix("user_") || 
+           (playerIdentifier.count > 20 && playerIdentifier.contains("-")) {
+            // Try to get username from DataManager
+            if let user = DataManager.shared.getUser(playerIdentifier) {
+                return user.username ?? String(playerIdentifier.prefix(8))
+            }
+            return String(playerIdentifier.prefix(8))
+        }
+        
+        // Anonymous player or team name - return as-is
+        return playerIdentifier
+    }
+    
     var body: some View {
         NavigationView {
             ZStack {
@@ -4804,7 +4865,7 @@ struct PlayerNameEditorSheet: View {
                             .font(.system(size: 48))
                             .foregroundColor(Color("LightGreen"))
                         
-                        Text("Enter a new name for this player")
+                        Text(isHierarchyGame ? "Enter a new name for this team" : "Enter a new name for this player")
                             .font(.body)
                             .foregroundColor(.white.opacity(0.7))
                             .multilineTextAlignment(.center)
@@ -4813,13 +4874,13 @@ struct PlayerNameEditorSheet: View {
                     
                     // Name input field
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("Player Name")
+                        Text(isHierarchyGame ? "Team Name" : "Player Name")
                             .font(.headline)
                             .foregroundColor(.white)
                         
                         ZStack(alignment: .leading) {
                             if playerName.isEmpty {
-                                Text("Enter player name")
+                                Text(isHierarchyGame ? "Enter team name" : "Enter player name")
                                     .foregroundColor(.white.opacity(0.5))
                                     .padding(.leading, 16)
                             }
@@ -4860,9 +4921,40 @@ struct PlayerNameEditorSheet: View {
                     }
                     .padding(.horizontal, 20)
                     
+                    // Child players list for hierarchy games
+                    if isHierarchyGame && !childPlayers.isEmpty {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Team Players")
+                                .font(.headline)
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 20)
+                            
+                            VStack(alignment: .leading, spacing: 8) {
+                                ForEach(childPlayers, id: \.self) { childPlayer in
+                                    HStack {
+                                        Image(systemName: "person.fill")
+                                            .font(.system(size: 12))
+                                            .foregroundColor(Color("LightGreen"))
+                                        
+                                        Text(getDisplayName(for: childPlayer))
+                                            .font(.body)
+                                            .foregroundColor(.white)
+                                        
+                                        Spacer()
+                                    }
+                                    .padding(.horizontal, 20)
+                                }
+                            }
+                        }
+                        .padding(.vertical, 16)
+                        .background(Color.black.opacity(0.2))
+                        .cornerRadius(12)
+                        .padding(.horizontal, 20)
+                    }
+                    
                     Spacer()
                 }
-                .navigationTitle("Edit Player Name")
+                .navigationTitle(isHierarchyGame ? "Edit Team Name" : "Edit Player Name")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbarColorScheme(.dark, for: .navigationBar)
                 .toolbarBackground(.visible, for: .navigationBar)
