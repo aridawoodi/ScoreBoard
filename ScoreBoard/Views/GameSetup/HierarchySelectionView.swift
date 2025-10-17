@@ -64,19 +64,19 @@ struct HierarchySelectionView: View {
                         .font(.system(size: 48))
                         .foregroundColor(Color("LightGreen"))
                     
-                    Text("Select Parent Player")
+                    Text("Select Your Team")
                         .font(.title2)
                         .fontWeight(.bold)
                         .foregroundColor(.white)
                     
-                    Text("Choose which parent player you want to join as a child")
+                    Text("Choose which team you want to join as a player")
                         .font(.subheadline)
                         .foregroundColor(.white.opacity(0.7))
                         .multilineTextAlignment(.center)
                 }
                 .padding(.top)
                 
-                // Parent players list
+                // Teams list
                 ScrollView {
                     LazyVStack(spacing: 12) {
                         ForEach(parentPlayers, id: \.id) { parentPlayer in
@@ -84,33 +84,16 @@ struct HierarchySelectionView: View {
                                 parentPlayer: parentPlayer,
                                 isSelected: selectedParentPlayer == parentPlayer.id,
                                 onTap: {
+                                    // Auto-join when team is selected
+                                    print("🔍 DEBUG: Team selected: \(parentPlayer.id)")
                                     selectedParentPlayer = parentPlayer.id
+                                    onParentSelected(parentPlayer.id)
                                 }
                             )
                         }
                     }
                     .padding(.horizontal)
                 }
-                
-                // Join button
-                Button(action: {
-                    if let selectedParent = selectedParentPlayer {
-                        onParentSelected(selectedParent)
-                    }
-                }) {
-                    HStack {
-                        Image(systemName: "person.badge.plus")
-                        Text("Join as Child Player")
-                    }
-                    .font(.headline)
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(selectedParentPlayer != nil ? Color("LightGreen") : Color.gray)
-                    .cornerRadius(12)
-                }
-                .disabled(selectedParentPlayer == nil)
-                .padding(.horizontal)
                 
                 Spacer()
             }
@@ -202,13 +185,13 @@ struct ParentPlayerCard: View {
                         .font(.headline)
                         .foregroundColor(.white)
                     
-                    Text("\(parentPlayer.childCount) child players")
+                    Text("\(parentPlayer.childCount) player\(parentPlayer.childCount == 1 ? "" : "s")")
                         .font(.caption)
                         .foregroundColor(.white.opacity(0.7))
                     
                     if !parentPlayer.childPlayers.isEmpty {
                         let displayNames = parentPlayer.childPlayers.map { getDisplayName(for: $0) }
-                        Text("Children: \(displayNames.joined(separator: ", "))")
+                        Text("Players: \(displayNames.joined(separator: ", "))")
                             .font(.caption)
                             .foregroundColor(.white.opacity(0.6))
                             .lineLimit(2)

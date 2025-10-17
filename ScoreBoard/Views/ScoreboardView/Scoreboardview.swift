@@ -1518,7 +1518,12 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                     updateScore: updateScore,
                     awaitSaveChangesSilently: awaitSaveChangesSilently,
                     customRuleLetter: customRuleLetter,
-                    parseScoreInput: parseScoreInput
+                    parseScoreInput: parseScoreInput,
+                    dynamicRounds: dynamicRounds,
+                    hasScoreBeenEntered: hasScoreBeenEntered,
+                    canAddRound: canAddRound,
+                    addRound: addRound,
+                    maxRounds: game.maxRounds ?? 8
                 )
                 .zIndex(1000) // Ensure it's on top
                 .onAppear {
@@ -3508,6 +3513,11 @@ struct SystemKeyboardView: View {
     let awaitSaveChangesSilently: () -> Void
     let customRuleLetter: String
     let parseScoreInput: (String) -> Int?
+    let dynamicRounds: Int
+    let hasScoreBeenEntered: (String, Int) -> Bool
+    let canAddRound: () -> Bool
+    let addRound: () -> Void
+    let maxRounds: Int
     
     var body: some View {
         VStack(spacing: 0) {
@@ -3619,47 +3629,102 @@ struct SystemKeyboardView: View {
     }
                         
     private func moveToNextEmptyCell() {
-                        // Find next empty cell
-                        if let currentPlayer = editingPlayer, let currentPlayerIndex = players.firstIndex(where: { $0.playerID == currentPlayer.playerID }) {
-                            var nextPlayerIndex = currentPlayerIndex
-                            var nextRound = editingRound
-                            var foundEmpty = false
-                            
-                            // Try to find next empty cell
-                            for roundOffset in 0..<players.count {
-                                for playerOffset in 0..<players.count {
-                                    let testRound = editingRound + roundOffset
-                                    let testPlayerIndex = (currentPlayerIndex + playerOffset) % players.count
-                                    let testPlayer = players[testPlayerIndex]
-                                    
-                                    // Check if this cell is empty (score == -1)
-                                    if testRound <= players[0].scores.count {
-                                        let score = testPlayer.scores[testRound - 1]
-                                        if score == -1 {
-                                            nextPlayerIndex = testPlayerIndex
-                                            nextRound = testRound
-                                            foundEmpty = true
-                                            break
-                                        }
-                                    }
-                                }
-                                if foundEmpty { break }
-                            }
-                            
-                            if foundEmpty {
-                                // Move to next empty cell
-                                editingPlayer = players[nextPlayerIndex]
-                                editingRound = nextRound
-                text = "" // Clear for next input
-                                // Keep keyboard open by not setting isVisible = false
-                            } else {
-                                // No empty cells found, dismiss keyboard
-                                isVisible = false
-                            }
-                        } else {
-                            isVisible = false
+        print("🔍 DEBUG: ===== MOVE TO NEXT EMPTY CELL START =====")
+        print("🔍 DEBUG: Current editingPlayer: \(editingPlayer?.name ?? "nil")")
+        print("🔍 DEBUG: Current editingRound: \(editingRound)")
+        print("🔍 DEBUG: Players count: \(players.count)")
+        
+        // Find next empty cell
+        if let currentPlayer = editingPlayer, let currentPlayerIndex = players.firstIndex(where: { $0.playerID == currentPlayer.playerID }) {
+            print("🔍 DEBUG: Current player index: \(currentPlayerIndex)")
+            
+            var nextPlayerIndex = currentPlayerIndex
+            var nextRound = editingRound
+            var foundEmpty = false
+            
+            // Start searching from the next player in the same round
+            let startPlayerOffset = 1
+            let maxRounds = dynamicRounds
+            
+            print("🔍 DEBUG: Starting search - maxRounds: \(maxRounds)")
+            
+            // Try to find next empty cell
+            roundLoop: for roundOffset in 0...maxRounds {
+                let testRound = editingRound + roundOffset
+                
+                guard testRound <= maxRounds else {
+                    print("🔍 DEBUG: Round \(testRound) exceeds maxRounds \(maxRounds), breaking")
+                    break
+                }
+                
+                let playerStart = (roundOffset == 0) ? startPlayerOffset : 0
+                
+                for playerOffset in playerStart..<players.count {
+                    let testPlayerIndex = (currentPlayerIndex + playerOffset) % players.count
+                    let testPlayer = players[testPlayerIndex]
+                    
+                    print("🔍 DEBUG: Testing player \(testPlayerIndex) (\(testPlayer.name)), round \(testRound)")
+                    
+                    // Check if this cell is empty (score == -1)
+                    if testRound - 1 < testPlayer.scores.count {
+                        let score = testPlayer.scores[testRound - 1]
+                        let hasBeenEntered = hasScoreBeenEntered(testPlayer.playerID, testRound)
+                        
+                        print("🔍 DEBUG: Score: \(score), hasBeenEntered: \(hasBeenEntered)")
+                        
+                        if score == -1 || !hasBeenEntered {
+                            print("🔍 DEBUG: ✅ Found empty cell at player \(testPlayerIndex), round \(testRound)")
+                            nextPlayerIndex = testPlayerIndex
+                            nextRound = testRound
+                            foundEmpty = true
+                            break roundLoop
                         }
                     }
+                }
+            }
+            
+            if foundEmpty {
+                print("🔍 DEBUG: Moving to next cell - Player: \(players[nextPlayerIndex].name), Round: \(nextRound)")
+                // Move to next empty cell
+                editingPlayer = players[nextPlayerIndex]
+                editingRound = nextRound
+                text = "" // Clear for next input
+                // Keep keyboard open by not setting isVisible = false
+            } else {
+                print("🔍 DEBUG: No empty cells found")
+                
+                // Check if we can add a round
+                if canAddRound() {
+                    print("🔍 DEBUG: 🎯 Adding new round automatically (current: \(dynamicRounds), max: \(maxRounds))")
+                    
+                    // Add a new round
+                    addRound()
+                    
+                    // Wait a brief moment for the round to be added, then move to first player of new round
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        let newRound = dynamicRounds + 1
+                        if !players.isEmpty {
+                            editingPlayer = players[0]
+                            editingRound = newRound
+                            text = ""
+                            print("🔍 DEBUG: 📍 Moved to Player: \(players[0].name), Round: \(newRound)")
+                        }
+                    }
+                    
+                    // Keep keyboard open
+                } else {
+                    print("🔍 DEBUG: Cannot add round - at max limit (\(maxRounds)), dismissing keyboard")
+                    // At max rounds, dismiss keyboard
+                    isVisible = false
+                }
+            }
+        } else {
+            print("🔍 DEBUG: No currentPlayer or invalid index, dismissing keyboard")
+            isVisible = false
+        }
+        
+        print("🔍 DEBUG: ===== MOVE TO NEXT EMPTY CELL END =====")
+    }
     
 
 }

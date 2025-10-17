@@ -437,6 +437,27 @@ struct CustomSignUpView: View {
         
         Task {
             do {
+                // Check if there's a guest user signed in
+                let currentAuthState = try await Amplify.Auth.fetchAuthSession()
+                
+                if currentAuthState.isSignedIn {
+                    print("🔍 DEBUG: Guest user signed in during signup, signing out first...")
+                    
+                    // Save current user's data before switching
+                    UserSpecificStorageManager.shared.saveCurrentUserData()
+                    
+                    // Sign out the guest user
+                    _ = try await Amplify.Auth.signOut()
+                    print("🔍 DEBUG: Successfully signed out guest user")
+                }
+                
+                // Clear all guest user flags
+                UserDefaults.standard.removeObject(forKey: "current_guest_user_id")
+                UserDefaults.standard.removeObject(forKey: "is_guest_user")
+                UserDefaults.standard.removeObject(forKey: "authenticated_user_id")
+                print("🔍 DEBUG: Cleared all user flags before signup")
+                
+                // Now proceed with sign up
                 let signUpResult = try await Amplify.Auth.signUp(
                     username: email,
                     password: password
@@ -469,6 +490,33 @@ struct CustomSignUpView: View {
                     for: email,
                     confirmationCode: confirmationCode
                 )
+                
+                if confirmResult.isSignUpComplete {
+                    // Sign up is confirmed, now sign in the user
+                    print("🔍 DEBUG: Sign up confirmed, now signing in...")
+                    
+                    // Automatically sign in after confirmation
+                    let signInResult = try await Amplify.Auth.signIn(
+                        username: email,
+                        password: password
+                    )
+                    
+                    if signInResult.isSignedIn {
+                        // Set authenticated user flags
+                        UserDefaults.standard.set(false, forKey: "is_guest_user")
+                        print("🔍 DEBUG: Set is_guest_user to false for new authenticated user")
+                        
+                        // Store the authenticated user ID
+                        let user = try await Amplify.Auth.getCurrentUser()
+                        let userId = user.userId
+                        UserDefaults.standard.set(userId, forKey: "authenticated_user_id")
+                        print("🔍 DEBUG: Stored authenticated user ID after signup: \(userId)")
+                        
+                        // Load the new user's data
+                        UserSpecificStorageManager.shared.loadNewUserData()
+                        print("🔍 DEBUG: Loaded new authenticated user's data")
+                    }
+                }
                 
                 await MainActor.run {
                     isLoading = false

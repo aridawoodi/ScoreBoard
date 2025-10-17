@@ -213,24 +213,10 @@ class UserService: ObservableObject {
                 print("🔍 DEBUG: Error fetching users: \(error)")
             }
             
-            // If not found by AuthUser.userId, try to automatically migrate existing user
-            await autoMigrateUserIfNeeded(authUser: authUser, email: email)
-            
-            // Try to find user again after migration
-            let listResult2 = try await Amplify.API.query(request: .list(User.self))
-            switch listResult2 {
-            case .success(let allUsers2):
-                if let existingUser = allUsers2.first(where: { $0.id == authUser.userId }) {
-                    print("🔍 DEBUG: Found existing user profile after migration: \(existingUser.username)")
-                    await MainActor.run {
-                        self.currentUser = existingUser
-                        self.isLoading = false
-                    }
-                    return existingUser
-                }
-            case .failure(let error):
-                print("🔍 DEBUG: Error fetching users after migration: \(error)")
-            }
+            // DISABLED: Auto-migration - Guest and authenticated users should be separate
+            // Previously this would migrate guest user profiles to authenticated users
+            // Now each user type maintains separate profiles
+            // await autoMigrateUserIfNeeded(authUser: authUser, email: email)
             
             // If still not found, create new profile
             let newUser = await createDefaultUserProfile(authUser: authUser, email: email)

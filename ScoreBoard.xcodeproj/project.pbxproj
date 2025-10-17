@@ -76,12 +76,17 @@
 		5E737DAA2CDB413F00F407D3 /* NotificationsManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E737DA92CDB413F00F407D3 /* NotificationsManager.swift */; };
 		5E74D9A12E54326E00FE2074 /* FloatingActionButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E74D9A02E54326E00FE2074 /* FloatingActionButton.swift */; };
 		5E7A696E2E69131D0025D861 /* DefaultGameSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E7A696D2E69131D0025D861 /* DefaultGameSettings.swift */; };
-		5E7A69702E694EE20025D861 /* test.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E7A696F2E694ED90025D861 /* test.swift */; };
 		5E7E10D72E5AD499000439A7 /* Scoreboardview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E7E10D52E5AD499000439A7 /* Scoreboardview.swift */; };
 		5E7E10D82E5AD499000439A7 /* BalloonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E7E10D42E5AD499000439A7 /* BalloonView.swift */; };
 		5E7E10DA2E5ADB39000439A7 /* CustomSignInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E7E10D92E5ADB39000439A7 /* CustomSignInView.swift */; };
 		5E7E10DC2E5B66CA000439A7 /* AnimatedLogoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E7E10DB2E5B66CA000439A7 /* AnimatedLogoView.swift */; };
 		5E8162BB2E77620900AD93AA /* ReadOnlyGameSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E8162BA2E77620900AD93AA /* ReadOnlyGameSheet.swift */; };
+		5EAC3CE22EA07F3900693E6B /* ProfileSetupManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EAC3CE12EA07F3900693E6B /* ProfileSetupManagerTests.swift */; };
+		5EAC3CE42EA07F4700693E6B /* ProfileSetupManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EAC3CE32EA07F4700693E6B /* ProfileSetupManager.swift */; };
+		5EAC3CE62EA0891600693E6B /* UsernameValidationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EAC3CE52EA0891600693E6B /* UsernameValidationService.swift */; };
+		5EAC3CE82EA0892200693E6B /* UsernameValidationServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EAC3CE72EA0892200693E6B /* UsernameValidationServiceTests.swift */; };
+		5EAC3CEA2EA08A5D00693E6B /* ForceUsernameSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EAC3CE92EA08A5D00693E6B /* ForceUsernameSetupView.swift */; };
+		5EAC3CEC2EA1FB3800693E6B /* ValidatedUsernameField.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EAC3CEB2EA1FB3800693E6B /* ValidatedUsernameField.swift */; };
 		5EC4F5992E885A5A00036060 /* PlayerHierarchyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EC4F5982E885A5A00036060 /* PlayerHierarchyView.swift */; };
 		5EC4F59B2E885B1400036060 /* HierarchySelectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EC4F59A2E885B1400036060 /* HierarchySelectionView.swift */; };
 		5EC4F59D2E8B852800036060 /* QuickHierarchyGameCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EC4F59C2E8B852800036060 /* QuickHierarchyGameCard.swift */; };
@@ -162,12 +167,17 @@
 		5E737DA92CDB413F00F407D3 /* NotificationsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationsManager.swift; sourceTree = "<group>"; };
 		5E74D9A02E54326E00FE2074 /* FloatingActionButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingActionButton.swift; sourceTree = "<group>"; };
 		5E7A696D2E69131D0025D861 /* DefaultGameSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefaultGameSettings.swift; sourceTree = "<group>"; };
-		5E7A696F2E694ED90025D861 /* test.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = test.swift; sourceTree = "<group>"; };
 		5E7E10D42E5AD499000439A7 /* BalloonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BalloonView.swift; sourceTree = "<group>"; };
 		5E7E10D52E5AD499000439A7 /* Scoreboardview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Scoreboardview.swift; sourceTree = "<group>"; };
 		5E7E10D92E5ADB39000439A7 /* CustomSignInView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomSignInView.swift; sourceTree = "<group>"; };
 		5E7E10DB2E5B66CA000439A7 /* AnimatedLogoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnimatedLogoView.swift; sourceTree = "<group>"; };
 		5E8162BA2E77620900AD93AA /* ReadOnlyGameSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadOnlyGameSheet.swift; sourceTree = "<group>"; };
+		5EAC3CE12EA07F3900693E6B /* ProfileSetupManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileSetupManagerTests.swift; sourceTree = "<group>"; };
+		5EAC3CE32EA07F4700693E6B /* ProfileSetupManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileSetupManager.swift; sourceTree = "<group>"; };
+		5EAC3CE52EA0891600693E6B /* UsernameValidationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsernameValidationService.swift; sourceTree = "<group>"; };
+		5EAC3CE72EA0892200693E6B /* UsernameValidationServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsernameValidationServiceTests.swift; sourceTree = "<group>"; };
+		5EAC3CE92EA08A5D00693E6B /* ForceUsernameSetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ForceUsernameSetupView.swift; sourceTree = "<group>"; };
+		5EAC3CEB2EA1FB3800693E6B /* ValidatedUsernameField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ValidatedUsernameField.swift; sourceTree = "<group>"; };
 		5EC4F5982E885A5A00036060 /* PlayerHierarchyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerHierarchyView.swift; sourceTree = "<group>"; };
 		5EC4F59A2E885B1400036060 /* HierarchySelectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HierarchySelectionView.swift; sourceTree = "<group>"; };
 		5EC4F59C2E8B852800036060 /* QuickHierarchyGameCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickHierarchyGameCard.swift; sourceTree = "<group>"; };
@@ -368,6 +378,7 @@
 				5E28C2CF2E2B616D00F3AD25 /* UserProfileView.swift */,
 				5E737D8F2CDB3DF100F407D3 /* LoginView.swift */,
 				5EFE18732E2A0BDE0056C708 /* ProfileEditView.swift */,
+				5EAC3CE92EA08A5D00693E6B /* ForceUsernameSetupView.swift */,
 			);
 			path = Authentication;
 			sourceTree = "<group>";
@@ -393,7 +404,6 @@
 		5E737DA42CDB40D800F407D3 /* Utils */ = {
 			isa = PBXGroup;
 			children = (
-				5E7A696F2E694ED90025D861 /* test.swift */,
 				5E7E10DB2E5B66CA000439A7 /* AnimatedLogoView.swift */,
 				5E2F66E72E50D9760016B28D /* GradientBackgroundView.swift */,
 				5E2CB3022E4319A5006EC186 /* NavigationState.swift */,
@@ -401,6 +411,11 @@
 				5E737DA72CDB411D00F407D3 /* Helpers.swift */,
 				5E74D9A02E54326E00FE2074 /* FloatingActionButton.swift */,
 				5EFE08D32E558AFD007E207E /* GameSettingsStorage.swift */,
+				5EAC3CE32EA07F4700693E6B /* ProfileSetupManager.swift */,
+				5EAC3CE12EA07F3900693E6B /* ProfileSetupManagerTests.swift */,
+				5EAC3CE52EA0891600693E6B /* UsernameValidationService.swift */,
+				5EAC3CE72EA0892200693E6B /* UsernameValidationServiceTests.swift */,
+				5EAC3CEB2EA1FB3800693E6B /* ValidatedUsernameField.swift */,
 				5E7A696D2E69131D0025D861 /* DefaultGameSettings.swift */,
 				5E56638F2E6375600084FBBC /* GameCreationUtils.swift */,
 				5E737DA92CDB413F00F407D3 /* NotificationsManager.swift */,
@@ -568,13 +583,13 @@
 				5EF0B40E2E4AD019007D1718 /* AnalyticsHelpText.swift in Sources */,
 				5EF0B40F2E4AD019007D1718 /* SharedAnalyticsComponents.swift in Sources */,
 				5E62D03E2E44523B00B7BDB3 /* PlayerManagementView.swift in Sources */,
-				5E7A69702E694EE20025D861 /* test.swift in Sources */,
 				5E2CB2E82E41B4AE006EC186 /* SplashScreenView.swift in Sources */,
 				5EC4F5992E885A5A00036060 /* PlayerHierarchyView.swift in Sources */,
 				5E62D0452E459A8A00B7BDB3 /* OnboardingConstants.swift in Sources */,
 				5E74D9A12E54326E00FE2074 /* FloatingActionButton.swift in Sources */,
 				5E62D0462E459A8A00B7BDB3 /* OnboardingManager.swift in Sources */,
 				5E62D0472E459A8A00B7BDB3 /* OnboardingTooltip.swift in Sources */,
+				5EAC3CE42EA07F4700693E6B /* ProfileSetupManager.swift in Sources */,
 				5EFE08D42E558AFD007E207E /* GameSettingsStorage.swift in Sources */,
 				5EFE18742E2A0BDE0056C708 /* ProfileEditView.swift in Sources */,
 				5E737D8F2CDB3D3D00F407D3 /* GameModels.swift in Sources */,
@@ -605,6 +620,7 @@
 				5E7E10DC2E5B66CA000439A7 /* AnimatedLogoView.swift in Sources */,
 				5EFEF3FC2E4028E800D39D8B /* UsernameCacheService.swift in Sources */,
 				5E56638E2E600FBE0084FBBC /* PlayerDetailView.swift in Sources */,
+				5EAC3CE82EA0892200693E6B /* UsernameValidationServiceTests.swift in Sources */,
 				5E2F66E42E4FF7D10016B28D /* AppViewModifier.swift in Sources */,
 				5E737DA12CDB408A00F407D3 /* AmplifyService.swift in Sources */,
 				5E2CB3012E4316A1006EC186 /* FloatingTabBar.swift in Sources */,
@@ -612,20 +628,24 @@
 				31CE047D93AEB5B6ED4FC094 /* AmplifyModels.swift in Sources */,
 				8B036DCBCC96A653BF36AD23 /* Game+Schema.swift in Sources */,
 				5C62849ED740AEF038417D39 /* Game.swift in Sources */,
+				5EAC3CEA2EA08A5D00693E6B /* ForceUsernameSetupView.swift in Sources */,
 				5E7A696E2E69131D0025D861 /* DefaultGameSettings.swift in Sources */,
 				43D6F7DBEED01202C6CA8B62 /* Score+Schema.swift in Sources */,
 				61EA0EF05DC894E761DC32F6 /* Score.swift in Sources */,
 				230DDF9429941543510AAA82 /* User+Schema.swift in Sources */,
 				0A1B7F240FD978D4AF8DFE71 /* User.swift in Sources */,
+				5EAC3CE62EA0891600693E6B /* UsernameValidationService.swift in Sources */,
 				5E7E10DA2E5ADB39000439A7 /* CustomSignInView.swift in Sources */,
 				3B53BACC8FC7E80FE0184C05 /* GameStatus.swift in Sources */,
 				B57D611EDC6DD073261E6F12 /* Score+Schema.swift in Sources */,
 				5E2CB2E72E41B21A006EC186 /* CustomTabIcons.swift in Sources */,
 				A7592DB88FFBB3F72A85203A /* Score.swift in Sources */,
 				5E7E10D72E5AD499000439A7 /* Scoreboardview.swift in Sources */,
+				5EAC3CEC2EA1FB3800693E6B /* ValidatedUsernameField.swift in Sources */,
 				5E7E10D82E5AD499000439A7 /* BalloonView.swift in Sources */,
 				5E5663902E6375600084FBBC /* GameCreationUtils.swift in Sources */,
 				5E2CB2FE2E431690006EC186 /* ProfileTabView.swift in Sources */,
+				5EAC3CE22EA07F3900693E6B /* ProfileSetupManagerTests.swift in Sources */,
 				0ABB6B28BAD7267F554583BB /* User+Schema.swift in Sources */,
 				E45A795792C32839D14D8452 /* User.swift in Sources */,
 				5E2CB2EF2E431368006EC186 /* PlayerLeaderboardView.swift in Sources */,
@@ -770,7 +790,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 6;
+				CURRENT_PROJECT_VERSION = 11;
 				DEVELOPMENT_ASSET_PATHS = "\"ScoreBoard/Preview Content\"";
 				DEVELOPMENT_TEAM = X3A599X78B;
 				ENABLE_PREVIEWS = YES;
@@ -805,7 +825,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 6;
+				CURRENT_PROJECT_VERSION = 11;
 				DEVELOPMENT_ASSET_PATHS = "\"ScoreBoard/Preview Content\"";
 				DEVELOPMENT_TEAM = X3A599X78B;
 				ENABLE_PREVIEWS = YES;

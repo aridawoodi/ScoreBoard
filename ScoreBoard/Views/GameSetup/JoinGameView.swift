@@ -26,12 +26,10 @@ struct JoinGameView: View {
     @State private var pendingGame: Game?
     @State private var showJoinOptions = false
     @State private var joinMode: JoinMode = .player
-    @State private var showHierarchySelection = false
-    @State private var selectedParentPlayer: String?
-    @State private var pendingUserId: String?
     @Environment(\.dismiss) private var dismiss
     @Binding var showJoinGame: Bool
     let onGameJoined: (Game) -> Void
+    let onHierarchyGameFound: (Game, String, String) -> Void
     
     var body: some View {
         NavigationView {
@@ -157,23 +155,6 @@ struct JoinGameView: View {
                         .foregroundColor(.white)
                 }
             }
-            .sheet(isPresented: $showHierarchySelection) {
-                if let game = pendingGame, let userId = pendingUserId {
-                    HierarchySelectionView(
-                        game: game,
-                        userId: userId,
-                        playerName: playerName,
-                        onParentSelected: { parentPlayerId in
-                            joinAsChildPlayer(
-                                game: game,
-                                userId: userId,
-                                playerName: playerName,
-                                parentPlayerId: parentPlayerId
-                            )
-                        }
-                    )
-                }
-            }
         }
     }
     
@@ -218,7 +199,20 @@ struct JoinGameView: View {
                                     
                                     print("🔍 DEBUG: Current user ID: \(userId), isGuest: \(isGuest)")
                                     
-                                    // Check if user has a profile
+                                    // Check if user is already in the game FIRST
+                                    if isUserAlreadyInGame(userId: userId, game: game) {
+                                        print("🔍 DEBUG: User \(userId) is already in game, navigating directly to scoreboard")
+                                        await MainActor.run {
+                                            // Navigate to scoreboard immediately, skip all options
+                                            foundGame = game
+                                            onGameJoined(game)
+                                            showJoinGame = false
+                                            isProcessingJoin = false
+                                        }
+                                        return
+                                    }
+                                    
+                                    // User not in game - check if user has a profile
                                     let profileResult = try await Amplify.API.query(request: .get(User.self, byId: userId))
                                     
                                     await MainActor.run {
@@ -293,9 +287,8 @@ struct JoinGameView: View {
                 let userId = currentUserInfo.userId
                 let isGuest = currentUserInfo.isGuest
                 
-                // Check if user is already in the game
-                let playerIDs = game.playerIDs
-                if isUserAlreadyInGame(userId: userId, playerIDs: playerIDs) {
+                // Check if user is already in the game (including hierarchy child players)
+                if isUserAlreadyInGame(userId: userId, game: game) {
                     // User already in game - navigate to scoreboard immediately
                     await MainActor.run {
                         // Navigate to scoreboard immediately
@@ -373,10 +366,9 @@ struct JoinGameView: View {
                 print("🔍 DEBUG: Is guest: \(isGuest)")
                 print("🔍 DEBUG: Game playerIDs: \(game.playerIDs ?? [])")
                 
-                // Check if user is already in the game using improved detection
-                let playerIDs = game.playerIDs
-                if isUserAlreadyInGame(userId: userId, playerIDs: playerIDs) {
-                    print("🔍 DEBUG: User \(userId) is already in game with playerIDs: \(playerIDs)")
+                // Check if user is already in the game (including hierarchy child players)
+                if isUserAlreadyInGame(userId: userId, game: game) {
+                    print("🔍 DEBUG: User \(userId) is already in game, navigating to scoreboard")
                     // User already in game - navigate to scoreboard immediately
                     await MainActor.run {
                         // Navigate to scoreboard immediately
@@ -394,8 +386,8 @@ struct JoinGameView: View {
                 let playerIdentifier = "\(userId):\(playerName)"
                 
                 // Check if this specific user ID is already in the game (for anonymous users)
-                if let existingPlayerID = playerIDs.first(where: { $0.hasPrefix(userId) }) {
-                    print("🔍 DEBUG: User \(userId) is already in game (anonymous) with playerIDs: \(playerIDs)")
+                if let existingPlayerID = game.playerIDs.first(where: { $0.hasPrefix(userId) }) {
+                    print("🔍 DEBUG: User \(userId) is already in game (anonymous) with playerIDs: \(game.playerIDs)")
                     
                     // Check if the display name is different
                     let existingComponents = existingPlayerID.split(separator: ":", maxSplits: 1)
@@ -406,7 +398,7 @@ struct JoinGameView: View {
                         print("🔍 DEBUG: Updating display name from '\(existingDisplayName)' to '\(playerName)'")
                         var updatedGame = game
                         let newPlayerIdentifier = "\(userId):\(playerName)"
-                        updatedGame.playerIDs = playerIDs.map { $0 == existingPlayerID ? newPlayerIdentifier : $0 }
+                        updatedGame.playerIDs = game.playerIDs.map { $0 == existingPlayerID ? newPlayerIdentifier : $0 }
                         
                         // Update the game in the backend
                         let updateResult = try await Amplify.API.mutate(request: .update(updatedGame))
@@ -444,12 +436,13 @@ struct JoinGameView: View {
                 
                 // Check if game has player hierarchy
                 if game.hasPlayerHierarchy {
-                    print("🔍 DEBUG: Game has player hierarchy, showing parent player selection")
+                    print("🔍 DEBUG: Game has player hierarchy, calling onHierarchyGameFound callback")
                     await MainActor.run {
-                        pendingUserId = userId
-                        pendingGame = game
-                        showHierarchySelection = true
                         isProcessingJoin = false
+                        // Dismiss JoinGameView and trigger hierarchy selection in parent
+                        showJoinGame = false
+                        // Call the callback to show hierarchy selection in ContentView
+                        onHierarchyGameFound(game, userId, playerName)
                     }
                     return
                 }
@@ -494,82 +487,53 @@ struct JoinGameView: View {
     
     /// Improved function to check if a user is already in a game
     /// This handles both registered users (direct user ID) and anonymous users (userID:displayName format)
-    private func isUserAlreadyInGame(userId: String, playerIDs: [String]) -> Bool {
-        // Check for exact match (registered users)
+    /// Also checks player hierarchy (child players) for hierarchy games
+    private func isUserAlreadyInGame(userId: String, game: Game) -> Bool {
+        let playerIDs = game.playerIDs
+        
+        // Check for exact match in parent players (registered users)
         if playerIDs.contains(userId) {
-            print("🔍 DEBUG: Found exact user ID match: \(userId)")
+            print("🔍 DEBUG: Found exact user ID match in parent players: \(userId)")
             return true
         }
         
-        // Check for prefix match (anonymous users with format "userID:displayName")
+        // Check for prefix match in parent players (anonymous users with format "userID:displayName")
         let hasPrefixMatch = playerIDs.contains { playerID in
             playerID.hasPrefix(userId + ":")
         }
         
         if hasPrefixMatch {
-            print("🔍 DEBUG: Found prefix match for user ID: \(userId)")
+            print("🔍 DEBUG: Found prefix match in parent players for user ID: \(userId)")
             return true
         }
         
-        // Additional check: look for any playerID that contains the user ID
+        // Additional check for parent players: look for any playerID that contains the user ID
         // This handles edge cases where the format might be different
         let hasContainedMatch = playerIDs.contains { playerID in
             playerID.contains(userId)
         }
         
         if hasContainedMatch {
-            print("🔍 DEBUG: Found contained match for user ID: \(userId)")
+            print("🔍 DEBUG: Found contained match in parent players for user ID: \(userId)")
             return true
+        }
+        
+        // For hierarchy games, also check if user is already a child player in ANY team
+        if game.hasPlayerHierarchy {
+            let hierarchy = game.getPlayerHierarchy()
+            
+            // Check all teams to see if this user is already a child player
+            for (teamId, childPlayers) in hierarchy {
+                if childPlayers.contains(userId) {
+                    print("🔍 DEBUG: User \(userId) is already a child player in team '\(teamId)'")
+                    return true
+                }
+            }
+            
+            print("🔍 DEBUG: User \(userId) not found in any team's child players")
         }
         
         print("🔍 DEBUG: No match found for user ID: \(userId)")
         return false
-    }
-    
-    func joinAsChildPlayer(game: Game, userId: String, playerName: String, parentPlayerId: String) {
-        print("🔍 DEBUG: ===== JOIN AS CHILD PLAYER START =====")
-        print("🔍 DEBUG: Game ID: \(game.id)")
-        print("🔍 DEBUG: User ID: \(userId)")
-        print("🔍 DEBUG: Player Name: \(playerName)")
-        print("🔍 DEBUG: Parent Player ID: \(parentPlayerId)")
-        
-        isProcessingJoin = true
-        
-        Task {
-            do {
-                // Add user as child player to the selected parent
-                var updatedGame = game.addChildPlayer(userId, to: parentPlayerId)
-                
-                // Update the game in the backend
-                let updateResult = try await Amplify.API.mutate(request: .update(updatedGame))
-                switch updateResult {
-                case .success(let savedGame):
-                    print("🔍 DEBUG: Successfully added child player to hierarchy")
-                    await MainActor.run {
-                        foundGame = savedGame
-                        onGameJoined(savedGame)
-                        showJoinGame = false
-                        showHierarchySelection = false
-                        isProcessingJoin = false
-                    }
-                case .failure(let error):
-                    print("🔍 DEBUG: Failed to add child player: \(error)")
-                    await MainActor.run {
-                        alertMessage = "Failed to join as child player: \(error.localizedDescription)"
-                        showAlert = true
-                        showHierarchySelection = false
-                        isProcessingJoin = false
-                    }
-                }
-            } catch {
-                print("🔍 DEBUG: Error in joinAsChildPlayer: \(error)")
-                await MainActor.run {
-                    alertMessage = "Error: \(error.localizedDescription)"
-                    showAlert = true
-                    showHierarchySelection = false
-                    isProcessingJoin = false
-                }
-            }
-        }
     }
 } 

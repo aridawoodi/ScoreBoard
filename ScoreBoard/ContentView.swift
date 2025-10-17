@@ -14,6 +14,14 @@ enum AuthStatus {
     case checking
 }
 
+// Helper struct for hierarchy sheet presentation
+struct HierarchyPendingData: Identifiable {
+    let id = UUID()
+    let game: Game
+    let userId: String
+    let playerName: String
+}
+
 struct ContentView: View {
     @State private var authStatus: AuthStatus = .checking
     @State private var selectedTab = 2 // Default to 'Your Board' (now tag 2)
@@ -30,6 +38,17 @@ struct ContentView: View {
     @State private var showCreateGame = false
     @State private var showAnalytics = false
     @State private var showProfileEdit = false
+    
+    // Profile setup state management
+    @State private var needsProfileSetup = false
+    @State private var showForceProfileSetup = false
+    @State private var isCheckingProfileSetup = false
+    
+    // Hierarchy game join state management
+    @State private var showHierarchySelection = false
+    @State private var pendingHierarchyGame: Game?
+    @State private var pendingHierarchyUserId: String?
+    @State private var pendingHierarchyPlayerName: String?
     
     // For floating tab bar animation
     @Namespace private var tabBarNamespace
@@ -136,6 +155,9 @@ struct ContentView: View {
                     // Automatically create user profile when user signs in
                     Task {
                         await userService.ensureUserProfile()
+                        // Check if profile setup is needed
+                        print("🔍 DEBUG: Checking if profile setup is needed for authenticated user...")
+                        await checkProfileSetup()
                     }
                 }
                 
@@ -239,24 +261,99 @@ struct ContentView: View {
                 //     .animation(.easeInOut(duration: 0.3), value: isSideNavigationOpen)
                 // }
             }
+            // Force username setup (fullScreenCover - cannot be dismissed)
+            .fullScreenCover(isPresented: $showForceProfileSetup) {
+                ForceUsernameSetupView(
+                    onComplete: { username in
+                        handleProfileSetupComplete(username: username)
+                    },
+                    onSkip: {
+                        handleProfileSetupSkipped()
+                    }
+                )
+            }
             .sheet(isPresented: $showUserProfile) {
                 UserProfileView()
             }
             .sheet(isPresented: $showJoinGame) {
-                JoinGameView(showJoinGame: $showJoinGame) { game in
-                    print("🔍 DEBUG: ===== JOIN GAME CALLBACK START =====")
-                    
-                    // Use standardized callback handling
-                    Task {
-                        await GameCreationUtils.handleGameCreated(
-                            game: game,
-                            navigationState: navigationState,
-                            selectedTab: $selectedTab
+                JoinGameView(
+                    showJoinGame: $showJoinGame,
+                    onGameJoined: { game in
+                        print("🔍 DEBUG: ===== JOIN GAME CALLBACK START =====")
+                        
+                        // Use standardized callback handling
+                        Task {
+                            await GameCreationUtils.handleGameCreated(
+                                game: game,
+                                navigationState: navigationState,
+                                selectedTab: $selectedTab
+                            )
+                        }
+                        
+                        print("🔍 DEBUG: ===== JOIN GAME CALLBACK END =====")
+                    },
+                    onHierarchyGameFound: { game, userId, playerName in
+                        print("🔍 DEBUG: ===== HIERARCHY GAME FOUND CALLBACK =====")
+                        print("🔍 DEBUG: Game ID: \(game.id)")
+                        print("🔍 DEBUG: User ID: \(userId)")
+                        print("🔍 DEBUG: Player Name: \(playerName)")
+                        
+                        // Store pending data FIRST (must be set before showHierarchySelection)
+                        pendingHierarchyGame = game
+                        pendingHierarchyUserId = userId
+                        pendingHierarchyPlayerName = playerName
+                        
+                        print("🔍 DEBUG: Pending data stored, waiting for sheet presentation...")
+                        
+                        // Show hierarchy selection sheet after brief delay
+                        // This ensures JoinGameView dismiss animation completes
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                            print("🔍 DEBUG: Showing hierarchy selection sheet")
+                            print("🔍 DEBUG: pendingHierarchyGame: \(pendingHierarchyGame?.id ?? "nil")")
+                            print("🔍 DEBUG: pendingHierarchyUserId: \(pendingHierarchyUserId ?? "nil")")
+                            print("🔍 DEBUG: pendingHierarchyPlayerName: \(pendingHierarchyPlayerName ?? "nil")")
+                            showHierarchySelection = true
+                        }
+                    }
+                )
+            }
+            .sheet(item: Binding(
+                get: {
+                    // Return non-nil when all required data is present
+                    if let game = pendingHierarchyGame,
+                       let userId = pendingHierarchyUserId,
+                       let playerName = pendingHierarchyPlayerName {
+                        return HierarchyPendingData(game: game, userId: userId, playerName: playerName)
+                    }
+                    return nil
+                },
+                set: { newValue in
+                    // Clear data when sheet is dismissed
+                    if newValue == nil {
+                        pendingHierarchyGame = nil
+                        pendingHierarchyUserId = nil
+                        pendingHierarchyPlayerName = nil
+                        showHierarchySelection = false
+                    }
+                }
+            )) { pendingData in
+                HierarchySelectionView(
+                    game: pendingData.game,
+                    userId: pendingData.userId,
+                    playerName: pendingData.playerName,
+                    onParentSelected: { parentPlayerId in
+                        print("🔍 DEBUG: ===== PARENT PLAYER SELECTED =====")
+                        print("🔍 DEBUG: Parent Player ID: \(parentPlayerId)")
+                        
+                        // Call join as child player
+                        joinAsChildPlayer(
+                            game: pendingData.game,
+                            userId: pendingData.userId,
+                            playerName: pendingData.playerName,
+                            parentPlayerId: parentPlayerId
                         )
                     }
-                    
-                    print("🔍 DEBUG: ===== JOIN GAME CALLBACK END =====")
-                }
+                )
             }
             .sheet(isPresented: $showGameSelection) {
                 GameSelectionView(
@@ -364,8 +461,19 @@ struct ContentView: View {
         // Clear username cache on sign out
         UsernameCacheService.shared.clearCurrentUserUsername()
         
+        // Clear profile setup flags for current user
+        if let userId = await getCurrentUserId() {
+            ProfileSetupManager.shared.clearSetupFlags(userId: userId)
+        }
+        
         // Clear DataManager data for current user
         await DataManager.shared.setCurrentUser(id: nil)
+        
+        // Reset profile setup state
+        await MainActor.run {
+            needsProfileSetup = false
+            showForceProfileSetup = false
+        }
     }
     
     func signInAsGuest() async {
@@ -437,6 +545,10 @@ struct ContentView: View {
         // Automatically create user profile for guest user
         print("🔍 DEBUG: Ensuring guest user profile exists...")
         await userService.ensureUserProfile()
+        
+        // Check if profile setup is needed
+        print("🔍 DEBUG: Checking if profile setup is needed for guest user...")
+        await checkProfileSetup()
     }
     
     // MARK: - Session Management
@@ -467,6 +579,10 @@ struct ContentView: View {
             // Load user games after data is loaded
             print("🔍 DEBUG: Calling loadUserGames() after setCurrentUser for guest user")
             loadUserGames()
+            
+            // Check if profile setup is needed
+            print("🔍 DEBUG: Checking if profile setup is needed for returning guest user...")
+            await checkProfileSetup()
             return
         }
         
@@ -487,6 +603,10 @@ struct ContentView: View {
                 UserSpecificStorageManager.shared.loadNewUserData()
                 print("🔍 DEBUG: Calling loadUserGames() after setCurrentUser for authenticated user")
                 loadUserGames()
+                
+                // Check if profile setup is needed
+                print("🔍 DEBUG: Checking if profile setup is needed for returning authenticated user...")
+                await checkProfileSetup()
             }
             return
         }
@@ -499,6 +619,129 @@ struct ContentView: View {
     }
     
 
+    // MARK: - Profile Setup Check
+    
+    func checkProfileSetup() async {
+        print("🔍 DEBUG: ===== CHECK PROFILE SETUP START =====")
+        await MainActor.run {
+            isCheckingProfileSetup = true
+        }
+        
+        // Get current user ID
+        guard let userId = await getCurrentUserId() else {
+            print("🔍 DEBUG: No user ID found, skipping profile setup check")
+            await MainActor.run {
+                isCheckingProfileSetup = false
+                needsProfileSetup = false
+            }
+            return
+        }
+        
+        print("🔍 DEBUG: Checking profile setup for user: \(userId)")
+        ProfileSetupManager.shared.printSetupState(userId: userId)
+        
+        // Check if profile setup is needed
+        let needsSetup = await ProfileSetupManager.shared.needsProfileSetup(userId: userId)
+        
+        print("🔍 DEBUG: Profile setup needed: \(needsSetup)")
+        
+        await MainActor.run {
+            needsProfileSetup = needsSetup
+            showForceProfileSetup = needsSetup
+            isCheckingProfileSetup = false
+        }
+        
+        print("🔍 DEBUG: ===== CHECK PROFILE SETUP END =====")
+    }
+    
+    func getCurrentUserId() async -> String? {
+        let isGuestUser = UserDefaults.standard.bool(forKey: "is_guest_user")
+        
+        if isGuestUser {
+            return UserDefaults.standard.string(forKey: "current_guest_user_id")
+        } else {
+            do {
+                let currentUser = try await Amplify.Auth.getCurrentUser()
+                return currentUser.userId
+            } catch {
+                print("🔍 DEBUG: Error getting current user: \(error)")
+                return nil
+            }
+        }
+    }
+    
+    // MARK: - Profile Setup Handlers
+    
+    func handleProfileSetupComplete(username: String) {
+        print("🔍 DEBUG: ===== PROFILE SETUP COMPLETED =====")
+        print("🔍 DEBUG: Username: \(username)")
+        
+        Task {
+            // Get current user ID
+            guard let userId = await getCurrentUserId() else {
+                print("🔍 DEBUG: Error: No user ID found")
+                return
+            }
+            
+            print("🔍 DEBUG: Updating profile for user: \(userId)")
+            
+            // Get current email (preserve existing email)
+            let currentEmail = await MainActor.run { userService.currentUser?.email ?? "user@example.com" }
+            
+            // Update the user profile with new username (preserve email)
+            let success = await userService.updateUserProfile(username: username, email: currentEmail)
+            
+            if success {
+                print("🔍 DEBUG: Profile updated successfully")
+                
+                // Mark setup as completed
+                ProfileSetupManager.shared.markSetupCompleted(userId: userId)
+                
+                // Hide the setup screen
+                await MainActor.run {
+                    showForceProfileSetup = false
+                    needsProfileSetup = false
+                }
+                
+                print("🔍 DEBUG: Profile setup completed successfully!")
+                print("🔍 DEBUG: ===== PROFILE SETUP COMPLETED END =====")
+            } else {
+                print("🔍 DEBUG: Error: Failed to update profile")
+                // Show error to user (implement error handling UI if needed)
+                await MainActor.run {
+                    // For now, just log the error
+                    // TODO: Show error alert to user
+                }
+            }
+        }
+    }
+    
+    func handleProfileSetupSkipped() {
+        print("🔍 DEBUG: ===== PROFILE SETUP SKIPPED =====")
+        
+        Task {
+            // Get current user ID
+            guard let userId = await getCurrentUserId() else {
+                print("🔍 DEBUG: Error: No user ID found")
+                return
+            }
+            
+            print("🔍 DEBUG: User \(userId) skipped profile setup")
+            
+            // Mark as skipped
+            ProfileSetupManager.shared.markSetupSkipped(userId: userId)
+            
+            // Hide the setup screen
+            await MainActor.run {
+                showForceProfileSetup = false
+                needsProfileSetup = false
+            }
+            
+            print("🔍 DEBUG: Profile setup skipped successfully!")
+            print("🔍 DEBUG: ===== PROFILE SETUP SKIPPED END =====")
+        }
+    }
+    
     func loadUserGames() {
         Task {
             do {
@@ -587,5 +830,60 @@ struct ContentView: View {
                 }
             }
         }
+    }
+    
+    func joinAsChildPlayer(game: Game, userId: String, playerName: String, parentPlayerId: String) {
+        print("🔍 DEBUG: ===== JOIN AS CHILD PLAYER (ContentView) START =====")
+        print("🔍 DEBUG: Game ID: \(game.id)")
+        print("🔍 DEBUG: User ID: \(userId)")
+        print("🔍 DEBUG: Player Name: \(playerName)")
+        print("🔍 DEBUG: Parent Player ID: \(parentPlayerId)")
+        
+        Task {
+            do {
+                // Add user as child player to the selected parent
+                var updatedGame = game.addChildPlayer(userId, to: parentPlayerId)
+                
+                // Update the game in the backend
+                let updateResult = try await Amplify.API.mutate(request: .update(updatedGame))
+                switch updateResult {
+                case .success(let savedGame):
+                    print("🔍 DEBUG: Successfully added child player to hierarchy")
+                    await MainActor.run {
+                        // Close hierarchy selection sheet
+                        showHierarchySelection = false
+                        
+                        // Clear pending data
+                        pendingHierarchyGame = nil
+                        pendingHierarchyUserId = nil
+                        pendingHierarchyPlayerName = nil
+                        
+                        // Use standardized callback handling
+                        Task {
+                            await GameCreationUtils.handleGameCreated(
+                                game: savedGame,
+                                navigationState: navigationState,
+                                selectedTab: $selectedTab
+                            )
+                        }
+                    }
+                case .failure(let error):
+                    print("🔍 DEBUG: Failed to add child player: \(error)")
+                    await MainActor.run {
+                        // Show error and close sheet
+                        showHierarchySelection = false
+                        // TODO: Show error alert to user
+                    }
+                }
+            } catch {
+                print("🔍 DEBUG: Exception adding child player: \(error)")
+                await MainActor.run {
+                    showHierarchySelection = false
+                    // TODO: Show error alert to user
+                }
+            }
+        }
+        
+        print("🔍 DEBUG: ===== JOIN AS CHILD PLAYER (ContentView) END =====")
     }
 } 

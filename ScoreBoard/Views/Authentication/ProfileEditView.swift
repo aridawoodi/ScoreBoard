@@ -12,6 +12,7 @@ struct ProfileEditView: View {
     @StateObject private var userService = UserService.shared
     @State private var username: String = ""
     @State private var email: String = ""
+    @State private var isUsernameValid: Bool = false
     @State private var isLoading = false
     @State private var showAlert = false
     @State private var alertMessage = ""
@@ -41,10 +42,15 @@ struct ProfileEditView: View {
                         Text("Username")
                             .font(.headline)
                             .foregroundColor(.white)
-                        TextField("", text: $username)
-                            .modifier(AppTextFieldStyle(placeholder: "Enter your username", text: $username))
-                            .autocapitalization(.none)
-                            .disableAutocorrection(true)
+                        
+                        ValidatedUsernameField(
+                            username: $username,
+                            isValid: $isUsernameValid,
+                            showHelperText: false,
+                            showSuggestions: true,
+                            showCharacterCount: true,
+                            placeholder: "Enter your username"
+                        )
                     }
                     
                     VStack(alignment: .leading, spacing: 8) {
@@ -120,12 +126,13 @@ struct ProfileEditView: View {
                             .frame(maxWidth: .infinity)
                     }
                 }
-                .disabled(isLoading || username.isEmpty || email.isEmpty)
+                .disabled(isLoading || !isUsernameValid || email.isEmpty)
                 .foregroundColor(.white)
                 .padding()
-                .background(Color.green)
+                .background((isLoading || !isUsernameValid || email.isEmpty) ? Color.gray.opacity(0.5) : Color.green)
                 .cornerRadius(12)
                 .controlSize(.large)
+                .animation(.easeInOut(duration: 0.2), value: isUsernameValid)
                 
 
                 
@@ -222,6 +229,11 @@ struct ProfileEditView: View {
                 if let user = userService.currentUser {
                     username = user.username
                     // Email will be set in onAppear based on user type
+                    
+                    // Username from database is already valid, mark as such
+                    // This prevents the "Update Profile" button from being disabled on load
+                    isUsernameValid = true
+                    print("🔍 DEBUG: ProfileEditView - Loaded existing username, marked as valid")
                 } else {
                     // If no user profile exists, try to create one for guest users
                     let isGuestUser = UserDefaults.standard.bool(forKey: "is_guest_user")
@@ -232,6 +244,8 @@ struct ProfileEditView: View {
                                 await MainActor.run {
                                     username = guestProfile.username
                                     email = guestProfile.email
+                                    isUsernameValid = true
+                                    print("🔍 DEBUG: ProfileEditView - Created guest profile, marked username as valid")
                                 }
                             }
                         }
