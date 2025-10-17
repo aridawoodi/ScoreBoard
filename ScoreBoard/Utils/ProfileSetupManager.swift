@@ -118,9 +118,9 @@ class ProfileSetupManager {
                 return true
             }
             
-            // Check if username is default for guest users (starts with "Yourself")
-            if user.username.hasPrefix("Yourself") {
-                print("🔍 DEBUG: ProfileSetupManager - Username is default (Yourself prefix), setup required")
+            // Check if username is default for guest users (starts with "Guest")
+            if user.username.hasPrefix("Guest") {
+                print("🔍 DEBUG: ProfileSetupManager - Username is default (Guest prefix), setup required")
                 return true
             }
             
@@ -130,9 +130,9 @@ class ProfileSetupManager {
                 return true
             }
             
-            // Check if username is the auto-generated guest format (Yourself + 3 chars)
-            if user.username.count == 11 && user.username.hasPrefix("Yourself") {
-                print("🔍 DEBUG: ProfileSetupManager - Username is auto-generated (Yourself format), setup required")
+            // Check if username is the auto-generated guest format (Guest + 3 chars)
+            if user.username.count == 8 && user.username.hasPrefix("Guest") {
+                print("🔍 DEBUG: ProfileSetupManager - Username is auto-generated (Guest format), setup required")
                 return true
             }
             

@@ -64,7 +64,7 @@ class UserService: ObservableObject {
                 
                 // Create new guest user profile in database
                 let idPrefix = String(guestUserId.dropFirst(6).prefix(3)) // Take first 3 characters after "guest_"
-                let guestUsername = "Yourself\(idPrefix)"
+                let guestUsername = "Guest\(idPrefix)"
                 let guestEmail = "guest@scoreboard.app"
                 
                 print("🔍 DEBUG: Creating guest user profile in database")
