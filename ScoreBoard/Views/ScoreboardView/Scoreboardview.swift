@@ -1032,12 +1032,11 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
         print("🔍 DEBUG: showGameSettings current state: \(showGameSettings)")
         print("🔍 DEBUG: showGameListSheet current state: \(showGameListSheet)")
         
-        // If a sheet is currently being presented, delay the game update to prevent interference
+        // If a sheet is currently being presented, skip UI reload to prevent sheet dismissal
         if showGameSettings || showGameListSheet {
-            print("🔍 DEBUG: Sheet is currently presented - delaying game update")
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                self.performGameUpdate(updatedGame)
-            }
+            print("🔍 DEBUG: Sheet is currently presented - updating game data without UI reload")
+            // Update immediately but skip UI reload (no gameUpdateCounter increment)
+            performGameUpdate(updatedGame, skipUIReload: true)
         } else {
             performGameUpdate(updatedGame)
         }
@@ -1045,8 +1044,8 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
         print("🔍 DEBUG: ===== GAME UPDATE CALLBACK END =====")
     }
     
-    private func performGameUpdate(_ updatedGame: Game) {
-        print("🔍 DEBUG: Performing game update")
+    private func performGameUpdate(_ updatedGame: Game, skipUIReload: Bool = false) {
+        print("🔍 DEBUG: Performing game update - skipUIReload: \(skipUIReload)")
         
         // Update the game binding immediately
         self.game = updatedGame
@@ -1054,8 +1053,14 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
         self.lastKnownGameRounds = updatedGame.rounds
         self.dynamicRounds = updatedGame.rounds
         
-        // Increment counter to trigger reload
-        self.gameUpdateCounter += 1
+        // Only increment counter if not skipping UI reload
+        if !skipUIReload {
+            // Increment counter to trigger reload
+            self.gameUpdateCounter += 1
+            print("🔍 DEBUG: Incremented gameUpdateCounter to trigger UI reload")
+        } else {
+            print("🔍 DEBUG: Skipping gameUpdateCounter increment - no UI reload needed")
+        }
         
         // Update DataManager for reactive leaderboard calculation
         DataManager.shared.onGameUpdated(updatedGame)
@@ -1208,6 +1213,11 @@ func getGameWinner() -> (winner: TestPlayer?, message: String, isTie: Bool) {
                 print("🔍 DEBUG: Game settings sheet is being presented")
             } else {
                 print("🔍 DEBUG: Game settings sheet is being dismissed")
+                // Reload game data to show any changes made while sheet was open
+                print("🔍 DEBUG: Triggering game data reload after sheet dismissal")
+                Task {
+                    await loadGameData()
+                }
             }
         }
         // .id("game-settings-sheet-\(game.id)-\(gameUpdateCounter)") // Force recreation when game updates - TEMPORARILY DISABLED

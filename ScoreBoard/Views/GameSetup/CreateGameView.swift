@@ -96,6 +96,13 @@ struct CreateGameView: View {
     @State private var saveAsDefault: Bool = false
     @State private var hasManuallyLoadedLastSettings: Bool = false
     
+    // Track if advanced settings have been staged (updated but not saved to database)
+    @State private var hasStagedAdvancedSettings: Bool = false
+    @State private var showStagedChangesAlert: Bool = false
+    
+    // Track if game data has been loaded in edit mode
+    @State private var isGameDataLoaded: Bool = false
+    
     private var isIPad: Bool {
         UIDevice.current.userInterfaceIdiom == .pad
     }
@@ -141,6 +148,7 @@ struct CreateGameView: View {
                     maxRounds: $maxRounds,
                     newRuleLetter: $newRuleLetter,
                     newRuleValue: $newRuleValue,
+                    isGameDataLoaded: $isGameDataLoaded,
                     isIPad: isIPad,
                     titleFont: titleFont,
                     bodyFont: bodyFont,
@@ -160,8 +168,14 @@ struct CreateGameView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("Cancel") {
-                        clearForm()
-                        showCreateGame = false
+                        // If in edit mode and we have staged changes, show alert
+                        if isEditMode && hasStagedAdvancedSettings {
+                            print("🔍 DEBUG: Cancel button - showing staged changes alert")
+                            showStagedChangesAlert = true
+                        } else {
+                            clearForm()
+                            showCreateGame = false
+                        }
                     }
                     .foregroundColor(.white)
                 }
@@ -209,7 +223,8 @@ struct CreateGameView: View {
                             print("🔍 DEBUG: Regular mode - counting total players: \(totalPlayers)")
                         }
                         
-                        if effectivePlayerCount < 2 {
+                        // Only validate player count in create mode, not edit mode
+                        if !isEditMode && effectivePlayerCount < 2 {
                             showNoPlayersAlert = true
                         } else if !isLoading {
                             if isEditMode {
@@ -234,6 +249,24 @@ struct CreateGameView: View {
             } message: {
                 Text("Please add at least two players to the game before creating it.")
             }
+            .alert("Save Staged Changes?", isPresented: $showStagedChangesAlert) {
+                Button("Save Changes") {
+                    print("🔍 DEBUG: User chose to save staged changes")
+                    updateGame(skipPlayerValidation: true, dismissAfterUpdate: true)
+                }
+                Button("Discard Changes", role: .destructive) {
+                    print("🔍 DEBUG: User chose to discard staged changes")
+                    hasStagedAdvancedSettings = false
+                    clearForm()
+                    showCreateGame = false
+                }
+                Button("Cancel", role: .cancel) {
+                    print("🔍 DEBUG: User canceled dismiss - keeping sheet open")
+                }
+            } message: {
+                Text("You have unsaved changes from Advanced Settings. Do you want to save them?")
+            }
+            .interactiveDismissDisabled(isEditMode && hasStagedAdvancedSettings)
             .sheet(isPresented: $showAdvancedSettingsSheet) {
                 AdvancedSettingsSheet(
                     winCondition: $winCondition,
@@ -248,6 +281,13 @@ struct CreateGameView: View {
                     onSaveAsDefault: {
                         print("🔍 DEBUG: onSaveAsDefault callback called - setting saveAsDefault to true")
                         saveAsDefault = true
+                    },
+                    onUpdate: {
+                        print("🔍 DEBUG: onUpdate callback from AdvancedSettingsSheet - changes staged, not saved yet")
+                        // Mark that we have staged changes
+                        hasStagedAdvancedSettings = true
+                        // Don't call updateGame() here - just let changes apply to bindings
+                        // User will save by tapping main Update button in CreateGameView
                     }
                 )
             }
@@ -260,7 +300,10 @@ struct CreateGameView: View {
                 // Reset manual last settings flag for create mode
                 if !isEditMode {
                     hasManuallyLoadedLastSettings = false
+                    isGameDataLoaded = true // In create mode, data is immediately ready
                     loadDefaultSettings()
+                } else {
+                    isGameDataLoaded = false // Reset for edit mode
                 }
                 
                 // Delay all asynchronous operations to allow sheet presentation animation to complete
@@ -572,48 +615,54 @@ struct CreateGameView: View {
         }
     }
     
-    func updateGame() {
-        print("🔍 DEBUG: updateGame() called")
-        let totalPlayers = getTotalPlayerCount()
+    func updateGame(skipPlayerValidation: Bool = false, dismissAfterUpdate: Bool = true) {
+        print("🔍 DEBUG: updateGame() called - skipPlayerValidation: \(skipPlayerValidation), dismissAfterUpdate: \(dismissAfterUpdate)")
         
-        // For hierarchy mode, count child players instead of parent teams
-        let effectivePlayerCount: Int
-        if usePlayerHierarchy {
-            var totalChildPlayers = playerHierarchy.values.flatMap { $0 }.count
-            // Add host to count if they're joining as player (they'll be added before API call)
-            if hostJoinAsPlayer {
-                // Check if host is not already in hierarchy before adding to count
-                let hostUserId: String
-                if let currentUser = currentUser {
-                    hostUserId = currentUser.userId
-                } else {
-                    hostUserId = hostPlayerName.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Only validate player count if not skipping validation
+        if !skipPlayerValidation {
+            let totalPlayers = getTotalPlayerCount()
+            
+            // For hierarchy mode, count child players instead of parent teams
+            let effectivePlayerCount: Int
+            if usePlayerHierarchy {
+                var totalChildPlayers = playerHierarchy.values.flatMap { $0 }.count
+                // Add host to count if they're joining as player (they'll be added before API call)
+                if hostJoinAsPlayer {
+                    // Check if host is not already in hierarchy before adding to count
+                    let hostUserId: String
+                    if let currentUser = currentUser {
+                        hostUserId = currentUser.userId
+                    } else {
+                        hostUserId = hostPlayerName.trimmingCharacters(in: .whitespacesAndNewlines)
+                    }
+                    
+                    // Compare by userId (extract from "userId:username" format)
+                    let allChildPlayers = playerHierarchy.values.flatMap { $0 }
+                    let isHostInHierarchy = allChildPlayers.contains { childPlayer in
+                        let childUserId = childPlayer.components(separatedBy: ":").first ?? childPlayer
+                        return childUserId == hostUserId
+                    }
+                    
+                    if !isHostInHierarchy && !hostUserId.isEmpty {
+                        totalChildPlayers += 1
+                        print("🔍 DEBUG: Hierarchy mode - host will be added, including in count")
+                    }
                 }
-                
-                // Compare by userId (extract from "userId:username" format)
-                let allChildPlayers = playerHierarchy.values.flatMap { $0 }
-                let isHostInHierarchy = allChildPlayers.contains { childPlayer in
-                    let childUserId = childPlayer.components(separatedBy: ":").first ?? childPlayer
-                    return childUserId == hostUserId
-                }
-                
-                if !isHostInHierarchy && !hostUserId.isEmpty {
-                    totalChildPlayers += 1
-                    print("🔍 DEBUG: Hierarchy mode - host will be added, including in count")
-                }
+                effectivePlayerCount = totalChildPlayers
+                print("🔍 DEBUG: Hierarchy mode - counting child players: \(totalChildPlayers)")
+            } else {
+                effectivePlayerCount = totalPlayers
+                print("🔍 DEBUG: Regular mode - counting total players: \(totalPlayers)")
             }
-            effectivePlayerCount = totalChildPlayers
-            print("🔍 DEBUG: Hierarchy mode - counting child players: \(totalChildPlayers)")
+            
+            guard effectivePlayerCount >= 2 else {
+                print("🔍 DEBUG: Not enough players found, showing alert")
+                alertMessage = "Please add at least two players to the game."
+                showAlert = true
+                return
+            }
         } else {
-            effectivePlayerCount = totalPlayers
-            print("🔍 DEBUG: Regular mode - counting total players: \(totalPlayers)")
-        }
-        
-        guard effectivePlayerCount >= 2 else {
-            print("🔍 DEBUG: Not enough players found, showing alert")
-            alertMessage = "Please add at least two players to the game."
-            showAlert = true
-            return
+            print("🔍 DEBUG: Skipping player validation (updating advanced settings only)")
         }
         print("🔍 DEBUG: Setting isLoading to true")
         isLoading = true
@@ -753,6 +802,9 @@ struct CreateGameView: View {
                     case .success(let updatedGame):
                         print("🔍 DEBUG: Game updated successfully with ID: \(updatedGame.id)")
                         
+                        // Clear staged flag since changes are now saved
+                        hasStagedAdvancedSettings = false
+                        
                         // Save current settings for next time
                         saveCurrentGameSettings()
                         
@@ -762,8 +814,13 @@ struct CreateGameView: View {
                         DataManager.shared.onGameUpdated(updatedGame)
                         print("🔍 DEBUG: onGameUpdated callback completed")
                         
-                        // Close the sheet
-                        showCreateGame = false
+                        // Close the sheet if requested
+                        if dismissAfterUpdate {
+                            print("🔍 DEBUG: Dismissing CreateGameView sheet after update")
+                            showCreateGame = false
+                        } else {
+                            print("🔍 DEBUG: Keeping CreateGameView sheet open after update")
+                        }
                         
                     case .failure(let error):
                         print("🔍 DEBUG: Game update failed with error: \(error)")
@@ -882,7 +939,7 @@ struct CreateGameView: View {
         print("🔍 DEBUG: Loading game data for edit mode")
         print("🔍 DEBUG: Game ID: \(game.id)")
         
-        // Load basic game data from the game object (which should be updated after successful updates)
+        // Load basic game data from the game object
         print("🔍 DEBUG: Loading basic game data...")
         gameName = game.gameName ?? ""
         rounds = game.rounds
@@ -893,6 +950,14 @@ struct CreateGameView: View {
         // Load custom rules from JSON
         customRules = CustomRulesManager.shared.jsonToRules(game.customRules)
         print("🔍 DEBUG: Loaded \(customRules.count) custom rules from game")
+        
+        // Reset staged flag since we're loading fresh data from database
+        hasStagedAdvancedSettings = false
+        print("🔍 DEBUG: Reset hasStagedAdvancedSettings to false (fresh load from database)")
+        
+        // Mark that basic game data is loaded
+        isGameDataLoaded = true
+        print("🔍 DEBUG: Set isGameDataLoaded to true")
         
         // Load player hierarchy if it exists
         let hierarchy = game.getPlayerHierarchy()
@@ -1162,6 +1227,7 @@ struct CreateGameContentView: View {
     @Binding var maxRounds: Int
     @Binding var newRuleLetter: String
     @Binding var newRuleValue: Int
+    @Binding var isGameDataLoaded: Bool
     
     let isIPad: Bool
     let titleFont: Font
@@ -1490,7 +1556,12 @@ struct CreateGameContentView: View {
         .cornerRadius(10)
         
         let advancedSettingsButton = Button(action: {
-            showAdvancedSettingsSheet = true
+            // Only allow opening if game data is loaded (in edit mode) or in create mode
+            if !isEditMode || isGameDataLoaded {
+                showAdvancedSettingsSheet = true
+            } else {
+                print("🔍 DEBUG: Advanced Settings button disabled - game data not loaded yet")
+            }
         }) {
             HStack {
                 Text("Advanced Settings")
@@ -1499,11 +1570,12 @@ struct CreateGameContentView: View {
                 Spacer()
             }
             .padding()
-            .background(Color("LightGreen"))
+            .background((!isEditMode || isGameDataLoaded) ? Color("LightGreen") : Color.gray)
             .cornerRadius(8)
             .shadow(color: Color.black.opacity(0.3), radius: 4, x: 0, y: 2)
         }
         .buttonStyle(PlainButtonStyle())
+        .disabled(isEditMode && !isGameDataLoaded)
         
 
         
@@ -1697,6 +1769,19 @@ struct AdvancedSettingsSheet: View {
     let isEditMode: Bool
     let hasManuallyLoadedLastSettings: Bool
     let onSaveAsDefault: (() -> Void)?
+    let onUpdate: (() -> Void)?  // NEW: Callback to trigger updateGame()
+    
+    // Local state for changes (not bound to parent)
+    @State private var localWinCondition: WinCondition
+    @State private var localMaxScore: Int
+    @State private var localMaxRounds: Int
+    @State private var localCustomRules: [CustomRule]
+    
+    // Original values to detect changes
+    @State private var originalWinCondition: WinCondition
+    @State private var originalMaxScore: Int
+    @State private var originalMaxRounds: Int
+    @State private var originalCustomRules: [CustomRule]
     
     // Default settings state
     @State private var useAsDefault: Bool = false
@@ -1704,231 +1789,389 @@ struct AdvancedSettingsSheet: View {
     @State private var showDefaultOverrideAlert: Bool = false
     @State private var showDefaultsLoadedMessage: Bool = false
     @State private var defaultsLoaded: Bool = false
+    @State private var isUpdating: Bool = false
+    
+    // Initialize with current values
+    init(
+        winCondition: Binding<WinCondition>,
+        maxScore: Binding<Int>,
+        maxRounds: Binding<Int>,
+        customRules: Binding<[CustomRule]>,
+        newRuleLetter: Binding<String>,
+        newRuleValue: Binding<Int>,
+        addCustomRule: @escaping () -> Void,
+        isEditMode: Bool,
+        hasManuallyLoadedLastSettings: Bool,
+        onSaveAsDefault: (() -> Void)?,
+        onUpdate: (() -> Void)? = nil
+    ) {
+        self._winCondition = winCondition
+        self._maxScore = maxScore
+        self._maxRounds = maxRounds
+        self._customRules = customRules
+        self._newRuleLetter = newRuleLetter
+        self._newRuleValue = newRuleValue
+        self.addCustomRule = addCustomRule
+        self.isEditMode = isEditMode
+        self.hasManuallyLoadedLastSettings = hasManuallyLoadedLastSettings
+        self.onSaveAsDefault = onSaveAsDefault
+        self.onUpdate = onUpdate
+        
+        // Initialize local state with current values
+        self._localWinCondition = State(initialValue: winCondition.wrappedValue)
+        self._localMaxScore = State(initialValue: maxScore.wrappedValue)
+        self._localMaxRounds = State(initialValue: maxRounds.wrappedValue)
+        self._localCustomRules = State(initialValue: customRules.wrappedValue)
+        
+        // Store original values for change detection
+        self._originalWinCondition = State(initialValue: winCondition.wrappedValue)
+        self._originalMaxScore = State(initialValue: maxScore.wrappedValue)
+        self._originalMaxRounds = State(initialValue: maxRounds.wrappedValue)
+        self._originalCustomRules = State(initialValue: customRules.wrappedValue)
+    }
+    
+    // Detect if any changes were made
+    private var hasChanges: Bool {
+        let winConditionChanged = localWinCondition != originalWinCondition
+        let maxScoreChanged = localMaxScore != originalMaxScore
+        let maxRoundsChanged = localMaxRounds != originalMaxRounds
+        let customRulesCountChanged = localCustomRules.count != originalCustomRules.count
+        
+        // Check if custom rules content changed
+        let customRulesContentChanged: Bool
+        if localCustomRules.count == originalCustomRules.count {
+            customRulesContentChanged = !localCustomRules.elementsEqual(originalCustomRules) { rule1, rule2 in
+                return rule1.letter == rule2.letter && rule1.value == rule2.value
+            }
+        } else {
+            customRulesContentChanged = true
+        }
+        
+        return winConditionChanged || maxScoreChanged || maxRoundsChanged || customRulesCountChanged || customRulesContentChanged
+    }
+    
+    // Apply local changes to bindings and trigger update
+    private func applyChangesAndUpdate() {
+        print("🔍 DEBUG: AdvancedSettingsSheet - Applying changes to CreateGameView (not saving to database yet)")
+        
+        // Apply local changes to bindings
+        winCondition = localWinCondition
+        maxScore = localMaxScore
+        maxRounds = localMaxRounds
+        customRules = localCustomRules
+        
+        // Dismiss the sheet
+        dismiss()
+        
+        // Call the onUpdate callback (but it doesn't save to database - just stages the changes)
+        if isEditMode {
+            print("🔍 DEBUG: Changes staged in CreateGameView - user must tap main Update button to save")
+            onUpdate?()
+        }
+    }
+    
+    // Cancel and restore original values
+    private func cancelChanges() {
+        print("🔍 DEBUG: AdvancedSettingsSheet - Canceling changes, restoring original values")
+        
+        // Restore original values to bindings (no changes applied)
+        winCondition = originalWinCondition
+        maxScore = originalMaxScore
+        maxRounds = originalMaxRounds
+        customRules = originalCustomRules
+        
+        // Dismiss the sheet
+        dismiss()
+    }
+    
+    // Local add custom rule function
+    private func addLocalCustomRule() {
+        // Check if user already has one custom rule (locked feature)
+        if localCustomRules.count >= 1 {
+            return
+        }
+        
+        let letter = newRuleLetter.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // Validate input
+        guard !letter.isEmpty && letter.count == 1 else {
+            return
+        }
+        
+        guard letter.range(of: "^[A-Z]$", options: .regularExpression, range: nil, locale: nil) != nil else {
+            return
+        }
+        
+        // Check for duplicate letter
+        if localCustomRules.contains(where: { $0.letter == letter }) {
+            return
+        }
+        
+        // Check for duplicate value
+        if localCustomRules.contains(where: { $0.value == newRuleValue }) {
+            return
+        }
+        
+        // Add the rule to local state
+        let newRule = CustomRule(letter: letter, value: newRuleValue)
+        localCustomRules.append(newRule)
+        
+        // Clear input fields
+        newRuleLetter = ""
+        newRuleValue = 0
+        
+        print("🔍 DEBUG: Added custom rule to local state: \(letter) = \(newRule.value)")
+    }
+    
+    // MARK: - Computed Views
+    
+    private var headerView: some View {
+        VStack(spacing: 8) {
+            Text("Configure game rules and scoring options")
+                .font(.subheadline)
+                .foregroundColor(.white.opacity(0.7))
+                .multilineTextAlignment(.center)
+        }
+        .padding(.top, 20)
+    }
+    
+    private var customRulesSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Custom Score Rules")
+                .font(.headline)
+                .fontWeight(.medium)
+                .foregroundColor(.white)
+            
+            Text("Define custom letters that represent specific scores (e.g., X=0, D=100)")
+                .font(.caption)
+                .foregroundColor(.white.opacity(0.7))
+            
+            // Existing rules list
+            if !localCustomRules.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Current Rules:")
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .foregroundColor(.white)
+                    
+                    ForEach(localCustomRules) { rule in
+                        customRuleRow(rule: rule)
+                    }
+                }
+            }
+            
+            // Add new rule
+            addNewRuleSection
+        }
+        .padding()
+        .background(Color.black.opacity(0.2))
+        .cornerRadius(8)
+    }
+    
+    private func customRuleRow(rule: CustomRule) -> some View {
+        HStack {
+            Text("\(rule.letter) = \(rule.value)")
+                .font(.caption)
+                .foregroundColor(.white)
+            Spacer()
+            Button(action: {
+                localCustomRules.removeAll { $0.id == rule.id }
+            }) {
+                Image(systemName: "trash")
+                    .foregroundColor(.red)
+                    .font(.caption)
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(Color.black.opacity(0.3))
+        .cornerRadius(4)
+    }
+    
+    private var addNewRuleSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Add New Rule:")
+                .font(.caption)
+                .fontWeight(.medium)
+                .foregroundColor(.white)
+            
+            if localCustomRules.count >= 1 {
+                lockedFeatureView
+            } else {
+                addRuleInputFields
+            }
+        }
+    }
+    
+    private var lockedFeatureView: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "lock.fill")
+                .foregroundColor(.orange)
+                .font(.caption)
+            
+            Text("Feature Locked - Free version limited to 1 custom rule")
+                .font(.caption)
+                .foregroundColor(.orange)
+            
+            Spacer()
+        }
+        .padding(8)
+        .background(Color.orange.opacity(0.1))
+        .cornerRadius(4)
+        .overlay(
+            RoundedRectangle(cornerRadius: 4)
+                .stroke(Color.orange.opacity(0.3), lineWidth: 1)
+        )
+    }
+    
+    private var addRuleInputFields: some View {
+        HStack(spacing: 8) {
+            TextField("", text: $newRuleLetter)
+                .modifier(AppTextFieldStyle(placeholder: "Letter", text: $newRuleLetter))
+                .frame(width: 60)
+                .textInputAutocapitalization(.characters)
+                .onChange(of: newRuleLetter) { _, newValue in
+                    newRuleLetter = newValue.uppercased()
+                }
+            
+            Text("=")
+                .font(.caption)
+                .foregroundColor(.white)
+            
+            TextField("", value: $newRuleValue, format: .number)
+                .modifier(AppTextFieldStyle(placeholder: "Value", text: Binding(
+                    get: { String(newRuleValue) },
+                    set: { newValue in
+                        if let intValue = Int(newValue) {
+                            newRuleValue = intValue
+                        }
+                    }
+                )))
+                .frame(width: 80)
+                .keyboardType(.numbersAndPunctuation)
+            
+            Button(action: addLocalCustomRule) {
+                Image(systemName: "plus.circle.fill")
+                    .foregroundColor(Color("LightGreen"))
+                    .font(.system(size: 20))
+            }
+            .disabled(newRuleLetter.isEmpty || newRuleLetter.count != 1)
+        }
+    }
+    
+    private var winConditionSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Win Condition")
+                .font(.headline)
+                .fontWeight(.medium)
+                .foregroundColor(.white)
+            
+            winConditionToggle
+        }
+    }
+    
+    private var winConditionToggle: some View {
+        GeometryReader { geometry in
+            ZStack {
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color.black.opacity(0.3))
+                
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(Color("LightGreen"))
+                    .frame(width: geometry.size.width / 2 - 2)
+                    .offset(x: localWinCondition == .highestScore ? -geometry.size.width / 4 + 1 : geometry.size.width / 4 - 1)
+                    .animation(.easeInOut(duration: 0.3), value: localWinCondition)
+                
+                HStack(spacing: 0) {
+                    Button(action: {
+                        localWinCondition = .highestScore
+                    }) {
+                        Text("Highest Score Wins")
+                            .font(.caption2)
+                            .fontWeight(.medium)
+                            .foregroundColor(localWinCondition == .highestScore ? .white : .white.opacity(0.7))
+                            .frame(maxWidth: .infinity)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    
+                    Button(action: {
+                        localWinCondition = .lowestScore
+                    }) {
+                        Text("Lowest Score Wins")
+                            .font(.caption2)
+                            .fontWeight(.medium)
+                            .foregroundColor(localWinCondition == .lowestScore ? .white : .white.opacity(0.7))
+                            .frame(maxWidth: .infinity)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                }
+                .padding(2)
+            }
+        }
+        .frame(height: 32)
+    }
+    
+    private var maxScoreSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Max Score (Optional)")
+                .font(.headline)
+                .fontWeight(.medium)
+                .foregroundColor(.white)
+            
+            HStack {
+                Text("\(localMaxScore)")
+                    .foregroundColor(.white)
+                    .font(.body)
+                Spacer()
+                CustomStepperView(value: $localMaxScore, in: 10...1000, step: 10)
+            }
+            .padding()
+            .background(Color.black.opacity(0.5))
+            .cornerRadius(8)
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(Color.white.opacity(0.3), lineWidth: 1)
+            )
+        }
+    }
+    
+    private var maxRoundsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Max Rounds (Optional)")
+                .font(.headline)
+                .fontWeight(.medium)
+                .foregroundColor(.white)
+            
+            HStack {
+                Text("\(localMaxRounds)")
+                    .foregroundColor(.white)
+                    .font(.body)
+                Spacer()
+                CustomStepperView(value: $localMaxRounds, in: 1...8, step: 1)
+            }
+            .padding()
+            .background(Color.black.opacity(0.5))
+            .cornerRadius(8)
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(Color.white.opacity(0.3), lineWidth: 1)
+            )
+        }
+    }
     
     var body: some View {
         NavigationView {
             ScrollView {
                 VStack(spacing: 24) {
-                    // Header
-                    VStack(spacing: 8) {
-                        Text("Configure game rules and scoring options")
-                            .font(.subheadline)
-                            .foregroundColor(.white.opacity(0.7))
-                            .multilineTextAlignment(.center)
-                    }
-                    .padding(.top, 20)
-                    
-                    // Custom Score Rules
-                    VStack(alignment: .leading, spacing: 16) {
-                        Text("Custom Score Rules")
-                            .font(.headline)
-                            .fontWeight(.medium)
-                            .foregroundColor(.white)
-                        
-                        Text("Define custom letters that represent specific scores (e.g., X=0, D=100)")
-                            .font(.caption)
-                            .foregroundColor(.white.opacity(0.7))
-                        
-                        // Existing rules list
-                        if !customRules.isEmpty {
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("Current Rules:")
-                                    .font(.caption)
-                                    .fontWeight(.medium)
-                                    .foregroundColor(.white)
-                                
-                                ForEach(customRules) { rule in
-                                    HStack {
-                                        Text("\(rule.letter) = \(rule.value)")
-                                            .font(.caption)
-                                            .foregroundColor(.white)
-                                        Spacer()
-                                        Button(action: {
-                                            customRules.removeAll { $0.id == rule.id }
-                                        }) {
-                                            Image(systemName: "trash")
-                                                .foregroundColor(.red)
-                                                .font(.caption)
-                                        }
-                                    }
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 4)
-                                    .background(Color.black.opacity(0.3))
-                                    .cornerRadius(4)
-                                }
-                            }
-                        }
-                        
-                        // Add new rule
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Add New Rule:")
-                                .font(.caption)
-                                .fontWeight(.medium)
-                                .foregroundColor(.white)
-                            
-                            // Check if feature is locked (user already has one rule)
-                            if customRules.count >= 1 {
-                                // Show locked state
-                                HStack(spacing: 8) {
-                                    Image(systemName: "lock.fill")
-                                        .foregroundColor(.orange)
-                                        .font(.caption)
-                                    
-                                    Text("Feature Locked - Free version limited to 1 custom rule")
-                                        .font(.caption)
-                                        .foregroundColor(.orange)
-                                    
-                                    Spacer()
-                                }
-                                .padding(8)
-                                .background(Color.orange.opacity(0.1))
-                                .cornerRadius(4)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 4)
-                                        .stroke(Color.orange.opacity(0.3), lineWidth: 1)
-                                )
-                            } else {
-                                // Show normal input fields
-                                HStack(spacing: 8) {
-                                    TextField("", text: $newRuleLetter)
-                                        .modifier(AppTextFieldStyle(placeholder: "Letter", text: $newRuleLetter))
-                                        .frame(width: 60)
-                                        .textInputAutocapitalization(.characters)
-                                        .onChange(of: newRuleLetter) { _, newValue in
-                                            newRuleLetter = newValue.uppercased()
-                                        }
-                                    
-                                    Text("=")
-                                        .font(.caption)
-                                        .foregroundColor(.white)
-                                    
-                                    TextField("", value: $newRuleValue, format: .number)
-                                        .modifier(AppTextFieldStyle(placeholder: "Value", text: Binding(
-                                            get: { String(newRuleValue) },
-                                            set: { newValue in
-                                                if let intValue = Int(newValue) {
-                                                    newRuleValue = intValue
-                                                }
-                                            }
-                                        )))
-                                        .frame(width: 80)
-                                        .keyboardType(.numbersAndPunctuation)
-                                    
-                                    Button(action: addCustomRule) {
-                                        Image(systemName: "plus.circle.fill")
-                                            .foregroundColor(Color("LightGreen"))
-                                            .font(.system(size: 20))
-                                    }
-                                    .disabled(newRuleLetter.isEmpty || newRuleLetter.count != 1)
-                                }
-                            }
-                        }
-                    }
-                    .padding()
-                    .background(Color.black.opacity(0.2))
-                    .cornerRadius(8)
-                    
-                    // Win Condition
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("Win Condition")
-                            .font(.headline)
-                            .fontWeight(.medium)
-                            .foregroundColor(.white)
-                        
-                        GeometryReader { geometry in
-                            ZStack {
-                                // Background container
-                                RoundedRectangle(cornerRadius: 8)
-                                    .fill(Color.black.opacity(0.3))
-                                
-                                // Sliding background
-                                RoundedRectangle(cornerRadius: 6)
-                                    .fill(Color("LightGreen"))
-                                    .frame(width: geometry.size.width / 2 - 2)
-                                    .offset(x: winCondition == .highestScore ? -geometry.size.width / 4 + 1 : geometry.size.width / 4 - 1)
-                                    .animation(.easeInOut(duration: 0.3), value: winCondition)
-                                
-                                // Buttons
-                                HStack(spacing: 0) {
-                                    // Highest Score Wins option
-                                    Button(action: {
-                                        winCondition = .highestScore
-                                    }) {
-                                        Text("Highest Score Wins")
-                                            .font(.caption2)
-                                            .fontWeight(.medium)
-                                            .foregroundColor(winCondition == .highestScore ? .white : .white.opacity(0.7))
-                                            .frame(maxWidth: .infinity)
-                                            .padding(.horizontal, 12)
-                                            .padding(.vertical, 6)
-                                    }
-                                    .buttonStyle(PlainButtonStyle())
-                                    
-                                    // Lowest Score Wins option
-                                    Button(action: {
-                                        winCondition = .lowestScore
-                                    }) {
-                                        Text("Lowest Score Wins")
-                                            .font(.caption2)
-                                            .fontWeight(.medium)
-                                            .foregroundColor(winCondition == .lowestScore ? .white : .white.opacity(0.7))
-                                            .frame(maxWidth: .infinity)
-                                            .padding(.horizontal, 12)
-                                            .padding(.vertical, 6)
-                                    }
-                                    .buttonStyle(PlainButtonStyle())
-                                }
-                                .padding(2)
-                            }
-                        }
-                        .frame(height: 32)
-                    }
-                    
-                    // Max Score
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("Max Score (Optional)")
-                            .font(.headline)
-                            .fontWeight(.medium)
-                            .foregroundColor(.white)
-                        
-                        HStack {
-                            Text("\(maxScore)")
-                                .foregroundColor(.white)
-                                .font(.body)
-                            Spacer()
-                            CustomStepperView(value: $maxScore, in: 10...1000, step: 10)
-                        }
-                        .padding()
-                        .background(Color.black.opacity(0.5))
-                        .cornerRadius(8)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8)
-                                .stroke(Color.white.opacity(0.3), lineWidth: 1)
-                        )
-                    }
-                    
-                    // Max Rounds
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("Max Rounds (Optional)")
-                            .font(.headline)
-                            .fontWeight(.medium)
-                            .foregroundColor(.white)
-                        
-                        HStack {
-                            Text("\(maxRounds)")
-                                .foregroundColor(.white)
-                                .font(.body)
-                            Spacer()
-                            CustomStepperView(value: $maxRounds, in: 1...8, step: 1)
-                        }
-                        .padding()
-                        .background(Color.black.opacity(0.5))
-                        .cornerRadius(8)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8)
-                                .stroke(Color.white.opacity(0.3), lineWidth: 1)
-                        )
-                    }
+                    headerView
+                    customRulesSection
+                    winConditionSection
+                    maxScoreSection
+                    maxRoundsSection
                     
                     // Default Settings
                     VStack(alignment: .leading, spacing: 12) {
@@ -2008,9 +2251,25 @@ struct AdvancedSettingsSheet: View {
             .toolbarBackground(Color.clear, for: .navigationBar)
             .navigationBarItems(
                 leading: Button("Cancel") {
-                    dismiss()
+                    cancelChanges()
                 }
-                .foregroundColor(.white)
+                .foregroundColor(.white),
+                trailing: Group {
+                    if isEditMode && hasChanges {
+                        Button(action: {
+                            applyChangesAndUpdate()
+                        }) {
+                            if isUpdating {
+                                ProgressView()
+                                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                            } else {
+                                Text("Update")
+                                    .foregroundColor(.white)
+                            }
+                        }
+                        .disabled(isUpdating)
+                    }
+                }
             )
             .gradientBackground()
             .onAppear {
@@ -2065,14 +2324,14 @@ struct AdvancedSettingsSheet: View {
     
     private func saveCurrentGameAsDefaults() {
         print("🔍 DEBUG: AdvancedSettingsSheet - saveCurrentGameAsDefaults() called")
-        print("🔍 DEBUG: AdvancedSettingsSheet - Current custom rules: \(customRules)")
-        let customRulesJSON = CustomRulesManager.shared.rulesToJSON(customRules) ?? ""
+        print("🔍 DEBUG: AdvancedSettingsSheet - Current custom rules: \(localCustomRules)")
+        let customRulesJSON = CustomRulesManager.shared.rulesToJSON(localCustomRules) ?? ""
         print("🔍 DEBUG: AdvancedSettingsSheet - Custom rules JSON: '\(customRulesJSON)'")
         
         let defaultSettings = DefaultGameSettings(
-            winCondition: winCondition,
-            maxScore: maxScore,
-            maxRounds: maxRounds,
+            winCondition: localWinCondition,
+            maxScore: localMaxScore,
+            maxRounds: localMaxRounds,
             customRules: customRulesJSON,
             hostJoinAsPlayer: true, // We don't have access to this in AdvancedSettingsSheet
             useAsDefault: true,

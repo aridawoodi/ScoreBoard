@@ -351,10 +351,17 @@ class DataManager: ObservableObject {
             guard let winningScore = winner else { continue }
             let winnerPlayerID = winningScore.playerID
             
-            // Process all players in this game
+            // Calculate total scores for each player in this game (sum across all rounds)
+            var playerTotalScoresInGame: [String: Int] = [:]
             for score in gameScores {
-                let playerID = score.playerID
-                
+                playerTotalScoresInGame[score.playerID, default: 0] += score.score
+            }
+            
+            // Get unique player IDs in this game
+            let uniquePlayerIDs = Set(gameScores.map { $0.playerID })
+            
+            // Process all players in this game (once per player, not per score)
+            for playerID in uniquePlayerIDs {
                 // Initialize player stats if needed
                 if playerStats[playerID] == nil {
                     playerStats[playerID] = PlayerStats(playerID: playerID)
@@ -362,11 +369,13 @@ class DataManager: ObservableObject {
                 
                 // Track all games played
                 let isWin = playerID == winnerPlayerID
+                let playerTotalScore = playerTotalScoresInGame[playerID] ?? 0
+                
                 playerStats[playerID]?.allGamesPlayed.append(GamePlayDetail(
                     gameID: game.id,
                     gameName: game.gameName ?? "Untitled Game",
                     winCondition: winCondition,
-                    finalScore: score.score,
+                    finalScore: playerTotalScore,  // Total score across all rounds
                     date: game.createdAt.foundationDate ?? Date(),
                     totalPlayers: game.playerIDs.count,
                     isWin: isWin
@@ -379,7 +388,7 @@ class DataManager: ObservableObject {
                         gameID: game.id,
                         gameName: game.gameName ?? "Untitled Game",
                         winCondition: winCondition,
-                        finalScore: score.score,
+                        finalScore: playerTotalScore,  // Total score across all rounds
                         date: game.createdAt.foundationDate ?? Date(),
                         totalPlayers: game.playerIDs.count
                     ))
@@ -476,10 +485,17 @@ class DataManager: ObservableObject {
             guard let winningScore = winner else { continue }
             let winnerPlayerID = winningScore.playerID
             
-            // Process all players in this game
+            // Calculate total scores for each player in this game (sum across all rounds)
+            var playerTotalScoresInGame: [String: Int] = [:]
             for score in gameScores {
-                let playerID = score.playerID
-                
+                playerTotalScoresInGame[score.playerID, default: 0] += score.score
+            }
+            
+            // Get unique player IDs in this game
+            let uniquePlayerIDs = Set(gameScores.map { $0.playerID })
+            
+            // Process all players in this game (once per player, not per score)
+            for playerID in uniquePlayerIDs {
                 // Initialize player stats if needed
                 if playerStats[playerID] == nil {
                     playerStats[playerID] = PlayerStats(playerID: playerID)
@@ -487,11 +503,13 @@ class DataManager: ObservableObject {
                 
                 // Track all games played
                 let isWin = playerID == winnerPlayerID
+                let playerTotalScore = playerTotalScoresInGame[playerID] ?? 0
+                
                 playerStats[playerID]?.allGamesPlayed.append(GamePlayDetail(
                     gameID: game.id,
                     gameName: game.gameName ?? "Untitled Game",
                     winCondition: winCondition,
-                    finalScore: score.score,
+                    finalScore: playerTotalScore,  // Total score across all rounds
                     date: game.createdAt.foundationDate ?? Date(),
                     totalPlayers: game.playerIDs.count,
                     isWin: isWin
@@ -504,7 +522,7 @@ class DataManager: ObservableObject {
                         gameID: game.id,
                         gameName: game.gameName ?? "Untitled Game",
                         winCondition: winCondition,
-                        finalScore: score.score,
+                        finalScore: playerTotalScore,  // Total score across all rounds
                         date: game.createdAt.foundationDate ?? Date(),
                         totalPlayers: game.playerIDs.count
                     ))
@@ -736,19 +754,25 @@ class DataManager: ObservableObject {
         let userGames = getGamesForUser(userId)
         print("🔍 DEBUG: DataManager.generateUserAnalytics - Found \(userGames.count) games for user")
         
-        // Get user's scores from cached data
-        let userScores = getScoresForPlayer(userId)
-        print("🔍 DEBUG: DataManager.generateUserAnalytics - Found \(userScores.count) scores for user")
+        // Get ALL scores for the user's games (not just the user's scores)
+        // This is needed to determine winners correctly by comparing against all players/teams
+        var allScoresForUserGames: [Score] = []
+        for game in userGames {
+            let gameScores = scores.filter { $0.gameID == game.id }
+            allScoresForUserGames.append(contentsOf: gameScores)
+        }
+        
+        print("🔍 DEBUG: DataManager.generateUserAnalytics - Found \(allScoresForUserGames.count) total scores across user's games")
         
         // Use the same logic as AnalyticsService but with cached data
-        guard !userGames.isEmpty, !userScores.isEmpty else {
+        guard !userGames.isEmpty, !allScoresForUserGames.isEmpty else {
             print("🔍 DEBUG: DataManager.generateUserAnalytics - No data available for user")
             return nil
         }
         
         // Return the raw data for AnalyticsTabView to process
         print("🔍 DEBUG: DataManager.generateUserAnalytics - Successfully generated analytics data for user")
-        return ["games": userGames, "scores": userScores, "userId": userId]
+        return ["games": userGames, "scores": allScoresForUserGames, "userId": userId]
     }
     
     // MARK: - Reactive Leaderboard System
@@ -888,12 +912,17 @@ class DataManager: ObservableObject {
             let nickname = users.first(where: { $0.id == winnerPlayerID })?.username ?? winnerPlayerID
             print("🔍 DEBUG: DataManager - After processing game \(game.id), \(winnerPlayerID) (nickname: \(nickname)) now has \(afterWins) wins (was \(beforeWins))")
             
+            // Calculate total score for the winner (sum of all rounds)
+            let winnerTotalScore = gameScores
+                .filter { $0.playerID == winnerPlayerID }
+                .reduce(0) { $0 + $1.score }
+            
             // Add to gamesWon list for the winner
             playerStats[winnerPlayerID]?.gamesWon.append(GameWinDetail(
                 gameID: game.id,
                 gameName: game.gameName ?? "Untitled Game",
                 winCondition: winCondition,
-                finalScore: winningScore.score,
+                finalScore: winnerTotalScore,  // Total score across all rounds
                 date: game.createdAt.foundationDate ?? Date(),
                 totalPlayers: game.playerIDs.count
             ))
@@ -913,13 +942,18 @@ class DataManager: ObservableObject {
                 }
                 playerStats[playerIDInGame]?.gamesPlayed.insert(game.id)
                 
+                // Calculate total score for this player (sum of all rounds)
+                let playerTotalScore = gameScores
+                    .filter { $0.playerID == playerIDInGame }
+                    .reduce(0) { $0 + $1.score }
+                
                 // Add to allGamesPlayed for detailed tracking
                 let isWin = playerIDInGame == winnerPlayerID
                 playerStats[playerIDInGame]?.allGamesPlayed.append(GamePlayDetail(
                     gameID: game.id,
                     gameName: game.gameName ?? "Untitled Game",
                     winCondition: winCondition,
-                    finalScore: winningScore.score, // Use winning score for consistency
+                    finalScore: playerTotalScore,  // Total score across all rounds
                     date: game.createdAt.foundationDate ?? Date(),
                     totalPlayers: game.playerIDs.count,
                     isWin: isWin

@@ -87,6 +87,8 @@
 		5EAC3CE82EA0892200693E6B /* UsernameValidationServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EAC3CE72EA0892200693E6B /* UsernameValidationServiceTests.swift */; };
 		5EAC3CEA2EA08A5D00693E6B /* ForceUsernameSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EAC3CE92EA08A5D00693E6B /* ForceUsernameSetupView.swift */; };
 		5EAC3CEC2EA1FB3800693E6B /* ValidatedUsernameField.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EAC3CEB2EA1FB3800693E6B /* ValidatedUsernameField.swift */; };
+		5EAC3CEE2EA340D700693E6B /* GuestMigrationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EAC3CED2EA340D700693E6B /* GuestMigrationService.swift */; };
+		5EAC3CF02EA3411B00693E6B /* ConvertToAccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EAC3CEF2EA3411B00693E6B /* ConvertToAccountView.swift */; };
 		5EC4F5992E885A5A00036060 /* PlayerHierarchyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EC4F5982E885A5A00036060 /* PlayerHierarchyView.swift */; };
 		5EC4F59B2E885B1400036060 /* HierarchySelectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EC4F59A2E885B1400036060 /* HierarchySelectionView.swift */; };
 		5EC4F59D2E8B852800036060 /* QuickHierarchyGameCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EC4F59C2E8B852800036060 /* QuickHierarchyGameCard.swift */; };
@@ -178,6 +180,8 @@
 		5EAC3CE72EA0892200693E6B /* UsernameValidationServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsernameValidationServiceTests.swift; sourceTree = "<group>"; };
 		5EAC3CE92EA08A5D00693E6B /* ForceUsernameSetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ForceUsernameSetupView.swift; sourceTree = "<group>"; };
 		5EAC3CEB2EA1FB3800693E6B /* ValidatedUsernameField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ValidatedUsernameField.swift; sourceTree = "<group>"; };
+		5EAC3CED2EA340D700693E6B /* GuestMigrationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuestMigrationService.swift; sourceTree = "<group>"; };
+		5EAC3CEF2EA3411B00693E6B /* ConvertToAccountView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConvertToAccountView.swift; sourceTree = "<group>"; };
 		5EC4F5982E885A5A00036060 /* PlayerHierarchyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerHierarchyView.swift; sourceTree = "<group>"; };
 		5EC4F59A2E885B1400036060 /* HierarchySelectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HierarchySelectionView.swift; sourceTree = "<group>"; };
 		5EC4F59C2E8B852800036060 /* QuickHierarchyGameCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickHierarchyGameCard.swift; sourceTree = "<group>"; };
@@ -379,6 +383,7 @@
 				5E737D8F2CDB3DF100F407D3 /* LoginView.swift */,
 				5EFE18732E2A0BDE0056C708 /* ProfileEditView.swift */,
 				5EAC3CE92EA08A5D00693E6B /* ForceUsernameSetupView.swift */,
+				5EAC3CEF2EA3411B00693E6B /* ConvertToAccountView.swift */,
 			);
 			path = Authentication;
 			sourceTree = "<group>";
@@ -418,6 +423,7 @@
 				5EAC3CEB2EA1FB3800693E6B /* ValidatedUsernameField.swift */,
 				5E7A696D2E69131D0025D861 /* DefaultGameSettings.swift */,
 				5E56638F2E6375600084FBBC /* GameCreationUtils.swift */,
+				5EAC3CED2EA340D700693E6B /* GuestMigrationService.swift */,
 				5E737DA92CDB413F00F407D3 /* NotificationsManager.swift */,
 				5EFE18722E2A0BCE0056C708 /* UserService.swift */,
 				5E42F2972E5922C800B87471 /* CustomRule.swift */,
@@ -587,6 +593,7 @@
 				5EC4F5992E885A5A00036060 /* PlayerHierarchyView.swift in Sources */,
 				5E62D0452E459A8A00B7BDB3 /* OnboardingConstants.swift in Sources */,
 				5E74D9A12E54326E00FE2074 /* FloatingActionButton.swift in Sources */,
+				5EAC3CF02EA3411B00693E6B /* ConvertToAccountView.swift in Sources */,
 				5E62D0462E459A8A00B7BDB3 /* OnboardingManager.swift in Sources */,
 				5E62D0472E459A8A00B7BDB3 /* OnboardingTooltip.swift in Sources */,
 				5EAC3CE42EA07F4700693E6B /* ProfileSetupManager.swift in Sources */,
@@ -646,6 +653,7 @@
 				5E5663902E6375600084FBBC /* GameCreationUtils.swift in Sources */,
 				5E2CB2FE2E431690006EC186 /* ProfileTabView.swift in Sources */,
 				5EAC3CE22EA07F3900693E6B /* ProfileSetupManagerTests.swift in Sources */,
+				5EAC3CEE2EA340D700693E6B /* GuestMigrationService.swift in Sources */,
 				0ABB6B28BAD7267F554583BB /* User+Schema.swift in Sources */,
 				E45A795792C32839D14D8452 /* User.swift in Sources */,
 				5E2CB2EF2E431368006EC186 /* PlayerLeaderboardView.swift in Sources */,

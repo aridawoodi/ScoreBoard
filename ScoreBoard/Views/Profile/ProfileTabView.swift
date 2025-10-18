@@ -15,6 +15,7 @@ struct ProfileTabView: View {
     @StateObject private var userService = UserService.shared
     @State private var showDeleteAccountAlert = false
     @State private var showOnboardingResetToast = false
+    @State private var showConvertToAccount = false
     // @State private var showSideMenu = false // Commented out for future use
     // @Binding var isSideNavigationOpen: Bool // Commented out for future use
     
@@ -104,8 +105,17 @@ struct ProfileTabView: View {
                             showProfileEdit = true
                         }
                         
-                        // Show guest mode info for guest users
+                        // Show convert to account option for guest users
                         if currentUser.id.hasPrefix("guest_") {
+                            SettingsRow(
+                                icon: "arrow.up.forward.circle.fill",
+                                title: "Convert to Account",
+                                subtitle: "Keep your data and sign in from anywhere",
+                                iconColor: .blue
+                            ) {
+                                showConvertToAccount = true
+                            }
+                            
                             SettingsRow(
                                 icon: "info.circle.fill",
                                 title: "Guest Mode Active",
@@ -221,6 +231,15 @@ struct ProfileTabView: View {
             //     // Update parent state when side menu state changes
             //     isSideNavigationOpen = newValue
             // }
+            .sheet(isPresented: $showConvertToAccount) {
+                ConvertToAccountView(onSuccess: {
+                    // Migration completed successfully
+                    // Reload user profile
+                    Task {
+                        await userService.ensureUserProfile()
+                    }
+                })
+            }
             .alert("Delete Account", isPresented: $showDeleteAccountAlert) {
                 Button("Cancel", role: .cancel) { }
                 Button("Delete", role: .destructive) {

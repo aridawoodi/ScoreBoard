@@ -41,9 +41,11 @@ struct PlayerAnalyticsView: View {
     
     private var recentGamesData: [(String, Int, String, String)] {
         guard let stats = playerStats else { return [] }
-        return stats.recentGames.prefix(3).map { game in
+        let data = stats.recentGames.prefix(3).map { game in
             (game.gameName, game.score, game.isWin ? "Won" : "Lost", formatDate(game.date))
         }
+        print("🔍 DEBUG: PlayerAnalyticsView - Recent games data: \(data.map { "(\($0.0), score: \($0.1), result: \($0.2), date: \($0.3))" })")
+        return data
     }
     
     private var achievementsData: [(String, String, String, Color, Bool)] {
@@ -116,8 +118,8 @@ struct PlayerAnalyticsView: View {
                         
                         // Win/Loss chart
                         SharedWinLossChartView(
-                            wins: stats.winLossData.last?.wins ?? 0,
-                            losses: stats.winLossData.last?.losses ?? 0,
+                            wins: stats.winLossData.reduce(0) { $0 + $1.wins },
+                            losses: stats.winLossData.reduce(0) { $0 + $1.losses },
                             timeframe: selectedTimeframe,
                             isSampleData: false,
                             onTap: { showingWinLossInfo = true }
@@ -352,29 +354,79 @@ struct PlayerAnalyticsView: View {
              // Group scores by game
              let scoresByGame = Dictionary(grouping: scores, by: { $0.gameID })
 
-             for game in games {
-                 let gameScores = scoresByGame[game.id] ?? []
-                 guard let myScore = gameScores.first(where: { $0.playerID == userId }) else { 
-                     print("🔍 DEBUG: PlayerStats.from - No score found for user \(userId) in game \(game.id)")
-                     continue 
-                 }
-                 
-                 // Determine winner based on game's win condition
-                 let isWin: Bool
-                 let winCondition = game.winCondition ?? .highestScore
-                 
-                 print("🔍 DEBUG: PlayerStats.from - Processing game \(game.id): winCondition=\(winCondition.rawValue), myScore=\(myScore.score), allScores=\(gameScores.map { $0.score })")
-                 
-                 switch winCondition {
-                 case .highestScore:
-                     let maxScore = gameScores.map { $0.score }.max() ?? 0
-                     isWin = myScore.score == maxScore && maxScore > 0
-                     print("🔍 DEBUG: PlayerStats.from - Highest score game: maxScore=\(maxScore), isWin=\(isWin)")
-                 case .lowestScore:
-                     let minScore = gameScores.map { $0.score }.min() ?? 0
-                     isWin = myScore.score == minScore && minScore > 0
-                     print("🔍 DEBUG: PlayerStats.from - Lowest score game: minScore=\(minScore), isWin=\(isWin)")
-                 }
+            for game in games {
+                let gameScores = scoresByGame[game.id] ?? []
+                
+                // For hierarchy games, find scores by checking if user is a child player of the team
+                var myScore: Score?
+                
+                if game.hasPlayerHierarchy {
+                    let hierarchy = game.getPlayerHierarchy()
+                    // Find the parent team that has this user as a child
+                    for (parentID, childPlayers) in hierarchy {
+                        let hasMatch = childPlayers.contains { childPlayer in
+                            let childUserId = childPlayer.components(separatedBy: ":").first ?? childPlayer
+                            return childUserId == userId
+                        }
+                        
+                        if hasMatch {
+                            // User is a child of this parent team, find the team's scores
+                            // For hierarchy games, we need to calculate the total score across all rounds
+                            let teamScores = gameScores.filter { $0.playerID == parentID }
+                            if !teamScores.isEmpty {
+                                // Calculate total score for the team across all rounds
+                                let totalTeamScore = teamScores.reduce(0) { $0 + $1.score }
+                                // Use the first score as a template and set the total
+                                var teamScore = teamScores[0]
+                                teamScore.score = totalTeamScore
+                                myScore = teamScore
+                                print("🔍 DEBUG: PlayerStats.from - Hierarchy game: user \(userId) is in team \(parentID), total score: \(totalTeamScore)")
+                                break
+                            }
+                        }
+                    }
+                } else {
+                    // Regular game - direct playerID match
+                    // Calculate total score across all rounds for this user
+                    let userScores = gameScores.filter { $0.playerID == userId }
+                    if !userScores.isEmpty {
+                        let totalUserScore = userScores.reduce(0) { $0 + $1.score }
+                        var userScore = userScores[0]
+                        userScore.score = totalUserScore
+                        myScore = userScore
+                        print("🔍 DEBUG: PlayerStats.from - Regular game: user \(userId) total score: \(totalUserScore)")
+                    }
+                }
+                
+                guard let myScore = myScore else {
+                    print("🔍 DEBUG: PlayerStats.from - No score found for user \(userId) in game \(game.id)")
+                    continue
+                }
+                
+                // Determine winner based on game's win condition
+                let isWin: Bool
+                let winCondition = game.winCondition ?? .highestScore
+                
+                print("🔍 DEBUG: PlayerStats.from - Processing game \(game.id): winCondition=\(winCondition.rawValue), myScore=\(myScore.score), allScores=\(gameScores.map { $0.score })")
+                
+                // Calculate total scores for all players/teams in the game
+                var playerTotalScores: [String: Int] = [:]
+                for score in gameScores {
+                    playerTotalScores[score.playerID, default: 0] += score.score
+                }
+                
+                switch winCondition {
+                case .highestScore:
+                    let maxScore = playerTotalScores.values.max() ?? 0
+                    // Win if player has the highest score (even if 0, though unlikely in highest-score games)
+                    isWin = myScore.score == maxScore
+                    print("🔍 DEBUG: PlayerStats.from - Highest score game: maxScore=\(maxScore), myScore=\(myScore.score), isWin=\(isWin)")
+                case .lowestScore:
+                    let minScore = playerTotalScores.values.min() ?? 0
+                    // Win if player has the lowest score (including 0, which is valid in lowest-score games)
+                    isWin = myScore.score == minScore
+                    print("🔍 DEBUG: PlayerStats.from - Lowest score game: minScore=\(minScore), myScore=\(myScore.score), isWin=\(isWin)")
+                }
                  
                  if isWin {
                      wins += 1

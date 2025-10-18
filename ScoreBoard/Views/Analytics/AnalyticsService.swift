@@ -54,35 +54,9 @@ class AnalyticsService: ObservableObject {
                     
                     switch scoresResult {
                     case .success(let gameScores):
-                        // Filter to include scores for the current user
-                        // For hierarchy games, also include scores from parent team if user is a child player
-                        let userGameScores = gameScores.filter { score in
-                            // Direct match (regular games or parent players)
-                            if score.playerID == userId {
-                                return true
-                            }
-                            
-                            // For hierarchy games, check if user is a child player
-                            if game.hasPlayerHierarchy {
-                                let hierarchy = game.getPlayerHierarchy()
-                                // Check if the score belongs to a parent team that has this user as a child
-                                for (parentID, childPlayers) in hierarchy {
-                                    if parentID == score.playerID {
-                                        // Compare by userId (extract from "userId:username" format)
-                                        let hasMatch = childPlayers.contains { childPlayer in
-                                            let childUserId = childPlayer.components(separatedBy: ":").first ?? childPlayer
-                                            return childUserId == userId
-                                        }
-                                        if hasMatch {
-                                            return true
-                                        }
-                                    }
-                                }
-                            }
-                            
-                            return false
-                        }
-                        allUserScores.append(contentsOf: userGameScores)
+                        // Include ALL scores for the game (not just user's scores)
+                        // This is needed to determine winners correctly by comparing against all players
+                        allUserScores.append(contentsOf: gameScores)
                     case .failure(let error):
                         print("🔍 DEBUG: Failed to fetch scores for game \(game.id): \(error)")
                     }

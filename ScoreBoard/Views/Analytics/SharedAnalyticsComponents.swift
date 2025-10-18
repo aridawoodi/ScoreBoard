@@ -453,11 +453,9 @@ struct SharedRecentGamesView: View {
                         Spacer()
                         
                         VStack(alignment: .trailing, spacing: 2) {
-                            Text("\(game.score)")
+                            Text("\(game.result) \(game.score)pts")
                                 .font(.subheadline)
                                 .fontWeight(.bold)
-                            Text(game.result)
-                                .font(.caption)
                                 .foregroundColor(game.result == "Won" ? .green : .red)
                         }
                     }
